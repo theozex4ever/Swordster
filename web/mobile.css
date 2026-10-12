@@ -1,0 +1,87 @@
+.mobile-game {
+  --controls-height: 154px;
+  background: #09080e;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+.mobile-game body {
+  margin: 0 !important;
+  background: #09080e !important;
+  overflow: hidden;
+  height: 100dvh;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mobile-game #canvas {
+  position: fixed !important;
+  left: 50% !important;
+  top: calc((100dvh - var(--controls-height) - env(safe-area-inset-bottom)) / 2) !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  width: min(100vw, calc((100dvh - var(--controls-height) - env(safe-area-inset-bottom)) * 16 / 9)) !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  touch-action: none;
+}
+#touch-controls {
+  position: fixed;
+  z-index: 100;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  height: calc(var(--controls-height) + env(safe-area-inset-bottom));
+  padding: 8px max(10px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #100f1b;
+  border-top: 1px solid #353047;
+  touch-action: none;
+}
+#move-stick {
+  width: 104px;
+  height: 104px;
+  flex-shrink: 0;
+  border: 2px solid #658ea7;
+  border-radius: 50%;
+  background: #1b283a;
+  position: relative;
+}
+#stick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #8dd9f2;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.touch-actions { display: grid; gap: 4px; width: min(360px, 65%); }
+.touch-row { display: flex; gap: 4px; }
+.touch-row button {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 4px;
+  border: 1px solid #696184;
+  border-radius: 8px;
+  color: #edeafa;
+  background: #27223c;
+  font: bold 11px system-ui, sans-serif;
+  touch-action: none;
+}
+.touch-row .primary { background: #214660; border-color: #8dd9f2; font-size: 14px; }
+.touch-row .strike { background: #493261; border-color: #c994ef; }
+.touch-row button:active { background: #657393; }
+.mobile-game #pyconsole, .mobile-game #crt { display: none !important; }
+.mobile-game #infobox { color: #edeafa; z-index: 101; }
+@media (orientation: landscape) {
+  .mobile-game { --controls-height: 132px; }
+  #move-stick { width: 92px; height: 92px; }
+  .touch-actions { width: min(430px, 70%); gap: 3px; }
+  .touch-row button { min-height: 35px; }
+}
