@@ -33,11 +33,28 @@ Open `http://<server-tailscale-ip>:8000` from a device connected to your tailnet
 
 ## Controls
 
-WASD move · Space/Shift dash · Q or click: Converge (all swords strike the cursor) ·
-1/2/3 swap a dropped sword into that slot · Tab/G show ranges · P pause · H help · R restart
+WASD move · Space/Shift dash · Click: Converge (all swords strike the cursor) ·
+Q/E/R ultimate of sword 1/2/3 · 1/2/3 swap a dropped sword into that slot ·
+Tab/G show ranges · P pause · H help · R restart (on the death screen)
+
+Each sword attacks on its own and has one ultimate you trigger yourself. Targeted
+ultimates land on the cursor; skill shots fire toward it.
+
+| Sword    | Ultimate     | Type     | Effect                                                         |
+|----------|--------------|----------|----------------------------------------------------------------|
+| Fang     | Viper Flurry | targeted | Blinks to the cursor and darts between nearby enemies          |
+| Warden   | Maelstrom    | targeted | Whirls at the cursor, pulling enemies in, then bursts outward  |
+| Pike     | Skewer       | shot     | Launches through a line of enemies, carrying them into walls   |
+| Colossus | Cataclysm    | targeted | Huge slam that leaves elemental ground behind                  |
+
+Every sword also carries an element, shown by its color, that its hits apply:
+**fire** burns and spreads to neighbours on death, **ice** slows and freezes after
+four stacks (frozen enemies can't hurt you and take extra damage), and **poison**
+stacks damage over time.
 
 On a smartphone, use the left joystick to move and **DASH** to evade. **STRIKE**
-converges on the nearest enemy; tap the arena to aim at a specific point. **SLOT
-1/2/3** swaps a nearby dropped sword. Touch buttons also provide pause, restart,
+converges on the nearest enemy; tap the arena to aim at a specific point. **ULT
+1/2/3** fires that sword's ultimate at the nearest enemy. **SLOT 1/2/3** swaps a
+nearby dropped sword. Touch buttons also provide pause, restart,
 range display, and fullscreen (where supported). Rotate to landscape for a larger
 arena. Switching away from the browser pauses the game; tap **PAUSE** to resume.

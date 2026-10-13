@@ -73,29 +73,47 @@ def norm(v, fallback=None):
 
 
 # ---------------------------------------------------------------- data
+# Each sword type has one automatic attack and one ultimate the player triggers.
+# Targeted ultimates land on the cursor; skill shots fire toward it.
 SWORD_TYPES = {
     "fang": dict(
-        name="Fang", blurb="close / rapid", color=(94, 242, 214),
+        name="Fang", blurb="close / rapid",
         length=34, width=6, range=175, cooldown=0.30, damage=7, knock=170,
         windup=0.06, speed=1700, hitstop=0.02, shake=0.07, sound="tick",
+        ult=dict(name="Viper Flurry", cd=9.0, range=420, shot=False, radius=150),
     ),
     "blade": dict(
-        name="Warden", blurb="mid / sweeping arc", color=(122, 168, 255),
+        name="Warden", blurb="mid / sweeping arc",
         length=54, width=8, range=245, cooldown=0.85, damage=17, knock=300,
         windup=0.16, hitstop=0.05, shake=0.16, sound="slash",
+        ult=dict(name="Maelstrom", cd=11.0, range=400, shot=False, radius=100),
     ),
     "lance": dict(
-        name="Pike", blurb="long / piercing thrust", color=(196, 140, 255),
+        name="Pike", blurb="long / piercing thrust",
         length=74, width=6, range=430, cooldown=1.35, damage=24, knock=380,
         windup=0.32, speed=2400, hitstop=0.06, shake=0.2, sound="pierce",
+        ult=dict(name="Skewer", cd=10.0, range=950, shot=True, speed=2600),
     ),
     "colossus": dict(
-        name="Colossus", blurb="far / slow / crushing slam", color=(255, 168, 70),
+        name="Colossus", blurb="far / slow / crushing slam",
         length=88, width=15, range=330, cooldown=2.1, damage=50, knock=650,
         windup=0.55, hitstop=0.13, shake=0.6, aoe=118, sound="boom",
+        ult=dict(name="Cataclysm", cd=14.0, range=480, shot=False, aoe=1.8),
     ),
 }
 DROP_WEIGHTS = [("fang", 3), ("blade", 3), ("lance", 2.5), ("colossus", 1.6)]
+ULT_KEYS = "QER"
+CONVERGE_CD = 2.5
+
+# Every sword carries one element; its hits apply the matching condition.
+ELEMENTS = {
+    "fire": dict(name="Fire", adj="Ember", color=(255, 118, 44), tag="FIRE  burns, spreads"),
+    "ice": dict(name="Ice", adj="Frost", color=(120, 205, 255), tag="ICE  chills, freezes"),
+    "poison": dict(name="Poison", adj="Venom", color=(132, 230, 66), tag="POISON  stacking toxin"),
+}
+BURN_TIME, POISON_TIME, CHILL_TIME, FREEZE_TIME = 3.0, 4.5, 2.5, 1.6
+POISON_MAX, FREEZE_STACKS = 6, 4
+CHILL_SLOW, SHATTER = 0.5, 1.3
 
 RARITIES = [
     dict(name="Common", color=(205, 205, 215), dmg=1.0, cd=1.0, rng=1.0, size=1.0),
@@ -371,12 +389,25 @@ class Projectile:
 
 
 class Pickup:
-    def __init__(self, kind, rarity, pos):
+    def __init__(self, kind, rarity, element, pos):
         self.kind = kind
         self.rarity = rarity
+        self.element = element
         self.pos = V(pos)
         self.t = random.uniform(0, 5)
         self.life = 45.0
+
+
+class Field:
+    """Lingering elemental ground left by Cataclysm."""
+
+    def __init__(self, pos, radius, element, power, life):
+        self.pos = V(pos)
+        self.radius = radius
+        self.element = element
+        self.power = power
+        self.life = self.max = life
+        self.tick = 0.0
 
 
 class Marker:
@@ -472,9 +503,18 @@ class Enemy:
         self.shoot_cd = random.uniform(1.5, 3.0)
         self.charge = 0.0
         self.facing = V(1, 0)
+        # conditions
+        self.burn = self.burn_dps = 0.0
+        self.poison = self.poison_dps = 0.0
+        self.poison_stacks = 0
+        self.chill = self.frozen = 0.0
+        self.chill_stacks = 0
+        self.dot = 0.0
+        self.dot_t = 0.5
 
     def update(self, g, dt):
-        self.t += dt
+        if self.frozen <= 0:
+            self.t += dt
         self.flash = max(0.0, self.flash - dt)
         self.squash = max(0.0, self.squash - dt * 5)
         p = g.player
@@ -482,7 +522,7 @@ class Enemy:
         dist = max(1.0, to.length())
         dirp = to / dist
         self.facing = dirp
-        if self.stun > 0:
+        if self.stun > 0 or self.frozen > 0:
             self.stun -= dt
             self.vel *= math.exp(-dt * 5)
             self.charge = 0
@@ -506,6 +546,8 @@ class Enemy:
                         self.shoot_cd = random.uniform(2.0, 2.9)
             elif self.kind == "runner":
                 want = (dirp + V(-dirp.y, dirp.x) * math.sin(self.t * 5) * 0.5) * self.speed
+            if self.chill > 0:
+                want *= CHILL_SLOW
             self.vel += (want - self.vel) * min(1.0, dt * 6)
         speed_before = self.vel.length()
         self.pos += self.vel * dt
@@ -523,16 +565,20 @@ class Enemy:
 
 
 class Sword:
-    def __init__(self, kind, rarity=0, pos=(0, 0)):
+    def __init__(self, kind, rarity=0, element="fire", pos=(0, 0)):
         self.kind = kind
         self.rarity = rarity
+        self.element = element
         self.t = SWORD_TYPES[kind]
+        self.ult = self.t["ult"]
         r = RARITIES[rarity]
         self.damage = self.t["damage"] * r["dmg"]
         self.cooldown = self.t["cooldown"] * r["cd"]
         self.range = self.t["range"] * r["rng"]
+        self.ult_max = self.ult["cd"] * r["cd"]
+        self.ult_cd = 0.0
         self.scale = r["size"]
-        self.color = self.t["color"]
+        self.color = ELEMENTS[element]["color"]
         self.L = self.t["length"] * self.scale
         self.pos = V(pos)
         self.vel = V()
@@ -553,10 +599,23 @@ class Sword:
         self.trail = []
         self.flash = 0.0
         self.jitter = 0.0
+        # ultimate state
+        self.phase = ""
+        self.point = V()
+        self.goal = V()
+        self.ult_t = 0.0
+        self.tick = 0.0
+        self.spin = 0.0
+        self.victim = None
+        self.carried = []
 
     @property
     def name(self):
-        return f"{RARITIES[self.rarity]['name']} {self.t['name']}"
+        return f"{RARITIES[self.rarity]['name']} {ELEMENTS[self.element]['adj']} {self.t['name']}"
+
+    @property
+    def ult_aoe(self):
+        return self.t.get("aoe", 0) * self.ult.get("aoe", 0) * self.scale
 
     def spring(self, target, k, c, dt):
         self.vel += ((target - self.pos) * k - self.vel * c) * dt
@@ -593,7 +652,7 @@ class Sword:
         self.jitter = 0.0
 
     def command(self, g, point):
-        if self.state in ("strike", "stuck"):
+        if self.state in ("strike", "stuck", "ult"):
             return
         near = [e for e in g.enemies if (e.pos - point).length() < 90]
         tgt = min(near, key=lambda e: (e.pos - point).length()) if near else None
@@ -604,6 +663,7 @@ class Sword:
         p = g.player
         self.flash = max(0.0, self.flash - dt * 3)
         self.cd -= dt
+        self.ult_cd = max(0.0, self.ult_cd - dt)
         if self.target is not None:
             if self.target.dead:
                 self.target = None
@@ -616,8 +676,12 @@ class Sword:
             self.z = max(0.0, self.z - dt * 120)
             self.ang = ang_lerp(self.ang, i * 1.3 + 0.4, min(1.0, dt * 4))
             self.state = "idle"
+            self.carried = []
             self.record_trail()
             return
+
+        if random.random() < dt * (30 if self.state == "ult" else 7):
+            g.element_fx(self.element, self.pos - V(0, self.z), 1, 6 + self.L * 0.15)
 
         st = self.state
         kind = self.kind
@@ -746,7 +810,200 @@ class Sword:
                 self.timer = 0.4
                 self.vel = V(0, -60)
 
+        elif st == "ult":
+            self.update_ult(g, dt)
+
         self.record_trail()
+
+    # --- ultimate
+    def ultimate(self, g, point):
+        """Start this sword's ultimate aimed at a world point."""
+        p = g.player
+        self.state = "ult"
+        self.ult_cd = self.ult_max
+        self.boost = 1.0
+        self.jitter = 0.0
+        self.hit.clear()
+        self.carried = []
+        self.victim = None
+        self.target = None
+        self.point = V(point)
+        kind = self.kind
+        if kind == "fang":
+            # blink straight onto the target area
+            g.ring(self.pos, 4, 40, 0.25, self.color, 2)
+            self.pos = V(point)
+            self.goal = V(point)
+            self.phase = "flurry"
+            self.ult_t = 1.25
+            self.tick = 0.0
+            g.ring(point, self.ult["radius"], 10, 0.3, self.color, 3)
+            g.sfx.play("dash")
+        elif kind == "blade":
+            self.phase = "spin"
+            self.ult_t = 2.2
+            self.tick = 0.15
+            self.spin = math.atan2(self.pos.y - point.y, self.pos.x - point.x)
+            g.sfx.play("whoosh")
+        elif kind == "lance":
+            self.phase = "aim"
+            self.dir = norm(point - p.pos, p.facing)
+            self.ult_t = 0.38
+            g.sfx.play("heave")
+        elif kind == "colossus":
+            self.phase = "rise"
+            self.ult_t = 0.75
+            g.sfx.play("heave")
+
+    def update_ult(self, g, dt):
+        p = g.player
+        c = self.point
+        kind = self.kind
+        self.ult_t -= dt
+        if kind == "fang":
+            # dart between enemies in the area, striking one per tick
+            self.tick -= dt
+            if self.tick <= 0:
+                self.tick = 0.08
+                v = self.victim
+                if v is not None and not v.dead:
+                    d = norm(v.pos - c, self.dir)
+                    g.hit_enemy(v, self.damage * 1.2, d, 120, self, heavy=True)
+                    g.add_shake(0.05)
+                    g.sfx.play("tick")
+                R = self.ult["radius"]
+                near = [e for e in g.enemies if not e.dead and (e.pos - c).length() < R + e.r]
+                fresh = [e for e in near if e is not v] or near
+                if fresh:
+                    self.victim = random.choice(fresh)
+                    d = norm(self.victim.pos - self.pos)
+                    self.goal = self.victim.pos + d * (self.victim.r + 20)
+                else:
+                    self.victim = None
+                    self.goal = c + polar(random.uniform(0, TAU), random.uniform(20, R * 0.7))
+            prev = V(self.pos)
+            self.pos = self.pos.lerp(self.goal, min(1.0, dt * 28))
+            self.vel = (self.pos - prev) / max(dt, 1e-4)
+            if self.vel.length_squared() > 400:
+                self.dir = norm(self.vel)
+                self.ang = math.atan2(self.dir.y, self.dir.x)
+            self.z = lerp(self.z, 12, min(1.0, dt * 12))
+            if self.ult_t <= 0:
+                self.state = "recover"
+                self.timer = 0.3
+                self.vel = polar(random.uniform(0, TAU), 300)
+
+        elif kind == "blade":
+            # whirl around the point, dragging enemies into the blades
+            self.spin += dt * 15
+            R = self.ult["radius"] * self.scale
+            reach = R + self.L * 0.7
+            prev = V(self.pos)
+            self.pos = self.pos.lerp(c + polar(self.spin, R), min(1.0, dt * 25))
+            self.vel = (self.pos - prev) / max(dt, 1e-4)
+            self.ang = self.spin
+            self.z = lerp(self.z, 10, min(1.0, dt * 12))
+            for e in g.enemies:
+                to = c - e.pos
+                dist = to.length()
+                if 8 < dist < reach + 120:
+                    e.pos += to / dist * 170 * e.knock_mult * dt
+            self.tick -= dt
+            if self.tick <= 0:
+                self.tick = 0.2
+                hit_any = False
+                for e in g.enemies:
+                    off = e.pos - c
+                    if off.length() < reach + e.r:
+                        tangent = V(-off.y, off.x)
+                        g.hit_enemy(e, self.damage * 0.6, tangent, 40, self, heavy=True)
+                        hit_any = True
+                if hit_any:
+                    g.sfx.play("slash")
+                    g.add_shake(0.08)
+                g.ring(c, reach * 0.6, reach, 0.2, self.color, 2)
+            if self.ult_t <= 0:
+                for e in g.enemies:
+                    if (e.pos - c).length() < reach + 30 + e.r:
+                        g.hit_enemy(e, self.damage * 1.6, e.pos - c, 520, self, heavy=True, stacks=2)
+                g.ring(c, 20, reach * 1.6, 0.4, mix(self.color, (255, 255, 255), 0.4), 5)
+                g.sparks(c, V(0, -1), 30, self.color, (300, 800), math.pi)
+                g.sfx.play("slash")
+                g.add_shake(0.35)
+                g.hitstop = max(g.hitstop, 0.06)
+                self.state = "recover"
+                self.timer = 0.3
+                self.vel = polar(self.spin + math.pi / 2, 500)
+
+        elif kind == "lance":
+            if self.phase == "aim":
+                d = self.dir
+                self.spring(p.pos - d * 40, 200, 24, dt)
+                self.ang = math.atan2(d.y, d.x)
+                self.z = lerp(self.z, 14, min(1.0, dt * 12))
+                self.jitter = 1 - max(0.0, self.ult_t) / 0.38
+                if self.ult_t <= 0:
+                    self.phase = "fly"
+                    self.jitter = 0.0
+                    self.pos = p.pos + d * 10
+                    self.ult_t = self.ult["range"] / self.ult["speed"]
+                    g.sfx.play("pierce")
+                    g.add_shake(0.2, d)
+            else:
+                d = self.dir
+                step = d * self.ult["speed"] * dt
+                prev = V(self.pos)
+                self.pos += step
+                self.vel = d * self.ult["speed"]
+                tail = prev - d * self.L * 0.3
+                tip = self.pos + d * self.L * 0.65
+                for e in g.enemies:
+                    if e not in self.hit and seg_dist(e.pos, tail, tip) < e.r + 18:
+                        self.hit.add(e)
+                        g.hit_enemy(e, self.damage * 2.2, d, 0, self, heavy=True, stacks=2)
+                        g.add_shake(0.12, d)
+                        if not e.dead:
+                            self.carried.append(e)
+                self.carried = [e for e in self.carried if not e.dead]
+                for e in self.carried:
+                    e.pos += step
+                    e.vel = V()
+                    e.stun = max(e.stun, 0.5)
+                g.parry_projectiles(tail, tip, 14)
+                at_wall = not WORLD.inflate(-20, -20).collidepoint(tip)
+                if self.ult_t <= 0 or at_wall:
+                    # fling everything still impaled; walls turn that into slams
+                    for e in self.carried:
+                        e.vel = d * (1100 if at_wall else 750)
+                        e.stun = max(e.stun, 0.6)
+                    self.carried = []
+                    self.state = "recover"
+                    self.timer = 0.35
+                    self.vel = -d * 300 if at_wall else d * 420
+
+        elif kind == "colossus":
+            if self.phase == "rise":
+                self.spring(c, 120, 18, dt)
+                self.z = lerp(self.z, 420, min(1.0, dt * 5))
+                self.ang = ang_lerp(self.ang, math.pi / 2 + math.sin(g.time * 40) * 0.04, min(1.0, dt * 10))
+                self.jitter = 1 - max(0.0, self.ult_t) / 0.75
+                if self.ult_t <= 0:
+                    self.phase = "fall"
+                    self.jitter = 0.0
+                    self.vz = 600
+            else:
+                self.pos = self.pos.lerp(c, min(1.0, dt * 30))
+                self.vz += 12000 * dt
+                self.z -= self.vz * dt
+                if self.z <= 0:
+                    self.z = 0
+                    self.pos = V(c)
+                    aoe = self.ult_aoe
+                    g.slam(self, c, aoe, power=2.2, stacks=3)
+                    g.fields.append(Field(c, aoe * 1.1, self.element, self.damage, 5.0))
+                    g.add_shake(0.4)
+                    self.state = "stuck"
+                    self.timer = 0.6
 
     def strike(self, g):
         self.state = "strike"
@@ -799,10 +1056,10 @@ class Game:
     def reset(self):
         self.player = Player(WORLD.center)
         c = self.player.pos
-        self.swords = [Sword("fang", 0, c), Sword("blade", 0, c), Sword("colossus", 0, c)]
+        self.swords = [Sword("fang", 0, "poison", c), Sword("blade", 0, "ice", c), Sword("colossus", 0, "fire", c)]
         self.enemies, self.particles, self.texts = [], [], []
         self.motes, self.projectiles, self.pickups = [], [], []
-        self.markers, self.decals = [], []
+        self.markers, self.decals, self.fields = [], [], []
         self.spawn_queue = []
         self.spawn_timer = 0.0
         self.wave = 0
@@ -862,12 +1119,14 @@ class Game:
         self.particles.append(p)
 
     # --- combat
-    def hit_enemy(self, e, dmg, direction, knock, sword, heavy=False):
+    def hit_enemy(self, e, dmg, direction, knock, sword, heavy=False, stacks=1):
         if e.dead:
             return
         crit = random.random() < 0.12
         if crit:
             dmg *= 2
+        if e.frozen > 0:
+            dmg *= SHATTER
         dmg = max(1, round(dmg))
         e.hp -= dmg
         e.flash = 0.2 if heavy else 0.11
@@ -895,6 +1154,106 @@ class Game:
         self.sfx.play("thud")
         if e.hp <= 0:
             self.kill(e, d, heavy or crit)
+        else:
+            self.afflict(e, sword.element, sword.damage, stacks)
+
+    def afflict(self, e, element, power, stacks=1):
+        """Apply an elemental condition. `power` is the source sword's base damage."""
+        col = ELEMENTS[element]["color"]
+        if element == "fire":
+            dps = (1.5 + power * 0.2) * stacks
+            e.burn_dps = max(e.burn_dps, dps) if e.burn > 0 else dps
+            e.burn = BURN_TIME
+        elif element == "poison":
+            dps = 1 + power * 0.06
+            e.poison_dps = max(e.poison_dps, dps) if e.poison > 0 else dps
+            e.poison_stacks = min(POISON_MAX, e.poison_stacks + stacks)
+            e.poison = POISON_TIME
+        elif element == "ice":
+            e.chill = CHILL_TIME
+            if e.frozen > 0:
+                return
+            e.chill_stacks += stacks
+            if e.chill_stacks >= FREEZE_STACKS:
+                e.chill_stacks = 0
+                e.frozen = FREEZE_TIME * (0.6 if e.kind == "brute" else 1.0)
+                e.vel *= 0.2
+                self.ring(e.pos, e.r, e.r * 2.4, 0.3, col, 3)
+                self.element_fx("ice", e.pos, 10, e.r)
+                self.text(e.pos + V(0, -e.r - 20), "FROZEN", 22, col, 0.7)
+                self.sfx.play("parry")
+
+    def element_fx(self, element, pos, n=1, spread=8.0):
+        col = ELEMENTS[element]["color"]
+        for _ in range(n):
+            q = V(pos) + polar(random.uniform(0, TAU), random.uniform(0, spread))
+            if element == "fire":
+                self.particles.append(Particle(q, (random.uniform(-25, 25), random.uniform(-150, -70)),
+                                               random.uniform(0.3, 0.55), random.uniform(1.5, 3),
+                                               mix(col, (255, 220, 90), random.random()), "spark", 2))
+            elif element == "ice":
+                self.particles.append(Particle(q, polar(random.uniform(0, TAU), random.uniform(10, 50)),
+                                               random.uniform(0.4, 0.7), random.uniform(1, 2.5),
+                                               mix(col, (255, 255, 255), 0.5), "dot", 3))
+            else:
+                self.particles.append(Particle(q, (random.uniform(-10, 10), random.uniform(-45, -15)),
+                                               random.uniform(0.5, 0.9), random.uniform(1.5, 3.5),
+                                               dim(col, random.uniform(0.6, 1.0)), "dot", 1))
+
+    def update_conditions(self, dt):
+        for e in self.enemies:
+            if e.dead:
+                continue
+            e.frozen = max(0.0, e.frozen - dt)
+            e.chill = max(0.0, e.chill - dt)
+            if e.chill <= 0:
+                e.chill_stacks = 0
+            dps = 0.0
+            if e.burn > 0:
+                e.burn -= dt
+                dps += e.burn_dps
+                if random.random() < dt * 14:
+                    self.element_fx("fire", e.pos, 1, e.r * 0.8)
+            if e.poison > 0:
+                e.poison -= dt
+                dps += e.poison_dps * e.poison_stacks
+                if e.poison <= 0:
+                    e.poison_stacks = 0
+                if random.random() < dt * (3 + 2 * e.poison_stacks):
+                    self.element_fx("poison", e.pos, 1, e.r * 0.8)
+            if e.chill > 0 and random.random() < dt * 5:
+                self.element_fx("ice", e.pos, 1, e.r)
+            if dps <= 0:
+                e.dot = 0.0
+                continue
+            e.dot += dps * dt
+            e.dot_t -= dt
+            if e.dot_t <= 0:
+                e.dot_t = 0.5
+                dmg = int(e.dot)
+                if dmg >= 1:
+                    e.dot -= dmg
+                    e.hp -= dmg
+                    fire = e.burn > 0 and (e.poison <= 0 or e.burn_dps >= e.poison_dps * e.poison_stacks)
+                    col = ELEMENTS["fire" if fire else "poison"]["color"]
+                    self.text(e.pos + V(random.uniform(-12, 12), -e.r), str(dmg), 20, col, 0.6, (0, -60))
+                    if e.hp <= 0:
+                        self.kill(e, V(0, -1), False)
+
+    def update_fields(self, dt):
+        for f in self.fields:
+            f.life -= dt
+            f.tick -= dt
+            if f.tick <= 0:
+                f.tick = 0.5
+                for e in self.enemies:
+                    if not e.dead and (e.pos - f.pos).length() < f.radius + e.r:
+                        self.afflict(e, f.element, f.power)
+            if random.random() < dt * f.radius * 0.12:
+                a = random.uniform(0, TAU)
+                q = f.pos + V(math.cos(a), math.sin(a) * 0.6) * random.uniform(0, f.radius)
+                self.element_fx(f.element, q, 1, 4)
+        self.fields = [f for f in self.fields if f.life > 0]
 
     def kill(self, e, d, big):
         e.dead = True
@@ -913,25 +1272,38 @@ class Game:
             self.particles.append(Particle(e.pos, v, random.uniform(0.6, 1.1), random.uniform(3, 6),
                                            dim(e.color, 0.4), "debris", 3, z=8, vz=random.uniform(150, 420)))
         self.ring(e.pos, e.r, e.r * 3.2, 0.3, mix(e.color, (255, 255, 255), 0.5), 3)
+        if e.burn > 0:
+            # burning foes ignite whoever stands next to them
+            fire = ELEMENTS["fire"]["color"]
+            for o in self.enemies:
+                if o is not e and not o.dead and (o.pos - e.pos).length() < e.r + o.r + 70:
+                    o.burn_dps = max(o.burn_dps if o.burn > 0 else 0.0, e.burn_dps * 0.6)
+                    o.burn = max(o.burn, BURN_TIME * 0.7)
+            self.ring(e.pos, e.r, e.r + 80, 0.3, fire, 3)
+            self.element_fx("fire", e.pos, 14, e.r)
+        if e.frozen > 0:
+            self.element_fx("ice", e.pos, 18, e.r)
+            self.sparks(e.pos, V(0, -1), 14, ELEMENTS["ice"]["color"], (150, 450), math.pi)
         for _ in range(3):
             self.motes.append(Mote(e.pos))
         self.sfx.play("pop")
         if e.armed:
-            kind, rarity = e.armed
-            self.pickups.append(Pickup(kind, rarity, e.pos))
+            kind, rarity, element = e.armed
+            self.pickups.append(Pickup(kind, rarity, element, e.pos))
             self.ring(e.pos, 10, 90, 0.5, RARITIES[rarity]["color"], 2)
-            self.text(e.pos + V(0, -30), f"{RARITIES[rarity]['name']} {SWORD_TYPES[kind]['name']}", 26,
+            self.text(e.pos + V(0, -30),
+                      f"{RARITIES[rarity]['name']} {ELEMENTS[element]['adj']} {SWORD_TYPES[kind]['name']}", 26,
                       RARITIES[rarity]["color"], 1.3, (0, -40))
 
-    def slam(self, sword, point):
-        aoe = sword.t["aoe"] * sword.scale
+    def slam(self, sword, point, aoe=None, power=1.0, stacks=1):
+        aoe = aoe or sword.t["aoe"] * sword.scale
         hit_any = False
         for e in list(self.enemies):
             dist = (e.pos - point).length()
             if dist < aoe + e.r:
                 fall = 1 - 0.45 * clamp(dist / aoe, 0, 1)
-                self.hit_enemy(e, sword.damage * sword.boost * fall, e.pos - point, sword.t["knock"] * fall,
-                               sword, heavy=True)
+                self.hit_enemy(e, sword.damage * sword.boost * power * fall, e.pos - point,
+                               sword.t["knock"] * fall, sword, heavy=True, stacks=stacks)
                 hit_any = True
         for pr in self.projectiles:
             if (pr.pos - point).length() < aoe:
@@ -953,6 +1325,7 @@ class Game:
                                            random.uniform(3, 7), (60, 52, 72), "debris", 2, z=4,
                                            vz=random.uniform(250, 600)))
         self.sparks(point, V(0, -1), 30, mix(col, (255, 255, 255), 0.3), (200, 800), math.pi, (0.2, 0.5))
+        self.element_fx(sword.element, point, 20, aoe * 0.6)
         cracks = []
         for _ in range(random.randint(5, 8)):
             p = V(point)
@@ -1020,9 +1393,26 @@ class Game:
             point = self.player.pos + to.normalize() * 460
         for s in self.swords:
             s.command(self, point)
-        self.converge_cd = 5.0
+        self.converge_cd = CONVERGE_CD
         self.ring(point, 60, 8, 0.35, (180, 220, 255), 2)
         self.sfx.play("chime")
+
+    def ultimate(self, idx, point=None):
+        p = self.player
+        if p.dead or idx >= len(self.swords):
+            return
+        s = self.swords[idx]
+        if s.state == "ult":
+            return
+        if s.ult_cd > 0:
+            self.text(p.pos + V(0, -46), f"{s.ult['name']} {s.ult_cd:.0f}s", 22, (120, 110, 150), 0.5)
+            return
+        point = self.mouse_world() if point is None else V(point)
+        to = point - p.pos
+        if not s.ult["shot"] and to.length() > s.ult["range"]:
+            point = p.pos + to.normalize() * s.ult["range"]
+        s.ultimate(self, point)
+        self.text(p.pos + V(0, -56), s.ult["name"].upper(), 32, mix(s.color, (255, 255, 255), 0.3), 1.0, (0, -50))
 
     def swap(self, idx):
         p = self.player
@@ -1031,14 +1421,16 @@ class Game:
             return
         pk = min(near, key=lambda k: (k.pos - p.pos).length())
         old = self.swords[idx]
-        new = Sword(pk.kind, pk.rarity, pk.pos)
+        new = Sword(pk.kind, pk.rarity, pk.element, pk.pos)
+        # the slot keeps its ultimate recharge so swapping can't reset it
+        new.ult_cd = new.ult_max * old.ult_cd / old.ult_max
         new.z = 10
         new.flash = 1.0
         new.cd = 0.4
         new.vel = V(0, -200)
         self.swords[idx] = new
         self.pickups.remove(pk)
-        self.pickups.append(Pickup(old.kind, old.rarity, pk.pos + V(random.uniform(-20, 20), 24)))
+        self.pickups.append(Pickup(old.kind, old.rarity, old.element, pk.pos + V(random.uniform(-20, 20), 24)))
         col = RARITIES[pk.rarity]["color"]
         self.ring(pk.pos, 8, 110, 0.45, col, 3)
         self.sparks(pk.pos, V(0, -1), 24, col, (150, 500), math.pi)
@@ -1064,7 +1456,7 @@ class Game:
                 bonus = 0.15 if kind == "brute" else 0.0
                 rarity = 2 if roll < min(0.25, 0.02 + 0.02 * w) + bonus * 0.5 else \
                     1 if roll < min(0.55, 0.16 + 0.04 * w) + bonus else 0
-                armed = (skind, rarity)
+                armed = (skind, rarity, random.choice(list(ELEMENTS)))
             self.spawn_queue.append((kind, armed))
         self.spawn_timer = 0.3
         self.in_wave = True
@@ -1082,6 +1474,14 @@ class Game:
         return q
 
     # --- events
+    def auto_aim(self):
+        """Touch aiming: the nearest enemy, or ahead of the player."""
+        p = self.player
+        targets = [e for e in self.enemies if not e.dead]
+        if targets:
+            return V(min(targets, key=lambda e: (e.pos - p.pos).length_squared()).pos)
+        return p.pos + p.facing * 300
+
     def poll_touch(self):
         if sys.platform != "emscripten":
             return
@@ -1107,15 +1507,14 @@ class Game:
                 self.player.move = V(self.touch_move)
                 self.player.dash(self)
             elif name == "converge":
-                targets = [e for e in self.enemies if not e.dead]
-                target = min(targets, key=lambda e: (e.pos - self.player.pos).length_squared()) if targets else None
-                point = target.pos if target else self.player.pos + self.player.facing * 300
-                self.converge(point)
+                self.converge(self.auto_aim())
             elif name == "aim":
                 self.converge(V(action["x"] + self.cam.x - W / 2,
                                 action["y"] + self.cam.y - H / 2))
             elif name == "swap":
                 self.swap(action["slot"])
+            elif name == "ult":
+                self.ultimate(action["slot"], self.auto_aim())
             elif name == "ranges":
                 self.show_ranges = not self.show_ranges
 
@@ -1126,14 +1525,16 @@ class Game:
             k = ev.key
             if k in (pygame.K_p, pygame.K_ESCAPE):
                 self.paused = not self.paused
-            elif k == pygame.K_r and self.player.dead:
-                self.reset()
+            elif self.player.dead:
+                # R doubles as an ultimate key; only restart once the death screen is up
+                if k == pygame.K_r and self.death_t > 0.8:
+                    self.reset()
             elif self.paused:
                 return
             elif k in (pygame.K_SPACE, pygame.K_LSHIFT, pygame.K_RSHIFT):
                 self.player.dash(self)
-            elif k == pygame.K_q:
-                self.converge()
+            elif k in (pygame.K_q, pygame.K_e, pygame.K_r):
+                self.ultimate({pygame.K_q: 0, pygame.K_e: 1, pygame.K_r: 2}[k])
             elif k in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.swap(k - pygame.K_1)
             elif k in (pygame.K_TAB, pygame.K_g):
@@ -1171,8 +1572,10 @@ class Game:
         for e in self.enemies:
             e.update(self, dt)
         self.separate()
+        self.update_conditions(dt)
+        self.update_fields(dt)
         for e in self.enemies:
-            if not e.dead and (e.pos - p.pos).length() < e.r + p.r:
+            if not e.dead and e.frozen <= 0 and (e.pos - p.pos).length() < e.r + p.r:
                 self.hurt_player(e.dmg, e.pos)
                 e.vel = norm(e.pos - p.pos) * 200
                 e.stun = 0.2
@@ -1327,6 +1730,7 @@ class Game:
         scr.fill(BG)
         fx.fill((0, 0, 0))
         self.draw_floor()
+        p = self.player
 
         # decals
         for cracks, life in self.decals:
@@ -1346,23 +1750,41 @@ class Game:
             pygame.draw.circle(scr, (130, 40, 80), sp, 8 + u * 20, 2)
             draw_glow(fx, sp, 20 + u * 30, (110, 30, 70))
 
-        # colossus telegraphs
+        # elemental ground from Cataclysm
+        for f in self.fields:
+            k = clamp(f.life / f.max * 3, 0, 1)
+            col = ELEMENTS[f.element]["color"]
+            rect = pygame.Rect(0, 0, f.radius * 2, f.radius * 1.2)
+            rect.center = self.w2s(f.pos)
+            pygame.draw.ellipse(fx, dim(col, 0.16 * k), rect)
+            pulse = 0.5 + 0.2 * math.sin(self.time * 6 + f.pos.x)
+            pygame.draw.ellipse(scr, dim(col, pulse * k), rect, 2)
+
+        # telegraphs
         for s in self.swords:
             if s.kind == "colossus" and s.state in ("windup", "strike"):
                 tgt = s.aim if s.state == "windup" else s.impact
-                sp = self.w2s(tgt)
-                aoe = s.t["aoe"] * s.scale
                 u = 1 - clamp(s.timer / s.t["windup"], 0, 1) if s.state == "windup" else 1
-                rect = pygame.Rect(0, 0, aoe * 2, aoe * 1.2)
-                rect.center = sp
-                pygame.draw.ellipse(scr, (60, 38, 24), rect, 2)
-                r2 = rect.inflate(-aoe * 2 * (1 - u), -aoe * 1.2 * (1 - u))
-                if r2.width > 4 and r2.height > 4:
-                    pygame.draw.ellipse(scr, (120, 70, 30), r2, 2)
-                draw_glow(fx, sp, aoe * 0.7, dim(s.color, 0.12 + 0.2 * u))
+                self.draw_impact(tgt, s.t["aoe"] * s.scale, u, s.color)
+            elif s.state != "ult":
+                continue
+            elif s.kind == "colossus":
+                u = 1 - clamp(s.ult_t / 0.75, 0, 1) if s.phase == "rise" else 1
+                self.draw_impact(s.point, s.ult_aoe, u, s.color)
+            elif s.kind == "lance" and s.phase == "aim":
+                a = self.w2s(p.pos)
+                b = self.w2s(p.pos + s.dir * s.ult["range"])
+                u = 1 - clamp(s.ult_t / 0.38, 0, 1)
+                pygame.draw.line(scr, dim(s.color, 0.25 + 0.35 * u), a, b, 2)
+                pygame.draw.line(fx, dim(s.color, 0.15 + 0.25 * u), a, b, 24)
+            elif s.kind in ("fang", "blade"):
+                R = s.ult["radius"] * (1 if s.kind == "fang" else s.scale) + (0 if s.kind == "fang" else s.L * 0.7)
+                rect = pygame.Rect(0, 0, R * 2, R * 1.2)
+                rect.center = self.w2s(s.point)
+                pygame.draw.ellipse(scr, dim(s.color, 0.45), rect, 2)
+                pygame.draw.ellipse(fx, dim(s.color, 0.08), rect)
 
         # shadows
-        p = self.player
         self.shadow(p.pos, 16, 7)
         for e in self.enemies:
             self.shadow(e.pos, e.r * 1.05, e.r * 0.45)
@@ -1449,6 +1871,16 @@ class Game:
             scr.blit(self.hurt_vig, (0, 0))
         self.draw_hud()
 
+    def draw_impact(self, pos, aoe, u, color):
+        sp = self.w2s(pos)
+        rect = pygame.Rect(0, 0, aoe * 2, aoe * 1.2)
+        rect.center = sp
+        pygame.draw.ellipse(self.screen, dim(color, 0.3), rect, 2)
+        r2 = rect.inflate(-aoe * 2 * (1 - u), -aoe * 1.2 * (1 - u))
+        if r2.width > 4 and r2.height > 4:
+            pygame.draw.ellipse(self.screen, dim(color, 0.6), r2, 2)
+        draw_glow(self.fx, sp, aoe * 0.7, dim(color, 0.12 + 0.2 * u))
+
     def shadow(self, pos, rx, ry):
         sp = self.w2s(pos)
         pygame.draw.ellipse(self.screen, SHADOW,
@@ -1477,6 +1909,7 @@ class Game:
         scr, fx = self.screen, self.fx
         col = RARITIES[pk.rarity]["color"]
         sc = SWORD_TYPES[pk.kind]
+        ecol = ELEMENTS[pk.element]["color"]
         bob = math.sin(pk.t * 3) * 3
         L = sc["length"] * RARITIES[pk.rarity]["size"]
         ground = self.w2s(pk.pos)
@@ -1490,10 +1923,11 @@ class Game:
             for k in range(6):
                 w = 22 - k * 3
                 pygame.draw.rect(fx, dim(col, 0.05 + 0.03 * k), (ground.x - w / 2, ground.y - beam_h, w, beam_h))
-        draw_glow(fx, ground, 34 + 8 * pk.rarity, dim(col, 0.35))
+        draw_glow(fx, ground, 34 + 8 * pk.rarity, dim(col, 0.2))
+        draw_glow(fx, ground, 26, dim(ecol, 0.3))
         sp = self.w2s(pk.pos, L * 0.6 + bob)
         draw_sword(scr, pk.kind, sp, math.pi / 2 + math.sin(pk.t * 1.3) * 0.08, RARITIES[pk.rarity]["size"],
-                   sc["color"], 0.3 + 0.3 * math.sin(pk.t * 4))
+                   ecol, 0.3 + 0.3 * math.sin(pk.t * 4))
 
     def draw_enemy(self, e):
         scr, fx = self.screen, self.fx
@@ -1501,8 +1935,19 @@ class Game:
         sq = e.squash
         rx = e.r * (1 + 0.35 * sq)
         ry = e.r * (1 - 0.3 * sq)
-        body = (255, 255, 255) if e.flash > 0 else dim(e.color, 0.32)
-        rim = (255, 255, 255) if e.flash > 0 else e.color
+        body = dim(e.color, 0.32)
+        rim = e.color
+        if e.poison > 0:
+            body = mix(body, dim(ELEMENTS["poison"]["color"], 0.4), 0.2 + 0.1 * e.poison_stacks)
+        if e.burn > 0:
+            rim = mix(rim, ELEMENTS["fire"]["color"], 0.5 + 0.2 * math.sin(self.time * 20))
+        if e.frozen > 0:
+            body = mix(body, (150, 210, 245), 0.6)
+            rim = (210, 240, 255)
+        elif e.chill > 0:
+            rim = mix(rim, ELEMENTS["ice"]["color"], 0.6)
+        if e.flash > 0:
+            body = rim = (255, 255, 255)
         rect = pygame.Rect(0, 0, rx * 2, ry * 2)
         rect.center = sp
         if e.kind == "runner":
@@ -1523,21 +1968,40 @@ class Game:
             ep = sp + f * e.r * 0.45 + V(-f.y, f.x) * s * e.r * 0.32 - V(0, e.r * 0.1)
             pygame.draw.circle(scr, eye_c, ep, max(2, e.r * 0.14))
         draw_glow(fx, sp + f * e.r * 0.4, e.r * 0.9, dim(e.color, 0.35))
+        if e.burn > 0:
+            draw_glow(fx, sp, e.r * 1.6, dim(ELEMENTS["fire"]["color"], 0.3))
+        if e.frozen > 0:
+            # ice shell
+            R = e.r * 1.25
+            pts = [sp + polar(k * TAU / 6 + 0.3, R * (1.0 if k % 2 else 0.8)) for k in range(6)]
+            pygame.draw.polygon(scr, (220, 245, 255), pts, 2)
+            draw_glow(fx, sp, e.r * 1.4, dim(ELEMENTS["ice"]["color"], 0.35))
         if e.kind == "spitter" and e.charge > 0:
             u = e.charge / 0.5
             draw_glow(fx, sp + f * e.r, 8 + 18 * u, dim((130, 230, 80), u))
         if e.armed:
-            kind, rarity = e.armed
+            kind, rarity, element = e.armed
             sw = sp + V(-f.y, f.x) * (e.r + 12) - V(0, 10 + math.sin(e.t * 3) * 3)
             col = RARITIES[rarity]["color"]
             draw_glow(fx, sw, 22 + 6 * rarity, dim(col, 0.3))
             draw_sword(scr, kind, sw, math.atan2(f.y, f.x) - 0.6, 0.6 * RARITIES[rarity]["size"],
-                       SWORD_TYPES[kind]["color"])
+                       ELEMENTS[element]["color"])
+        y = sp.y - e.r - 12
         if e.hp < e.maxhp:
             w = e.r * 2
-            y = sp.y - e.r - 12
             pygame.draw.rect(scr, (30, 10, 14), (sp.x - w / 2, y, w, 4))
             pygame.draw.rect(scr, (240, 70, 80), (sp.x - w / 2, y, w * max(0, e.hp) / e.maxhp, 4))
+        # condition pips above the health bar
+        pips = [(ELEMENTS["fire"]["color"], 1) if e.burn > 0 else None,
+                (ELEMENTS["poison"]["color"], e.poison_stacks) if e.poison > 0 else None,
+                (ELEMENTS["ice"]["color"], e.chill_stacks) if e.chill > 0 or e.frozen > 0 else None]
+        pips = [pp for pp in pips if pp]
+        x = sp.x - (len(pips) - 1) * 6
+        for col, n in pips:
+            pygame.draw.circle(scr, col, (x, y - 6), 4)
+            if n > 1:
+                pygame.draw.circle(scr, (255, 255, 255), (x, y - 6), 4, 1)
+            x += 12
 
     def draw_player(self):
         p = self.player
@@ -1598,9 +2062,12 @@ class Game:
         pygame.draw.rect(scr, (40, 50, 70), (x + 52, y2 + 5, 60, 6))
         pygame.draw.rect(scr, (120, 220, 255), (x + 52, y2 + 5, 60 * (1 - p.dash_cd / 0.65), 6))
         cv_ready = self.converge_cd <= 0
-        scr.blit(F[22].render("CONVERGE [Q]", True, (200, 230, 255) if cv_ready else (70, 80, 100)), (x + 130, y2))
-        pygame.draw.rect(scr, (40, 50, 70), (x + 252, y2 + 5, 50, 6))
-        pygame.draw.rect(scr, (200, 230, 255), (x + 252, y2 + 5, 50 * (1 - self.converge_cd / 5.0), 6))
+        label = "CONVERGE" if self.mobile else "CONVERGE [click]"
+        lt = F[22].render(label, True, (200, 230, 255) if cv_ready else (70, 80, 100))
+        scr.blit(lt, (x + 130, y2))
+        bx = x + 140 + lt.get_width()
+        pygame.draw.rect(scr, (40, 50, 70), (bx, y2 + 5, 50, 6))
+        pygame.draw.rect(scr, (200, 230, 255), (bx, y2 + 5, 50 * (1 - self.converge_cd / CONVERGE_CD), 6))
 
         # wave / kills
         wt = F[32].render(f"WAVE {max(1, self.wave)}", True, (220, 200, 255))
@@ -1619,25 +2086,48 @@ class Game:
             cands = [pk for pk in self.pickups if (pk.pos - p.pos).length() < 80]
             if cands:
                 near = min(cands, key=lambda k: (k.pos - p.pos).length())
-        cw, ch, gap = 196, 70, 14
+        cw, ch, gap = 236, 94, 14
         x0 = W / 2 - (cw * 3 + gap * 2) / 2
-        y0 = H - ch - 18
+        y0 = H - ch - 14
         for i, s in enumerate(self.swords):
             cx = x0 + i * (cw + gap)
             rc = RARITIES[s.rarity]["color"]
             bg = mix((18, 16, 26), s.color, 0.12 + 0.35 * s.flash)
             pygame.draw.rect(scr, bg, (cx, y0, cw, ch), border_radius=8)
             pygame.draw.rect(scr, dim(rc, 0.7), (cx, y0, cw, ch), 2, border_radius=8)
-            draw_sword(scr, s.kind, (cx + 34, y0 + 35), -0.8, 0.62 if s.kind != "colossus" else 0.5, s.color)
+            draw_sword(scr, s.kind, (cx + 34, y0 + 46), -0.8, 0.62 if s.kind != "colossus" else 0.5, s.color)
             scr.blit(F[18].render(str(i + 1), True, (150, 140, 170)), (cx + 8, y0 + 6))
-            scr.blit(F[22].render(s.t["name"], True, rc), (cx + 64, y0 + 10))
+            scr.blit(F[22].render(s.t["name"], True, rc), (cx + 64, y0 + 8))
             if s.rarity:
                 tag = F[18].render(RARITIES[s.rarity]["name"].upper(), True, rc)
                 scr.blit(tag, (cx + cw - tag.get_width() - 8, y0 + 6))
-            scr.blit(F[18].render(s.t["blurb"], True, (150, 150, 170)), (cx + 64, y0 + 30))
+            scr.blit(F[18].render(ELEMENTS[s.element]["tag"], True, s.color), (cx + 64, y0 + 27))
+            # normal attack recharge
             frac = 1 - clamp(s.cd / s.cooldown, 0, 1)
-            pygame.draw.rect(scr, (40, 36, 54), (cx + 64, y0 + 52, cw - 76, 6), border_radius=3)
-            pygame.draw.rect(scr, s.color, (cx + 64, y0 + 52, (cw - 76) * frac, 6), border_radius=3)
+            pygame.draw.rect(scr, (40, 36, 54), (cx + 64, y0 + 44, cw - 76, 4), border_radius=2)
+            pygame.draw.rect(scr, dim(s.color, 0.7), (cx + 64, y0 + 44, (cw - 76) * frac, 4), border_radius=2)
+            # ultimate: key badge, name, recharge
+            ready = s.ult_cd <= 0 and s.state != "ult"
+            uf = 1 - clamp(s.ult_cd / s.ult_max, 0, 1)
+            key = pygame.Rect(cx + 64, y0 + 56, 26, 26)
+            pygame.draw.rect(scr, s.color if ready else (34, 30, 46), key, border_radius=5)
+            if not ready:
+                fill = key.copy()
+                fill.height = int(key.height * uf)
+                fill.bottom = key.bottom
+                pygame.draw.rect(scr, dim(s.color, 0.35), fill, border_radius=5)
+            pygame.draw.rect(scr, mix(s.color, (255, 255, 255), 0.4), key, 1, border_radius=5)
+            kt = F[22].render(f"{i + 1}" if self.mobile else ULT_KEYS[i], True,
+                              (16, 14, 24) if ready else (200, 200, 220))
+            scr.blit(kt, kt.get_rect(center=key.center))
+            ucol = (235, 235, 250) if ready else (130, 125, 150)
+            shot = "  shot" if s.ult["shot"] else ""
+            scr.blit(F[18].render(s.ult["name"] + shot, True, ucol), (cx + 98, y0 + 58))
+            if not ready and s.ult_cd > 0:
+                ct = F[18].render(f"{s.ult_cd:.0f}s", True, (150, 145, 170))
+                scr.blit(ct, (cx + cw - ct.get_width() - 10, y0 + 58))
+            pygame.draw.rect(scr, (40, 36, 54), (cx + 98, y0 + 76, cw - 110, 4), border_radius=2)
+            pygame.draw.rect(scr, s.color, (cx + 98, y0 + 76, (cw - 110) * uf, 4), border_radius=2)
             if near:
                 pygame.draw.rect(scr, (255, 255, 255), (cx - 2, y0 - 2, cw + 4, ch + 4), 1, border_radius=9)
 
@@ -1656,12 +2146,14 @@ class Game:
 
         if self.help_t > 0 and not p.dead:
             lines = ["WASD / arrows  move", "SPACE / SHIFT  dash (invulnerable)",
-                     "Q or click  CONVERGE: all swords strike the cursor",
+                     "click  CONVERGE: all swords strike the cursor",
+                     "Q / E / R  ULTIMATE of sword 1 / 2 / 3 (cursor-targeted; shots fire toward it)",
                      "1 / 2 / 3  swap a dropped sword into that slot",
                      "TAB or G  show sword ranges     P  pause     H  hide help",
-                     "swords attack automatically when enemies enter their range"]
+                     "swords attack automatically and apply their element: fire / ice / poison"]
             if self.mobile:
                 lines = ["Left stick: move   DASH: evade", "STRIKE: target nearest enemy / tap arena to aim",
+                         "ULT 1 / 2 / 3: sword ultimate at the nearest enemy",
                          "SLOT 1 / 2 / 3: swap a nearby dropped sword",
                          "Swords attack automatically   Rotate phone for a larger view"]
             a = clamp(self.help_t, 0, 1)
@@ -1692,18 +2184,23 @@ class Game:
         F = self.fonts
         t = SWORD_TYPES[pk.kind]
         r = RARITIES[pk.rarity]
+        el = ELEMENTS[pk.element]
         sp = self.w2s(pk.pos)
-        cw, ch = 250, 112
+        cw, ch = 270, 152
         x = clamp(sp.x + 40, 10, W - cw - 10)
-        y = clamp(sp.y - ch - 40, 10, H - ch - 110)
+        y = clamp(sp.y - ch - 40, 10, H - ch - 124)
         pygame.draw.rect(scr, (16, 14, 24), (x, y, cw, ch), border_radius=8)
         pygame.draw.rect(scr, r["color"], (x, y, cw, ch), 2, border_radius=8)
-        scr.blit(F[26].render(f"{r['name']} {t['name']}", True, r["color"]), (x + 12, y + 10))
+        scr.blit(F[26].render(f"{r['name']} {el['adj']} {t['name']}", True, r["color"]), (x + 12, y + 10))
         scr.blit(F[18].render(t["blurb"], True, (160, 160, 180)), (x + 12, y + 34))
         stats = (f"DMG {t['damage'] * r['dmg']:.0f}   SPD {1 / (t['cooldown'] * r['cd']):.1f}/s   "
                  f"RNG {t['range'] * r['rng']:.0f}")
         scr.blit(F[18].render(stats, True, (220, 220, 235)), (x + 12, y + 56))
-        scr.blit(F[22].render("press 1 / 2 / 3 to swap", True, (255, 255, 255)), (x + 12, y + 82))
+        scr.blit(F[18].render(el["tag"], True, el["color"]), (x + 12, y + 78))
+        ult = t["ult"]
+        ulabel = f"ULT  {ult['name']}{'  (skill shot)' if ult['shot'] else ''}   {ult['cd'] * r['cd']:.0f}s"
+        scr.blit(F[18].render(ulabel, True, (220, 215, 240)), (x + 12, y + 98))
+        scr.blit(F[22].render("press 1 / 2 / 3 to swap", True, (255, 255, 255)), (x + 12, y + 122))
 
 
 async def main():

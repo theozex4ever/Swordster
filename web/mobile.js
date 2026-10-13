@@ -15,6 +15,7 @@
     <div id="move-stick" aria-label="Movement joystick"><span id="stick-knob"></span></div>
     <div class="touch-actions">
       <div class="touch-row"><button data-action="pause">PAUSE</button><button data-action="ranges">RANGES</button><button data-action="restart">RESTART</button></div>
+      <div class="touch-row"><button class="ult" data-action="ult" data-slot="0">ULT 1</button><button class="ult" data-action="ult" data-slot="1">ULT 2</button><button class="ult" data-action="ult" data-slot="2">ULT 3</button></div>
       <div class="touch-row"><button data-action="swap" data-slot="0">SLOT 1</button><button data-action="swap" data-slot="1">SLOT 2</button><button data-action="swap" data-slot="2">SLOT 3</button></div>
       <div class="touch-row"><button class="primary" data-action="dash">DASH</button><button class="primary strike" data-action="converge">STRIKE</button><button data-action="fullscreen" aria-label="Fullscreen">⛶</button></div>
     </div>`;
