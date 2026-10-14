@@ -1,5 +1,5 @@
 .mobile-game {
-  --controls-height: 154px;
+  --controls-height: 194px;
   background: #09080e;
   touch-action: none;
   overscroll-behavior: none;
@@ -76,12 +76,13 @@
 }
 .touch-row .primary { background: #214660; border-color: #8dd9f2; font-size: 14px; }
 .touch-row .strike { background: #493261; border-color: #c994ef; }
+.touch-row .ult { background: #4a2a22; border-color: #ff9a5c; font-size: 13px; }
 .touch-row button:active { background: #657393; }
 .mobile-game #pyconsole, .mobile-game #crt { display: none !important; }
 .mobile-game #infobox { color: #edeafa; z-index: 101; }
 @media (orientation: landscape) {
-  .mobile-game { --controls-height: 132px; }
+  .mobile-game { --controls-height: 150px; }
   #move-stick { width: 92px; height: 92px; }
   .touch-actions { width: min(430px, 70%); gap: 3px; }
-  .touch-row button { min-height: 35px; }
+  .touch-row button { min-height: 30px; }
 }
