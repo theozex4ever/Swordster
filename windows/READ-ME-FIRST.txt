@@ -1,0 +1,84 @@
+SWORDSTER - Thanks for playtesting!
+===================================
+
+Swordster is a small action game that's still being made. You play a hero
+with three magic swords floating around you. The swords fight enemies on
+their own - your job is to move around, stay alive, and use their special
+attacks at the right moment.
+
+Nothing to install. It takes about a minute to get started.
+
+
+GETTING STARTED
+---------------
+1. Unzip the folder first.
+   If you're looking at this inside a zip file, right-click the zip file
+   and choose "Extract All...", then click "Extract". Open the new folder
+   that appears.
+
+2. Double-click "Swordster" (the file with the sword icon).
+
+3. You may see a blue box saying "Windows protected your PC".
+   This is normal for small games that aren't sold in a store.
+   Click "More info", then click "Run anyway".
+   You only need to do this the first time.
+
+4. Wait a few seconds. The game window will open and the game starts
+   right away.
+
+To quit, just close the game window.
+
+
+HOW TO PLAY
+-----------
+Enemies come in waves. Stay alive as long as you can.
+
+Your swords attack nearby enemies by themselves - you don't need to press
+anything for that. You focus on moving and using the special moves below.
+
+  Move around ................ W A S D keys (or the arrow keys)
+  Quick dodge ................ Spacebar
+  Send all swords to a spot .. Click with the mouse
+  Big special attacks ........ Q, E and R (one for each sword)
+  Pause ...................... Esc
+  Show / hide the help text .. H
+  Play again after losing .... R
+
+Picking up new swords:
+  Some enemies carry a sword. Defeat them and the sword drops on the
+  ground. Walk up to it and press 1, 2 or 3 to swap it with one of your
+  swords. Each sword is fire, ice or poison - try different mixes!
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+- Nothing happens when I double-click:
+  Wait 10 seconds - the first start can be slow. Make sure you unzipped
+  the folder first (step 1).
+
+- My antivirus blocked or deleted it:
+  This sometimes happens with small homemade games. Let whoever sent you
+  the game know - that's useful feedback too.
+
+- The game is too small, too fast, or has no sound:
+  Please tell us! Mention what kind of computer you're using.
+
+
+WE'D LOVE YOUR THOUGHTS
+-----------------------
+There are no wrong answers - honest reactions help the most, even
+"I got bored" or "I didn't get it". Just reply to the person who sent
+you the game with whatever comes to mind. Some ideas:
+
+- Was it easy to get the game running?
+- Did you understand what to do? What was confusing?
+- What was fun? What was annoying?
+- Was it too easy or too hard?
+- Did anything strange happen (freezing, glitches, crashes)?
+  What were you doing when it happened?
+- Would you play it again?
+
+A picture of anything odd helps a lot. To take one, press the Windows key,
+Shift and S at the same time, then drag over the screen.
+
+Thank you!

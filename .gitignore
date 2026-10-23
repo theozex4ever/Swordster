@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 game/build/
+Swordster-Windows-Tester/
+Swordster-Windows-Tester.zip
+windows/.build/
