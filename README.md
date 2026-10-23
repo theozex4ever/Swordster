@@ -134,9 +134,26 @@ For a remote demo over Tailscale, bind to this computer's Tailscale address:
 
 Open `http://<server-tailscale-ip>:8000` from a device connected to your tailnet.
 
+## Windows test build
+
+`windows/build.sh` packages the game as a standalone `Swordster.exe` for
+playtesters, built from Linux with PyInstaller under Wine:
+
+```bash
+sudo apt-get install wine64 unzip zip
+./windows/build.sh
+```
+
+The first run installs Windows Python into its own Wine prefix
+(`~/.wine-swordster`). The output is a `Swordster-Windows-Tester/` folder with
+the exe and a `READ ME FIRST.txt` covering controls and the feedback we want,
+plus a matching `.zip` to send to testers. Testers need 64-bit Windows 10 or 11;
+no Python install is required.
+
 ## Project layout
 
 - [`game/main.py`](game/main.py) — game logic, rendering, and synthesized audio.
 - [`serve.py`](serve.py) — browser build and demo server.
 - [`web/`](web/) — browser touch controls and mobile styling.
+- [`windows/`](windows/) — Windows tester build script and tester readme.
 - [`screenshots/`](screenshots/) — gameplay images used in documentation.
