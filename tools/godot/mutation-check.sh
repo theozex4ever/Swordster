@@ -2,6 +2,12 @@
 # Proves the headless checks can fail: applies one deliberate behavioural bug at a
 # time to a scratch copy of the Godot project and requires run_checks.gd to
 # reject each one (and to accept the unmodified project first).
+#
+# A mutation only counts as caught when run_checks.gd itself rejects it: it must
+# print "CHECKS FAILED" with at least one "  FAIL" line and no script errors. Any
+# other unsuccessful execution (engine crash, timeout, parse/script error, no
+# verdict at all) is INCONCLUSIVE: it is retried once, then reported and, if it
+# persists, makes the script fail instead of silently counting as detection.
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
@@ -34,16 +40,26 @@ if text.count(old) != 1:
     raise SystemExit(1)
 open(path, "w").write(text.replace(old, new))
 PY
-  local status=0 log
-  log="$(run_checks "$dir")" || status=$?
-  if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
-    echo "SURVIVED  $name   <-- checks failed to detect this bug"; survived=$((survived + 1))
-  else
-    echo "caught    $name   ($(grep -m1 -E '^  FAIL|CHECKS FAILED|SCRIPT ERROR' <<<"$log" | cut -c1-90))"
-  fi
+  local verdict="" detail="" attempt status log
+  for attempt in 1 2; do
+    status=0; log="$(run_checks "$dir")" || status=$?
+    if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
+      verdict=SURVIVED; break
+    elif grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
+         && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+      verdict=CAUGHT; detail="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"; break
+    fi
+    verdict=INCONCLUSIVE; detail="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log" | cut -c1-70)"
+    ((attempt == 1)) && echo "retry     $name   (inconclusive run: $detail)"
+  done
+  case "$verdict" in
+    CAUGHT)       echo "caught    $name   ($detail)" ;;
+    SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug"; survived=$((survived + 1)) ;;
+    INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail"; inconclusive=$((inconclusive + 1)) ;;
+  esac
 }
 
-survived=0
+survived=0; inconclusive=0
 mutate speed-zero           scripts/sim/game_run.gd  "PLAYER_SPEED: float = 285.0" "PLAYER_SPEED: float = 0.0"
 mutate pause-ignored        scripts/sim/game_run.gd  "	if paused:
 		return
@@ -73,5 +89,7 @@ mutate sound-never-unlocks  scripts/audio/sfx_bank.gd "	unlocked = true
 	play(\"unlock\")" "	play(\"unlock\")"
 
 echo
-if ((survived)); then echo "$survived mutation(s) survived"; exit 1; fi
-echo "all mutations were caught by the headless checks"
+if ((survived)); then echo "$survived mutation(s) survived"; fi
+if ((inconclusive)); then echo "$inconclusive mutation(s) were inconclusive (crash, timeout or script error instead of a check verdict)"; fi
+((survived + inconclusive == 0)) || exit 1
+echo "all mutations were caught as behavioural rejections by the headless checks (0 inconclusive)"

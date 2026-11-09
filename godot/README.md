@@ -26,8 +26,8 @@ data are redirected into the build's work directory.
 
 **Required base utilities** (the script checks them and never installs anything):
 `bash`, `curl`, `python3` (3.8+, standard library only), `git` (or set
-`SWORDSTER_SOURCE_COMMIT`), `sha512sum`, and coreutils/findutils-style `timeout`,
-`sleep`, `date`, `grep`, `sed`, `cp`, `mv`, `rm`, `mkdir`, `touch`, `find`, `sort`,
+`SWORDSTER_SOURCE_COMMIT`), `sha512sum`, `flock` (util-linux), and coreutils/findutils-style `timeout`,
+`sleep`, `date`, `grep`, `sed`, `cp`, `mv`, `rm`, `mkdir`, `mktemp`, `touch`, `find`, `sort`,
 `xargs`, `cut`, `tr`, `head`, `tail`, `cat`, `env` (`sha256sum` to check a finished
 pair by hand). Linux x86_64 host.
 
@@ -57,15 +57,17 @@ This documents identifiable outputs, not byte-for-byte reproducibility.
 
 The Web bundle is single-thread, needs no COOP/COEP headers and can be served by
 any static file server; all asset URLs are relative (`python3 -m http.server`
-inside the `-web` folder works). Windows builds are unsigned, so SmartScreen shows
-"Windows protected your PC" (instructions are in the ZIP).
+inside the `-web` folder works). Windows builds are unsigned, so Windows
+SmartScreen may warn about an unrecognised app on first launch; the Windows build
+has not been run yet, so what testers actually see is unverified (instructions for
+a warning are in the ZIP).
 
 ### Environment overrides
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `SWORDSTER_CACHE_DIR` | `$XDG_CACHE_HOME/swordster` | tool cache |
-| `SWORDSTER_WORK_DIR` | `<repo>/.build-godot` | fresh `staging/` each run, logs in `staging/logs` |
+| `SWORDSTER_WORK_DIR` | `<repo>/.build-godot` | one private `staging.XXXXXX/` per run (removed on success; kept with its `logs/` after a failure, pruned after 7 days) |
 | `SWORDSTER_DIST_DIR` | `<repo>/dist` | finished pairs |
 | `SWORDSTER_BUILD_ID` | timestamp + commit | refuses an id that already exists |
 | `SWORDSTER_SOURCE_COMMIT` | `git rev-parse HEAD` | for builds outside a git checkout |
@@ -81,8 +83,17 @@ inside the `-web` folder works). Windows builds are unsigned, so SmartScreen sho
 
 Godot's headless editor sometimes aborts at shutdown after finishing its work
 (roughly 1 run in 25 observed with 4.7.2). The script retries a Godot step up to 3
-times only when the process was killed by a signal; ordinary failures, timeouts and
-script errors are never retried, and outputs are validated regardless.
+times only when the process was killed by a signal; ordinary failures and
+timeouts are never retried. Retries cannot hide anything: each attempt has its own
+log and a script error or failed check in *any* attempt fails the step, and the
+step's expected output files are deleted before every attempt, so a retry that
+exits 0 without writing them fails (exit 17).
+
+Runs may overlap (full builds, `--checks-only`, any mix, even in one work
+directory): each uses its own staging directory, only toolchain bootstrapping is
+serialized with an `flock` lock (released by the kernel if a run crashes, so there
+is no stale lock to clean up), and `dist/<build-id>` is published by an atomic
+rename that cannot overwrite or merge into an existing pair.
 
 A failed run never touches `dist/`: output is assembled in staging and moved in
 only after every step and the manifest verification pass. Corrupted or
@@ -97,9 +108,11 @@ the named cache directory to reinstall. To change the engine, update every line 
   resume, restart, key aliases, independent touch pointers, focus loss, audio
   unlock, visual replacement). It must print `CHECKS PASSED: <n>`.
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
-  pause, stale restart, ...) to a scratch copy and requires the checks to fail.
+  pause, stale restart, ...) to a scratch copy and requires the checks themselves to
+  reject each one; a crash or timeout is reported as inconclusive, not as caught.
 - `tools/godot/test-build-failures.sh` runs `build-godot.sh` in sandboxes against
-  representative failures and requires the specific exit code and no new pair.
+  representative failures (plus crashed-and-retried steps and overlapping runs) and
+  requires the specific exit code and no new or damaged pair.
 
 ## Layout
 

@@ -8,6 +8,11 @@
 # Produces dist/<build-id>/ with the Windows ZIP, the Web bundle, BUILD-INFO.json
 # and a SHA256SUMS manifest. Details and environment overrides: godot/README.md.
 #
+# Concurrency: every run works in its own staging directory under the work
+# directory, so overlapping runs (full, --checks-only, any mix) cannot touch each
+# other's files. Only toolchain bootstrapping is serialized, with an flock(1) lock
+# that the kernel releases when its holder exits or crashes (no stale lock files).
+#
 # Exit codes (stable, so CI and tests can tell failures apart):
 #   0 ok   2 usage   10 missing base utility   11 download failed
 #   12 checksum mismatch (download, installed tool or pin)   13 Godot version mismatch
@@ -36,16 +41,22 @@ die() {
   local code="$1"; shift
   printf '\nbuild-godot: FAILED (exit %s): %s\n' "$code" "$*" >&2
   printf 'build-godot: no artifacts were produced; %s was not modified by this run.\n' "$DIST" >&2
+  [[ -z "$STAGE" ]] || printf 'build-godot: logs and partial output kept in %s\n' "$STAGE" >&2
   exit "$code"
 }
 trap 'die 1 "unexpected error at line $LINENO"' ERR
+# A successful run leaves nothing behind in the work directory; a failed run keeps
+# its staging directory (and logs) for inspection.
+STAGE=""
+cleanup() { local rc=$?; if ((rc == 0)) && [[ -n "$STAGE" ]]; then rm -rf "$STAGE"; fi; }
+trap cleanup EXIT
 
 # shellcheck source=tools/godot/godot.lock
 source "$TOOLS_SRC/godot.lock"
 
 # ---------------------------------------------------------------- prerequisites
 log "Checking base utilities"
-REQUIRED_UTILS=(curl python3 sha512sum timeout sleep date grep sed cp mv rm mkdir touch find sort xargs cut tr head tail cat env)
+REQUIRED_UTILS=(curl python3 sha512sum flock timeout sleep date grep sed cp mv rm mkdir mktemp touch find sort xargs cut tr head tail cat env)
 if [[ -z "${SWORDSTER_SOURCE_COMMIT:-}" ]]; then REQUIRED_UTILS+=(git); fi
 missing=()
 for util in "${REQUIRED_UTILS[@]}"; do
@@ -105,7 +116,7 @@ fetch_verified() { # name sha512
 
 install_toolchain() {
   local stage="$CACHE_ROOT/.installing-$$"
-  rm -rf "$CACHE_ROOT"/.installing-*   # leftovers from an interrupted install
+  rm -rf "$CACHE_ROOT"/.installing-*   # leftovers from an interrupted install (we hold the bootstrap lock)
   mkdir -p "$stage/editor"
   fetch_verified "$GODOT_EDITOR_FILE" "$GODOT_EDITOR_SHA512"
   fetch_verified "$GODOT_TEMPLATES_FILE" "$GODOT_TEMPLATES_SHA512"
@@ -125,6 +136,10 @@ install_toolchain() {
 
 log "Preparing pinned Godot $GODOT_VERSION (cache: $CACHE_ROOT)"
 mkdir -p "$CACHE_ROOT"
+# Bootstrapping shares downloads/ and the install directory between runs, so it is
+# serialized. flock locks die with their process: a crash cannot leave a stale lock.
+exec 9>"$CACHE_ROOT/.bootstrap.lock"
+flock -n 9 || { log "Another build is bootstrapping the toolchain; waiting"; flock 9; }
 if [[ ! -f "$TOOL_DIR/INSTALLED.sha512" ]]; then
   install_toolchain
 else
@@ -135,10 +150,16 @@ fi
 (cd "$TOOL_DIR" && sha512sum --quiet -c INSTALLED.sha512 >/dev/null 2>&1) \
   || die 12 "installed Godot files in $TOOL_DIR do not match their recorded checksums (corrupted or modified); remove that directory to reinstall"
 [[ -x "$GODOT_BIN" ]] || die 12 "$GODOT_BIN is not executable"
+exec 9>&-   # bootstrap done; the lock must not leak into Godot processes
 
-mkdir -p "$WORK/home"
+# ---------------------------------------------------------------- invocation-private staging
+mkdir -p "$WORK"
+# Old failed runs are kept for inspection but not forever; a live run is never
+# that old, so this cannot remove another run's staging directory.
+find "$WORK" -mindepth 1 -maxdepth 1 -type d -name 'staging.*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+STAGE="$(mktemp -d "$WORK/staging.XXXXXX")"
 godot() { # isolated from any user/system Godot configuration and templates
-  XDG_DATA_HOME="$WORK/home/data" XDG_CONFIG_HOME="$WORK/home/config" XDG_CACHE_HOME="$WORK/home/cache" \
+  XDG_DATA_HOME="$STAGE/home/data" XDG_CONFIG_HOME="$STAGE/home/config" XDG_CACHE_HOME="$STAGE/home/cache" \
     "$GODOT_BIN" "$@"
 }
 reported="$(godot --version 2>/dev/null | head -n1 | tr -d '\r')" || reported=""
@@ -147,10 +168,8 @@ reported="$(godot --version 2>/dev/null | head -n1 | tr -d '\r')" || reported=""
 log "Godot $reported"
 [[ "$MODE" == "bootstrap" ]] && { log "Bootstrap complete"; exit 0; }
 
-# ---------------------------------------------------------------- fresh staging
-STAGE="$WORK/staging"
-rm -rf "$STAGE"
-mkdir -p "$STAGE/project" "$STAGE/out/windows" "$STAGE/out/web" "$STAGE/logs" "$STAGE/final"
+# ---------------------------------------------------------------- staging contents
+mkdir -p "$STAGE/home" "$STAGE/project" "$STAGE/out/windows" "$STAGE/out/web" "$STAGE/logs" "$STAGE/final"
 cp -a "$PROJECT_SRC/." "$STAGE/project/"
 rm -rf "$STAGE/project/.godot"
 cat > "$STAGE/project/scripts/build_info.gd" <<GD
@@ -167,32 +186,47 @@ sleep 0.05
 # Godot's headless editor occasionally aborts or segfaults at shutdown (about 1
 # in 25 runs observed with 4.7.2) even after finishing its work. Only a process
 # killed by a signal (status > 128) is retried, up to 3 attempts; ordinary
-# failures, timeouts and detected script errors are never retried, and every
-# step's output is still validated afterwards.
-run_godot() { # logname timeout code description args...
+# failures and timeouts are never retried. A retry must stand on its own:
+#   * every attempt writes its own log (<name>.attemptN.log) and a script error
+#     or failed check in ANY attempt fails the step, even in one that was killed;
+#   * the step's expected outputs (STEP_OUTPUTS) are deleted before every attempt,
+#     so whatever a failed attempt left behind cannot be packaged, and a retry
+#     that exits 0 without writing them fails with 17;
+#   * the final attempt's log is copied to <name>.log for later inspection.
+STEP_OUTPUTS=()
+FAILURE_PATTERN='SCRIPT ERROR|Parse Error|Failed to load script|^CHECKS FAILED|^  FAIL '
+run_godot() { # logname timeout code description args...   (expected outputs: STEP_OUTPUTS)
   local name="$1" limit="$2" code="$3" what="$4"; shift 4
-  local logfile="$STAGE/logs/$name.log" status attempt
+  local logfile="$STAGE/logs/$name.log" attempt_log status attempt out
   log "$what"
   for attempt in 1 2 3; do
+    for out in "${STEP_OUTPUTS[@]}"; do rm -rf -- "$out"; done
+    attempt_log="$STAGE/logs/$name.attempt$attempt.log"
     status=0
     timeout "$limit" env \
-      XDG_DATA_HOME="$WORK/home/data" XDG_CONFIG_HOME="$WORK/home/config" XDG_CACHE_HOME="$WORK/home/cache" \
-      "$GODOT_BIN" "$@" >"$logfile" 2>&1 || status=$?
-    ((status > 128)) || break
+      XDG_DATA_HOME="$STAGE/home/data" XDG_CONFIG_HOME="$STAGE/home/config" XDG_CACHE_HOME="$STAGE/home/cache" \
+      "$GODOT_BIN" "$@" >"$attempt_log" 2>&1 || status=$?
+    if grep -Eq "$FAILURE_PATTERN" "$attempt_log"; then
+      grep -E "$FAILURE_PATTERN" "$attempt_log" | head -n 10 >&2
+      die "$code" "$what reported errors in attempt $attempt (full log: $attempt_log)"
+    fi
+    ((status > 128 && attempt < 3)) || break
     echo "    attempt $attempt: Godot was killed by signal $((status - 128)); retrying" >&2
-    cp "$logfile" "$logfile.attempt$attempt"
   done
+  cp "$attempt_log" "$logfile"
   if ((status != 0)); then
     tail -n 25 "$logfile" >&2 || true
-    die "$code" "$what failed with status $status (full log: $logfile)"
+    die "$code" "$what failed with status $status (full log: $attempt_log)"
   fi
-  if grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' "$logfile"; then
-    grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' "$logfile" | head -n 10 >&2
-    die "$code" "$what reported script errors (full log: $logfile)"
-  fi
+  for out in "${STEP_OUTPUTS[@]}"; do
+    [[ -s "$out" ]] || die 17 "$what did not produce ${out#"$STAGE"/} (missing or empty after the final attempt)"
+    [[ "$out" -nt "$STAGE/.started" ]] || die 17 "${out#"$STAGE"/} predates this build (stale file)"
+  done
+  STEP_OUTPUTS=()
 }
 
 # ---------------------------------------------------------------- import + checks
+STEP_OUTPUTS=("$STAGE/project/.godot/global_script_class_cache.cfg")
 run_godot import 300 14 "Importing assets" --headless --path "$STAGE/project" --import
 run_godot checks 300 15 "Running automated headless checks" --headless --path "$STAGE/project" --script res://tests/run_checks.gd
 grep -Eq '^CHECKS PASSED: [1-9][0-9]*$' "$STAGE/logs/checks.log" || die 15 "checks did not report success (missing 'CHECKS PASSED' line; log: $STAGE/logs/checks.log)"
@@ -200,18 +234,12 @@ log "$(grep -E '^CHECKS PASSED' "$STAGE/logs/checks.log")"
 [[ "$MODE" == "checks" ]] && { log "Checks complete (no exports requested)"; exit 0; }
 
 # ---------------------------------------------------------------- exports
+STEP_OUTPUTS=("$STAGE/out/windows/Swordster.exe" "$STAGE/out/windows/Swordster.pck")
 run_godot export-windows 600 16 "Exporting Windows (release)" \
   --headless --path "$STAGE/project" --export-release Windows "$STAGE/out/windows/Swordster.exe"
+STEP_OUTPUTS=(); for f in index.html index.js index.wasm index.pck; do STEP_OUTPUTS+=("$STAGE/out/web/$f"); done
 run_godot export-web 600 16 "Exporting Web (release, single-thread, no extensions)" \
   --headless --path "$STAGE/project" --export-release Web "$STAGE/out/web/index.html"
-
-need_file() { # path
-  [[ -s "$1" ]] || die 17 "expected export output is missing or empty: ${1#"$STAGE"/}"
-  [[ "$1" -nt "$STAGE/.started" ]] || die 17 "export output ${1#"$STAGE"/} predates this build (stale file)"
-}
-for f in windows/Swordster.exe windows/Swordster.pck web/index.html web/index.js web/index.wasm web/index.pck; do
-  need_file "$STAGE/out/$f"
-done
 
 # Web must be single-thread without extensions: no worker script, no isolation
 # requirement, and no GDExtension libraries listed.
@@ -264,8 +292,11 @@ grep -q "\"build_id\": \"$BUILD_ID\"" "$FINAL/$WEB_NAME/BUILD-INFO.json" || die 
 # ---------------------------------------------------------------- publish to dist
 mkdir -p "$DIST"
 [[ ! -e "$DIST/$BUILD_ID" ]] || die 18 "$DIST/$BUILD_ID appeared during the build; refusing to overwrite it"
-mv "$FINAL" "$DIST/.incoming-$BUILD_ID"
-mv "$DIST/.incoming-$BUILD_ID" "$DIST/$BUILD_ID"
+INCOMING="$DIST/.incoming-$BUILD_ID.$$"
+mv "$FINAL" "$INCOMING"
+# rename(2) onto an existing non-empty directory fails, so a concurrent run that
+# published the same id first is never merged into or overwritten.
+mv -T "$INCOMING" "$DIST/$BUILD_ID" 2>/dev/null || { rm -rf "$INCOMING"; die 18 "$DIST/$BUILD_ID appeared during the build; refusing to overwrite it"; }
 
 log "BUILD OK: $BUILD_ID"
 echo "  windows: $DIST/$BUILD_ID/$WIN_NAME.zip"
