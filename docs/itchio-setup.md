@@ -68,11 +68,17 @@ mkdir -p "${OUT%/*}"; rm -f "$OUT"
 python3 -m zipfile -l "$OUT"                   # index.html must be listed with no folder prefix
 V="$(mktemp -d)"; python3 -I -m zipfile -e "$OUT" "$V"
 python3 -I tools/godot/pack.py verify-manifest "$V/SHA256SUMS" "$V"   # expect: 10 files listed, 0 problems
+cmp "$V/SHA256SUMS" "dist/$ID/Swordster-$ID-web/SHA256SUMS" \
+  && echo "ZIP manifest == the pair's Web manifest"                    # expect: that line; any cmp output is a failure
 rm -rf "$V"
 ```
 
-The last two commands prove the ZIP's contents are the files the build recorded in the pair's
-Web `SHA256SUMS`. Optional local smoke test before uploading: extract the ZIP into an empty folder
+`verify-manifest` alone only proves the ZIP agrees with the `SHA256SUMS` packed inside it, which a
+different or edited ZIP would also satisfy. The `cmp` against the original pair's Web manifest
+(`dist/<BUILD_ID>/Swordster-<BUILD_ID>-web/SHA256SUMS`) is what ties the ZIP to the build that
+passed `./build-godot.sh`. Together they prove the ZIP's contents are exactly the files the pair
+recorded (a changed, missing or extra file or a swapped manifest makes one of them fail; stop and
+rebuild the ZIP if so). Optional local smoke test before uploading: extract the ZIP into an empty folder
 and run `python3 -m http.server` inside it (see `godot/README.md`).
 
 Upload exactly these two files, from the same `dist/<BUILD_ID>/`, so both channels carry one build:
@@ -170,6 +176,11 @@ everywhere.
   the top strip) to move with a floating ring stick, and use the on-screen buttons.
 - Losing focus (switching tab/window/app) pauses automatically and releases input; resuming is
   always explicit.
+- The mouse only clicks the on-screen buttons (and counts as the first input for sound unlock).
+  Mouse drags do **not** move the player in this slice (`emulate_touch_from_mouse` is off).
+- The game has **no fullscreen control** of its own. Fullscreen only exists through the itch.io
+  page's Fullscreen Button (section 4) and, on a phone with Mobile Friendly on, itch.io's forced
+  fullscreen launch.
 
 ### Checks to record
 
@@ -179,8 +190,8 @@ everywhere.
 | **Movement** | Keys (desktop) or left-area drag (Android) move the player; the camera follows; the player stops at the arena border. |
 | **Pause / resume** | `P`, `Esc` or the button shows `PAUSED`; holding a movement key while paused moves nothing; resuming (`P`, `Esc` or `Resume`) continues. On Android use the button. |
 | **Sound unlock** | Before any input the prompt is visible and there is no sound. After the first key/click/tap the prompt disappears and a short unlock sound plays; pause, resume and restart each then play their own sound. Device volume up. |
-| **Web asset delivery** | Desktop browser DevTools → Network (reload with cache disabled for the cold run): `index.html`, `index.js`, `index.wasm`, `index.pck`, `index.png` and both `index.audio*.worklet.js` all return 200; no 403/404 or console errors; note the transferred size of `index.wasm` (itch.io's CDN gzips `.wasm` and `.pck`, so it can be much smaller than 39.5 MB). On Android, if you cannot inspect the network, write "not inspected"; reaching the arena with the correct build label is then the only evidence. |
-| **Startup time** | Stopwatch or screen recording, to about a second. Web: from clicking the launch/play control to the build label and sound prompt appearing. **Cold** = first load with an empty browser cache (private window or cleared site data); **cached** = reload straight afterwards. Windows: from double-clicking `Swordster.exe` to the window showing the build label. **Cold** = first launch after extracting; **cached** = close and launch again. If SmartScreen appears, time from clicking "Run anyway". |
+| **Web asset delivery** | Desktop browser DevTools → Network (reload with **Disable cache** ticked for the cold run, then **untick it again**, or close DevTools, before the cached run in the Startup time check, since a still-ticked box affects the next reload): `index.html`, `index.js`, `index.wasm`, `index.pck`, `index.png` and both `index.audio*.worklet.js` all return 200; no 403/404 or console errors; note the transferred size of `index.wasm` (itch.io's CDN gzips `.wasm` and `.pck`, so it can be much smaller than 39.5 MB). On Android, if you cannot inspect the network, write "not inspected"; reaching the arena with the correct build label is then the only evidence. |
+| **Startup time** | Stopwatch or screen recording, to about a second. Web: from clicking the launch/play control to the build label and sound prompt appearing. **Cold** = first load with an empty browser cache (private window or cleared site data); **cached** = reload straight afterwards, with DevTools' **Disable cache** off (re-enable caching first if you ticked it for the asset check). Windows: from double-clicking `Swordster.exe` to the window showing the build label. **Cold** = first launch after extracting; **cached** = close and launch again. If SmartScreen appears, time from clicking "Run anyway". |
 | **Windows warning** | Write down exactly what Windows showed (e.g. the "Windows protected your PC" screen, whether a "More info" / "Run anyway" path existed, any antivirus message) or "none". Builds are unsigned; the ZIP's `READ-ME-FIRST.txt` describes the expected blue screen, but what testers actually see is unverified until you record it. |
 
 ### Per target
@@ -192,22 +203,166 @@ everywhere.
   together), run the exe, then do the checks above. Optional integrity check:
   `Get-FileHash -Algorithm SHA256 .\Swordster.exe` in PowerShell against the matching line in the
   extracted `SHA256SUMS`. (Do not compare itch.io's download byte-for-byte with the original ZIP:
-  verify contents.)
+  verify contents.) Also required: the desktop procedures D1–D4 below.
 - **Desktop Chrome, desktop Firefox:** open `<PAGE_URL>` signed out, run the checks, including
-  the DevTools network check. Record the exact versions (Help → About).
+  the DevTools network check. Record the exact versions (Help → About). Also required: the
+  desktop procedures D1–D4 below.
 - **Android Chrome (physical phone):** open `<PAGE_URL>` in Chrome itself (not an in-app browser)
   signed out. First run with Mobile Friendly off and note the warning, if any; run the checks;
   then enable Mobile Friendly in the itch.io editor, reload on the phone and re-run them. Record
-  both outcomes. Optional: rotate the phone and switch away/back to see that the run pauses.
+  both outcomes. The interaction procedures in "Required interaction procedures" (A1–A10) are
+  **required** on this target, not optional, and are recorded for both the Mobile Friendly off and
+  the on run.
+
+### Required interaction procedures
+
+The device matrix in the parent spec (issue [#4](https://github.com/theozex4ever/Swordster/issues/4),
+"Required device matrix") also requires: keyboard/mouse input, simultaneous touch actions,
+UI/arena separation, viewport and orientation changes, fullscreen where supported, pointer
+cancellation and background/explicit resume. Those are the procedures below. They are **required,
+not optional**, on the targets named, and have result rows in the evidence file.
+Combat, dash and ultimates do not exist in this slice, so nothing here tests them.
+
+| Procedures | Windows 10/11 | Desktop Chrome / Firefox | Android Chrome |
+|---|---|---|---|
+| D1 focus loss with a key held, explicit resume | required | required | n/a (no keyboard) |
+| D2 window / viewport resize | required | required | see A4–A6 |
+| D3 mouse input | required | required | n/a |
+| D4 fullscreen | not applicable, see D4 | required (itch.io button) | A10 |
+| A1–A9 touch procedures | not required | not required | required |
+| A10 fullscreen | n/a | n/a | required |
+
+**A target is not complete until every required row for it is recorded in the evidence file.**
+A required row left `UNVERIFIED` (including because the target was unavailable) means the target
+stays `UNVERIFIED`; it does not silently pass. `PASS` only if you saw the expected result below;
+anything else is `FAIL` with what you saw in Notes. The "expected" results come from reading the
+code (`godot/scripts/main.gd`, `input/input_translator.gd`, `input/touch_joystick.gd`, `hud.gd`,
+`sim/game_run.gd`); whether a browser or OS delivers a given event is exactly what these checks
+measure, so record what happened rather than what should have happened.
+
+Two behaviours apply throughout. **Stuck input** means the player keeps moving, or the stick ring
+stays drawn, with no finger down or key held; it is always a `FAIL`. A short slide of under about a
+second after input stops is normal (the speed decays; it is not stuck). Pause and resume while
+running: the `PAUSED` overlay appears, the button reads `Resume`, and resuming (`P`, `Esc` or the
+button) is the only way back; nothing resumes by itself.
+
+#### Desktop (Windows exe and Chrome/Firefox)
+
+- **D1 Focus loss with a key held, explicit resume.** Hold `D` (the player moves right). While it
+  is held, take focus away: Windows: `Alt+Tab` or click another window. Browser: switch to another
+  tab, and, as a separate run, click outside the game frame (the itch.io page around it, the
+  address bar, or the DevTools panel). Release `D` while away, so the game never sees the key-up.
+  Return to the game. **Expected:** `PAUSED` is showing and the player stopped where it was; the
+  game did not resume on its own. Press `Resume` (or `P`/`Esc`): the run continues, the player
+  does not drift off (no stuck movement), and pressing `D` afresh moves it. Then repeat once
+  returning with `D` still physically held: the player is not moving after you resume, and
+  moves again only after `D` is released and pressed again (the game drops held keys on focus
+  loss and ignores key repeats; if it moves at once, write that in Notes, since it is not stuck
+  input unless it carries on after you release the key). Finally, pause with `P`, switch away and
+  back: still paused until you resume. (Code: `NOTIFICATION_APPLICATION_FOCUS_OUT`,
+  `WM_WINDOW_FOCUS_OUT`, `APPLICATION_PAUSED` → `release_input_and_pause`.)
+  If a browser action takes focus away but the game does not pause **and** the player keeps
+  moving after you release the key, that is `FAIL`.
+- **D2 Window / viewport resize.** Windows: drag the window edges smaller and larger, maximise and
+  restore, once while idle, once while holding a movement key, once while paused. Browser: narrow
+  and widen the browser window, change zoom (`Ctrl` `+`/`-`), and open/close docked DevTools;
+  itch.io may keep the frame at a fixed size, so write down the game viewport size before and
+  after each change, and "game size did not change" if so (D4 then provides the real viewport
+  change). **Expected:** the arena scales with the window (`canvas_items`, `expand`), the build
+  label stays top-left and `Pause`/`Restart` top-right and fully visible, the buttons still
+  work when clicked, resizing neither pauses nor resumes the run by itself, movement keys still
+  move the player and nothing sticks.
+- **D3 Mouse input.** Click `Pause`: `PAUSED`, button reads `Resume`. Click `Resume`: running
+  again. Click `Restart`: the player returns to the start position and the run is unpaused. Click
+  and drag with the left mouse button inside the arena, including the left half. **Expected:** the
+  buttons work; mouse clicks/drags in the arena move nothing (this slice has no mouse movement;
+  `emulate_touch_from_mouse` is off), and the first click/key press enables sound (see the Sound
+  unlock check).
+- **D4 Fullscreen.** Browser: use itch.io's Fullscreen Button on the page (section 4). Enter
+  fullscreen, then: the label and buttons are visible, movement keys work, `Pause`/`Resume` work
+  by mouse, and `P` works. Leave fullscreen with the itch.io control (the browser also leaves it
+  on `Esc`; the page may not receive that `Esc` as a pause) and check again that movement and the
+  buttons work with the stage back at its normal size. If the button is not on the page, write
+  "button not offered" and leave the row `UNVERIFIED`. **Windows: not applicable.** The game has
+  no fullscreen control or key in this slice, so there is nothing to test; window maximise is
+  covered by D2. If you do find a fullscreen
+  control in the build, record it under Notes and test it like the browser case.
+
+#### Android Chrome (physical phone, each of Mobile Friendly off and on)
+
+Touch layout in this slice: the movement stick can only start in the left ~55% of the screen, below
+the top ~15% strip, and not within a few pixels of the `Pause`/`Restart` buttons (top-right). Only
+one finger is the stick; other fingers do not move the player. Re-run all of A1–A10 with Mobile
+Friendly on after enabling it.
+
+- **A1 Simultaneous touch: drag plus button tap.** Put one finger down in the left area and
+  drag so the player runs, and **keep holding**. With a second finger tap `Pause`.
+  **Expected:** the run pauses (`PAUSED`, button reads `Resume`) and the player stops while the
+  first finger is still down; the ring is still drawn. With the second finger tap `Resume` while
+  the first finger is still holding: the run continues, moving in the held direction. Lift the
+  first finger: the player stops (small slide only) and the ring disappears. Repeat once with
+  the first finger lifted while paused, then `Resume`: the player does not move. Optionally,
+  with a finger dragging, tap `Restart` with the second: the player returns to the start and
+  stops moving (the stick is released); lift and touch again to move.
+- **A2 Second finger in the arena.** While one finger drives the stick, touch with a second
+  finger elsewhere in the left area and drag it. **Expected:** no second ring appears, movement
+  follows only the first finger, and lifting the second finger changes nothing.
+- **A3 UI/arena separation.** (a) Touch on `Pause` and on `Restart` (including just outside
+  their visible edge) and, if you can, drag from the button into the left area: no ring appears
+  and the player does not move (tap `Pause` then `Resume`; after `Restart`, the run restarts as a
+  normal button action). (b) Touch and drag in the right ~45% of the screen and in the top strip
+  outside the buttons: no ring and no movement. (c) A touch starting just below the top strip
+  in the left area does start the ring and move the player. **Expected:** all as stated; a touch
+  that begins on a button or outside the stick area never moves the player.
+- **A4 Orientation change while idle.** Note the viewport size in portrait, rotate to landscape,
+  and rotate back. After each rotation: the label top-left and `Pause`/`Restart` top-right are
+  visible, touching the buttons does not start a ring, and a fresh drag in the left ~55% (of the
+  new width) starts the ring where you touch and moves the player. **Expected:** as stated, in
+  both orientations (`size_changed` → `_update_touch_zone`).
+- **A5 Rotate during a drag.** Hold a drag so the player is running, then rotate the phone with
+  the finger still down; keep dragging for a second, then lift. **Expected:** after the finger
+  lifts the player stops and the ring disappears (the browser may cancel the touch on rotation,
+  which also ends it); a fresh touch starts a new ring and moves the player in the new
+  orientation. Stuck input at any point, or a stick that will not start again, is `FAIL`.
+- **A6 Rotate while paused.** Pause with the button, rotate, rotate back. **Expected:** `PAUSED`
+  stays showing in both orientations, the button reads `Resume`, the run does not resume by
+  itself, `Resume` resumes it, and movement works afterwards.
+- **A7 Pointer cancellation.** While dragging with the player running: (a) start a swipe
+  from the screen edge (the phone's system back/home gesture) without completing it, so you stay
+  on the page; (b) separately, pull the notification shade down from the top and dismiss it.
+  **Expected:** the player stops with the finger lifted or
+  cancelled (or, if focus was lost, the run pauses as in A8), the ring disappears, and a fresh
+  touch works. The player continuing to move with no finger down is `FAIL`
+  (`touch.canceled` or release of the stick's pointer → `TouchJoystick.release`).
+- **A8 Background mid-drag, explicit resume.** Drag so the player runs and keep the finger down.
+  Press Home (or switch app), wait about five seconds, and return to Chrome and the game.
+  **Expected:** `PAUSED` is showing, the ring is gone, the player is where it was when you left
+  and not moving, and the run did not resume itself. Tap `Resume`: the player does not drift
+  off (small slide only), and a fresh drag moves it. Repeat once starting from an already paused
+  run: it stays paused on return.
+- **A9 Screen lock and tab switch.** Same as A8, but (a) lock the screen mid-drag, wait five
+  seconds, unlock, and (b) switch to another Chrome tab mid-drag, wait five seconds, switch
+  back. **Expected:** the same as A8 in both cases: paused, no stuck movement, resume only by
+  the button.
+- **A10 Fullscreen.** With Mobile Friendly off, use itch.io's Fullscreen Button if the phone
+  shows it. With Mobile Friendly on, itch.io launches fullscreen on its own ("Click to launch in
+  fullscreen"); use that. In fullscreen: the label and buttons are visible, the stick can start
+  in the left area and moves the player, and `Pause`/`Resume` work by touch; rotate once
+  (A4) and exit fullscreen with itch.io's control, then check again that touch works. If the
+  phone offers no fullscreen control in a mode, write "not offered" and leave the row
+  `UNVERIFIED`.
 
 ## 7. Finish
 
 1. Fill in [`itchio-evidence.md`](itchio-evidence.md). Change a result from `UNVERIFIED` only
-   for something you personally observed.
+   for something you personally observed. A target is not complete until all of its required
+   rows (checks and the interaction procedures above) are recorded; until then its summary stays
+   `UNVERIFIED`.
 2. Any failure (asset 403/404, wrong build id, blocked download, SmartScreen that stops testers,
    a payment/login prompt, no sound after unlock, an unusable Android layout, a missing Windows
-   download on the HTML page) is a delivery blocker: note it in the evidence file and on issue #6,
-   and fix it before combat-port work (the downstream issues) continues.
+   download on the HTML page, stuck movement after backgrounding, rotating or a cancelled touch,
+   or a touch that begins on a button moving the player) is a delivery blocker: note it in the
+   evidence file and on issue #6, and fix it before combat-port work (the downstream issues) continues.
 3. Issue #6 can only be closed with this evidence from real devices; the PR that adds these two
    documents does not close it.
 

@@ -9,7 +9,15 @@ Result values: `UNVERIFIED` (default) · `PASS` · `FAIL` (describe it under Not
 "Delivery blockers"). Free-text fields start as `_not recorded_`.
 
 How each check is defined (build id, movement, pause/resume, sound unlock, Web asset delivery,
-startup times, warnings) is in section 6 of `itchio-setup.md`.
+startup times, warnings) and each interaction procedure (rows `D1`–`D3`, `D4`, `A1`–`A10`:
+focus loss, resize, mouse, fullscreen, simultaneous touch, UI/arena separation, orientation,
+pointer cancellation, background and explicit resume) is in section 6 of `itchio-setup.md`
+("Required interaction procedures"), including which targets each applies to and what the
+expected result is.
+
+**A target is not complete until every required row for it is recorded.** A required row that is
+still `UNVERIFIED` (not run, or the target was unavailable) keeps that target's Summary entry at
+`UNVERIFIED`; set a target's Summary entry to `PASS` only when all of its rows are `PASS`.
 
 ## Run under test
 
@@ -73,8 +81,15 @@ Checked in a window with no itch.io login.
 | Basic movement (WASD/arrows) | UNVERIFIED |
 | Pause / resume (P, Esc, button) | UNVERIFIED |
 | Sound unlock | UNVERIFIED |
+| D1 Focus loss with a key held (`Alt+Tab`/click away, key released while away): pauses, no stuck movement, resumes only by `Resume`/`P`/`Esc`; also key still held on return, and paused-then-away | UNVERIFIED |
+| D2 Window resize and maximise/restore (idle, while moving, while paused): arena scales, buttons visible and working, no stuck movement | UNVERIFIED |
+| D3 Mouse: `Pause`/`Resume`/`Restart` clicks work; clicks and drags in the arena move nothing | UNVERIFIED |
 | Signed-out download from the page | UNVERIFIED |
 | Notes | |
+
+Fullscreen (`D4`) is not applicable on Windows: the game has no fullscreen control or key in this
+slice (`itchio-setup.md`, D4). It is not a result row. If you find a fullscreen control in the
+build, say so in Notes and test it.
 
 ## Windows 11 x86_64, machine without Python/Godot
 
@@ -93,8 +108,15 @@ Checked in a window with no itch.io login.
 | Basic movement (WASD/arrows) | UNVERIFIED |
 | Pause / resume (P, Esc, button) | UNVERIFIED |
 | Sound unlock | UNVERIFIED |
+| D1 Focus loss with a key held (`Alt+Tab`/click away, key released while away): pauses, no stuck movement, resumes only by `Resume`/`P`/`Esc`; also key still held on return, and paused-then-away | UNVERIFIED |
+| D2 Window resize and maximise/restore (idle, while moving, while paused): arena scales, buttons visible and working, no stuck movement | UNVERIFIED |
+| D3 Mouse: `Pause`/`Resume`/`Restart` clicks work; clicks and drags in the arena move nothing | UNVERIFIED |
 | Signed-out download from the page | UNVERIFIED |
 | Notes | |
+
+Fullscreen (`D4`) is not applicable on Windows: the game has no fullscreen control or key in this
+slice (`itchio-setup.md`, D4). It is not a result row. If you find a fullscreen control in the
+build, say so in Notes and test it.
 
 ## Desktop Chrome
 
@@ -112,6 +134,11 @@ Checked in a window with no itch.io login.
 | Basic movement (WASD/arrows) | UNVERIFIED |
 | Pause / resume (P, Esc, button) | UNVERIFIED |
 | Sound unlock | UNVERIFIED |
+| D1a Focus loss with a key held, tab switch (key released while away): pauses, no stuck movement, resumes only by `Resume`/`P`/`Esc`; also key still held on return, and paused-then-away | UNVERIFIED |
+| D1b Focus loss with a key held, click outside the game frame / address bar / DevTools (same expectations) | UNVERIFIED |
+| D2 Browser window narrow/wide, zoom and DevTools open/close (game viewport size before and after, or "did not change"): arena scales, buttons visible and working, no stuck movement | UNVERIFIED |
+| D3 Mouse: `Pause`/`Resume`/`Restart` clicks work; clicks and drags in the arena move nothing | UNVERIFIED |
+| D4 Fullscreen via the itch.io Fullscreen Button (or "button not offered"): label and buttons visible, keys and buttons work in and after fullscreen | UNVERIFIED |
 | Signed-out access, no login/payment prompt | UNVERIFIED |
 | Notes | |
 
@@ -131,6 +158,11 @@ Checked in a window with no itch.io login.
 | Basic movement (WASD/arrows) | UNVERIFIED |
 | Pause / resume (P, Esc, button) | UNVERIFIED |
 | Sound unlock | UNVERIFIED |
+| D1a Focus loss with a key held, tab switch (key released while away): pauses, no stuck movement, resumes only by `Resume`/`P`/`Esc`; also key still held on return, and paused-then-away | UNVERIFIED |
+| D1b Focus loss with a key held, click outside the game frame / address bar / DevTools (same expectations) | UNVERIFIED |
+| D2 Browser window narrow/wide, zoom and DevTools open/close (game viewport size before and after, or "did not change"): arena scales, buttons visible and working, no stuck movement | UNVERIFIED |
+| D3 Mouse: `Pause`/`Resume`/`Restart` clicks work; clicks and drags in the arena move nothing | UNVERIFIED |
+| D4 Fullscreen via the itch.io Fullscreen Button (or "button not offered"): label and buttons visible, keys and buttons work in and after fullscreen | UNVERIFIED |
 | Signed-out access, no login/payment prompt | UNVERIFIED |
 | Notes | |
 
@@ -143,7 +175,8 @@ Record the run with Mobile Friendly off first, then again after enabling it.
 | Phone model | _not recorded_ | _not recorded_ |
 | Android version | _not recorded_ | _not recorded_ |
 | Chrome version | _not recorded_ | _not recorded_ |
-| Screen / game viewport size | _not recorded_ | _not recorded_ |
+| Screen / game viewport size, portrait | _not recorded_ | _not recorded_ |
+| Screen / game viewport size, landscape | _not recorded_ | _not recorded_ |
 | Warning shown by itch.io, if any | _not recorded_ | _not recorded_ |
 | Build id seen in the game | _not recorded_ | _not recorded_ |
 | Build id matches the intended build | UNVERIFIED | UNVERIFIED |
@@ -154,6 +187,16 @@ Record the run with Mobile Friendly off first, then again after enabling it.
 | Basic movement (left-area touch drag) | UNVERIFIED | UNVERIFIED |
 | Pause / resume (on-screen button) | UNVERIFIED | UNVERIFIED |
 | Sound unlock (first tap) | UNVERIFIED | UNVERIFIED |
+| A1 Simultaneous: drag with one finger, second finger taps `Pause`, then `Resume` (and finger lifted while paused) | UNVERIFIED | UNVERIFIED |
+| A2 A second finger in the arena is ignored while the first drives the stick | UNVERIFIED | UNVERIFIED |
+| A3 UI/arena separation: touches starting on `Pause`/`Restart`, in the right ~45% and in the top strip never move the player; a touch in the left area does | UNVERIFIED | UNVERIFIED |
+| A4 Rotate portrait ↔ landscape while idle: layout visible, buttons do not start the stick, fresh drag works in both | UNVERIFIED | UNVERIFIED |
+| A5 Rotate during a drag: no stuck movement or ring after lifting; fresh drag works | UNVERIFIED | UNVERIFIED |
+| A6 Rotate while paused: stays paused, `Resume` is explicit, movement works afterwards | UNVERIFIED | UNVERIFIED |
+| A7 Pointer cancelled mid-drag (edge gesture started; notification shade): no stuck movement or ring, fresh touch works | UNVERIFIED | UNVERIFIED |
+| A8 Background mid-drag (Home/app switch, 5 s): returns paused, no stuck movement, resumes only via `Resume` | UNVERIFIED | UNVERIFIED |
+| A9 Screen lock and Chrome tab switch mid-drag: same expectations as A8 | UNVERIFIED | UNVERIFIED |
+| A10 Fullscreen (itch.io button when off; forced fullscreen launch when on): label/buttons visible, touch works in and after fullscreen, or "not offered" | UNVERIFIED | UNVERIFIED |
 | Signed-out access, no login/payment prompt | UNVERIFIED | UNVERIFIED |
 | Notes | | |
 
@@ -161,7 +204,9 @@ Record the run with Mobile Friendly off first, then again after enabling it.
 
 List anything that stops a tester from playing or downloading (asset errors, wrong or mismatched
 build id, a login/payment prompt, a Windows warning that blocks launch, no sound after unlock,
-unusable touch layout, missing Windows download on the HTML page). Each must be resolved before
+unusable touch layout, stuck movement or a stuck stick ring after backgrounding, rotating, focus
+loss or a cancelled touch, a touch that begins on a button moving the player, missing Windows
+download on the HTML page). Each must be resolved before
 combat-port work continues; copy them to issue #6.
 
 | Blocker | Target | Status |
