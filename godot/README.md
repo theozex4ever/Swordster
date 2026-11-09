@@ -63,6 +63,11 @@ SmartScreen may warn about an unrecognised app on first launch; the Windows buil
 has not been run yet, so what testers actually see is unverified (instructions for
 a warning are in the ZIP).
 
+To share a pair on itch.io (browser play plus Windows download) and record device
+results, follow [`docs/itchio-setup.md`](../docs/itchio-setup.md) and fill in
+[`docs/itchio-evidence.md`](../docs/itchio-evidence.md). The Web folder is not itch.io's
+upload format: that procedure includes the command that makes the Web ZIP.
+
 ### Environment overrides
 
 | Variable | Default | Purpose |
