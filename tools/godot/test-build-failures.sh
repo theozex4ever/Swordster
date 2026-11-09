@@ -3,8 +3,11 @@
 # throwaway sandbox copies. Each case must exit with its specific non-zero code
 # and leave no new artifact pair behind (an older, unrelated pair must survive
 # untouched). Also covers retry hygiene (a failed attempt must never leak into a
-# retried step) and overlapping invocations (artifact identity must stay
-# consistent). Requires the pinned Godot in the cache for the cases that run
+# retried step), export completeness (every runtime file of both platforms present,
+# nothing unexpected), publication into dist (leftover incoming directories,
+# post-publication verification), pruning that spares live runs, overlapping
+# invocations (artifact identity must stay consistent) and the mutation checker's
+# treatment of crashes. Requires the pinned Godot in the cache for the cases that run
 # the toolchain: ./build-godot.sh --bootstrap-only (or any earlier build).
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
@@ -19,6 +22,9 @@ failures=0
 
 new_sandbox() { # name -> prints sandbox dir (repo copy with its own cache/work/dist)
   local sb="$ROOT/$1"
+  # Finished cases never run again; drop their ~250 MB toolchain copies so the
+  # sandboxes (often on a tmpfs) do not pile up. Logs and dist directories stay.
+  find "$ROOT" -mindepth 2 -maxdepth 2 -type d -name cache -exec rm -rf {} + 2>/dev/null || true
   mkdir -p "$sb/repo/tools" "$sb/dist/20200101-000000-oldpair"
   cp "$REPO/build-godot.sh" "$sb/repo/"
   cp -a "$REPO/tools/godot" "$sb/repo/tools/godot"
@@ -119,7 +125,7 @@ run_case "build id already exists in dist" 18 "$sb" SWORDSTER_BUILD_ID=20200101-
 # ---- retry hygiene: the shim distinguishes steps and attempts. It kills itself with
 # SIGSEGV (like Godot's rare shutdown crash) so that build-godot.sh retries the step.
 SHIM_STEPS='D="$(dirname "$0")"; key=none
-case " $* " in *" --export-release Windows "*) key=win;; *" --script "*) key=checks;; *" --import "*) key=import;; esac
+case " $* " in *" --export-release Windows "*) key=win;; *" --export-release Web "*) key=web;; *" --script "*) key=checks;; *" --import "*) key=import;; esac
 n=0; if [[ $key != none ]]; then n=$(( $(cat "$D/n.$key" 2>/dev/null || echo 0) + 1 )); echo $n > "$D/n.$key"; fi'
 
 # 12. an export attempt finishes its files, prints a script error, then crashes; the
@@ -216,6 +222,148 @@ else
   printf '%-44s %s\n    A exit=%s B exit=%s %s\n' "overlapping toolchain bootstrap" "$verdict" "$a_status" "$b_status" "$detail"
   [[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 8 "$sb/a.log" "$sb/b.log"; }
 fi
+
+# ---- export completeness and per-attempt clearing of the export directories.
+# 19. an export exits 0 but a required runtime companion (the AudioWorklet scripts)
+# is missing: the bundle would load but have no audio.
+sb="$(new_sandbox missing-worklets)"; copy_cache "$sb"
+make_shim "$sb" 'if [[ " $* " == *" --export-release Web "* ]]; then "$REAL" "$@"; rc=$?; OUT="$(dirname "${@: -1}")"; rm -f "$OUT/index.audio.worklet.js" "$OUT/index.audio.position.worklet.js"; exit $rc; fi; exec "$REAL" "$@"'
+run_case "web export lacks both audio worklets" 17 "$sb"
+
+# 20. attempt 1 produced a full export, replaced the worklets with partial ones and
+# crashed; attempt 2 refreshes only index.html/js/wasm/pck. The first attempt's files
+# (the partial worklets above all) must not survive into the bundle.
+sb="$(new_sandbox stale-worklets)"; copy_cache "$sb"
+make_shim "$sb" "$SHIM_STEPS"'
+OUT="$(dirname "${@: -1}")"
+if [[ $key == web && $n == 1 ]]; then
+  "$REAL" "$@"; for w in index.audio.worklet.js index.audio.position.worklet.js; do echo "// PARTIAL_FROM_ATTEMPT_1" > "$OUT/$w"; done; kill -SEGV $$
+fi
+if [[ $key == web && $n == 2 ]]; then
+  tmp="$(mktemp -d)"; "$REAL" "${@:1:$#-1}" "$tmp/index.html" >/dev/null 2>&1
+  for f in index.html index.js index.wasm index.pck; do cp "$tmp/$f" "$OUT/$f"; done; exit 0
+fi
+exec "$REAL" "$@"'
+run_case "retry refreshes only part of the web bundle" 17 "$sb"
+
+# 21. positive control for the clearing itself: attempt 1 of each export leaves
+# partial and junk files and crashes; the retry must start in an EMPTY directory and
+# the finished bundle must contain only the real export (no partial worklets).
+sb="$(new_sandbox export-dirs-cleared)"; copy_cache "$sb"
+make_shim "$sb" "$SHIM_STEPS"'
+OUT="$(dirname "${@: -1}")"
+if [[ $key == web || $key == win ]]; then ls -A "$OUT" > "$D/seen.$key.$n"; fi
+if [[ $key == web && $n == 1 ]]; then
+  "$REAL" "$@"; for w in index.audio.worklet.js index.audio.position.worklet.js; do echo "// PARTIAL_FROM_ATTEMPT_1" > "$OUT/$w"; done; echo junk > "$OUT/junk.txt"; kill -SEGV $$
+fi
+if [[ $key == win && $n == 1 ]]; then echo junk > "$OUT/Swordster.console.exe"; kill -SEGV $$; fi
+exec "$REAL" "$@"'
+status=0; sb_build "$sb" SWORDSTER_BUILD_ID=cleared-dirs >"$sb/run.log" 2>&1 || status=$?
+verdict=PASS; detail=""
+((status == 0)) || verdict="FAIL(exit $status)"
+for k in web win; do
+  [[ -f "$sb/cache/godot-$GODOT_VERSION/editor/seen.$k.2" && ! -s "$sb/cache/godot-$GODOT_VERSION/editor/seen.$k.2" ]] \
+    || { verdict=FAIL; detail="$detail $k retry did not start in an empty directory;"; }
+done
+if grep -rq PARTIAL_FROM_ATTEMPT_1 "$sb"/dist/cleared-dirs/ 2>/dev/null; then verdict=FAIL; detail="$detail partial worklet was published;"; fi
+for w in index.audio.worklet.js index.audio.position.worklet.js; do
+  [[ -s "$sb/dist/cleared-dirs/Swordster-cleared-dirs-web/$w" ]] || { verdict=FAIL; detail="$detail $w missing from the bundle;"; }
+done
+printf '%-44s exit=%-3s %s\n    %s\n' "retried exports start from empty directories" "$status" "$verdict" "$detail"
+[[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 12 "$sb/run.log"; }
+
+# ---- publication into dist.
+# 22. a hidden .incoming-<id>.<pid> left by a killed run (here seeded under the old,
+# predictable name using the build's real PID) must not be reused or merged into: the
+# published root must be this build's and the advertised ZIP must exist.
+SEED_INCOMING='
+if [[ $key == win && $n == 1 ]]; then
+  SP="$(sed -n "s/^PPid:[[:space:]]*//p" /proc/$PPID/status | head -n1)"   # shim <- timeout <- build-godot.sh
+  L="$SHIM_DIST/.incoming-$SHIM_ID.$SP"; mkdir -p "$L/Swordster-old-web"
+  echo "{\"build_id\": \"review-cold\"}" > "$L/BUILD-INFO.json"; echo old > "$L/SHA256SUMS"; echo old > "$L/Swordster-old-web/index.html"
+fi'
+sb="$(new_sandbox incoming-residue)"; copy_cache "$sb"
+make_shim "$sb" "$SHIM_STEPS$SEED_INCOMING"'
+exec "$REAL" "$@"'
+status=0; sb_build "$sb" SWORDSTER_BUILD_ID=residue-build SHIM_ID=residue-build SHIM_DIST="$sb/dist" >"$sb/run.log" 2>&1 || status=$?
+verdict=PASS; detail=""
+((status == 0)) || verdict="FAIL(exit $status)"
+pub="$sb/dist/residue-build"
+grep -q '"build_id": "residue-build"' "$pub/BUILD-INFO.json" 2>/dev/null || { verdict=FAIL; detail="$detail published root metadata is not this build's;"; }
+[[ -s "$pub/Swordster-residue-build-windows.zip" ]] || { verdict=FAIL; detail="$detail advertised ZIP missing;"; }
+[[ -s "$pub/Swordster-residue-build-web/index.audio.worklet.js" ]] || { verdict=FAIL; detail="$detail web bundle not at the published root;"; }
+[[ "$(ls -A "$pub" | tr '\n' ' ')" == "BUILD-INFO.json SHA256SUMS Swordster-residue-build-web Swordster-residue-build-windows.zip " ]] || { verdict=FAIL; detail="$detail unexpected entries in the published root: $(ls -A "$pub" | tr '\n' ' ');"; }
+compgen -G "$sb/dist/.incoming-residue-build.*" >/dev/null || { verdict=FAIL; detail="$detail the seeded leftover was not left alone;"; }
+printf '%-44s exit=%-3s %s\n    %s\n' "leftover incoming dir is never reused" "$status" "$verdict" "$detail"
+[[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 12 "$sb/run.log"; }
+
+# 23. if a regression made the publication merge into a leftover again (emulated by
+# restoring the old move logic in the sandbox copy), the post-publication check must
+# refuse: non-zero exit, and no successful-looking pair at the published path.
+sb="$(new_sandbox incoming-merge-detected)"; copy_cache "$sb"
+python3 -I -c '
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+new = ("INCOMING=\"$DIST/.incoming-$BUILD_ID.$$\"\nmv \"$FINAL\" \"$INCOMING\"\n"
+       "mv -T \"$INCOMING\" \"$DIST/$BUILD_ID\" 2>/dev/null || { rm -rf \"$INCOMING\"; die 18 \"appeared\"; }\n")
+s, n = re.subn(r"# BEGIN publish-move\n.*?# END publish-move\n", lambda m: new, s, flags=re.S)
+if n != 1: raise SystemExit("could not restore the old publish logic")
+open(p, "w").write(s)
+' "$sb/repo/build-godot.sh"
+make_shim "$sb" "$SHIM_STEPS$SEED_INCOMING"'
+exec "$REAL" "$@"'
+status=0; sb_build "$sb" SWORDSTER_BUILD_ID=merge-build SHIM_ID=merge-build SHIM_DIST="$sb/dist" >"$sb/run.log" 2>&1 || status=$?
+verdict=PASS; detail=""
+((status == 17)) || verdict="FAIL(exit $status, wanted 17)"
+grep -q 'post-publication check' "$sb/run.log" || { verdict=FAIL; detail="$detail no post-publication refusal;"; }
+[[ ! -e "$sb/dist/merge-build" ]] || { verdict=FAIL; detail="$detail a pair was left at the published path;"; }
+if grep -q 'BUILD OK' "$sb/run.log"; then verdict=FAIL; detail="$detail printed BUILD OK;"; fi
+printf '%-44s exit=%-3s %s\n    %s %s\n' "merged publication is detected and removed" "$status" "$verdict" "$(grep -m1 'FAILED' "$sb/run.log" | cut -c1-170)" "$detail"
+[[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 12 "$sb/run.log"; }
+
+# 24. a build id that starts with '.' could collide with hidden incoming directories.
+sb="$(new_sandbox dotted-build-id)"
+run_case "build id starting with '.' is refused" 18 "$sb" SWORDSTER_BUILD_ID=.incoming-x.abc123
+
+# ---- pruning must spare live runs and remove abandoned ones.
+# 25. build A pauses before its export while its staging directory is made to look nine
+# days old; build B (same work dir) then runs. A must survive and finish; an abandoned
+# (unlocked) nine-day-old staging directory and a two-day-old abandoned .incoming-*
+# directory must be removed.
+sb="$(new_sandbox aged-live-staging)"; copy_cache "$sb"; mkdir -p "$sb/pause"
+make_shim "$sb" 'if [[ -n "${SHIM_PAUSE:-}" ]]; then for a in "$@"; do if [[ "$a" == --export-release ]]; then touch "$SHIM_PAUSE/paused"; while [[ ! -e "$SHIM_PAUSE/go" ]]; do sleep 0.2; done; break; fi; done; fi; exec "$REAL" "$@"'
+sb_build "$sb" SWORDSTER_BUILD_ID=aged-build-A SHIM_PAUSE="$sb/pause" >"$sb/a.log" 2>&1 & a_pid=$!
+for _ in $(seq 150); do [[ -e "$sb/pause/paused" ]] && break; sleep 0.2; done
+live_stage="$(ls -d "$sb"/work/staging.* | head -n1)"
+touch -d '9 days ago' "$live_stage"
+mkdir -p "$sb/work/staging.abandoned/logs" "$sb/dist/.incoming-dead.abc123"; echo x > "$sb/work/staging.abandoned/logs/x"
+touch -d '9 days ago' "$sb/work/staging.abandoned"; touch -d '2 days ago' "$sb/dist/.incoming-dead.abc123"
+b_status=0; BUILD_ARGS=--checks-only sb_build "$sb" SWORDSTER_BUILD_ID=aged-build-B >"$sb/b.log" 2>&1 || b_status=$?
+verdict=PASS; detail=""
+[[ -d "$live_stage" ]] || { verdict=FAIL; detail="$detail the paused build's staging directory was pruned;"; }
+[[ ! -e "$sb/work/staging.abandoned" ]] || { verdict=FAIL; detail="$detail abandoned staging directory was not pruned;"; }
+touch "$sb/pause/go"; a_status=0; wait "$a_pid" || a_status=$?
+((a_status == 0 && b_status == 0)) || { verdict=FAIL; detail="$detail A exit $a_status, B exit $b_status;"; }
+[[ -s "$sb/dist/aged-build-A/Swordster-aged-build-A-windows.zip" ]] || { verdict=FAIL; detail="$detail build A produced no ZIP;"; }
+[[ ! -e "$sb/dist/.incoming-dead.abc123" ]] || { verdict=FAIL; detail="$detail abandoned incoming directory was not pruned;"; }
+printf '%-44s %s\n    A exit=%s B exit=%s %s\n' "aged live staging survives, abandoned goes" "$verdict" "$a_status" "$b_status" "$detail"
+[[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 8 "$sb/a.log" "$sb/b.log"; }
+
+# ---- the mutation checker must not count a crash as detection.
+# 26. a Godot that prints failure verdicts and then dies (signal, or an unexpected exit
+# status) on every mutated project: every mutation must be INCONCLUSIVE, none caught.
+for crash in 'kill -SEGV $$' 'exit 3'; do
+  sb="$(new_sandbox "mutation-shim-${crash//[^a-z0-9]/}")"; copy_cache "$sb"
+  make_shim "$sb" 'if [[ " $* " == *" --script "* && "$*" == *"/m-"* ]]; then echo "CHECKS FAILED: 1 of 1"; echo "  FAIL injected failure"; '"$crash"'; fi; exec "$REAL" "$@"'
+  status=0
+  env -i HOME="$sb/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$sb/cache" "$sb/repo/tools/godot/mutation-check.sh" >"$sb/run.log" 2>&1 || status=$?
+  verdict=PASS
+  ((status == 1)) || verdict="FAIL(exit $status, wanted 1)"
+  if grep -q '^caught ' "$sb/run.log"; then verdict="FAIL(a crash counted as caught)"; fi
+  [[ "$(grep -c '^INCONCLUSIVE ' "$sb/run.log")" == 14 ]] || verdict="FAIL(not all 14 mutations inconclusive)"
+  printf '%-44s exit=%-3s %s\n    %s\n' "mutation checker, print-then-'$crash'" "$status" "$verdict" "$(grep -m1 '^INCONCLUSIVE' "$sb/run.log" | cut -c1-120)"
+  [[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 12 "$sb/run.log"; }
+done
 
 echo
 if ((failures)); then echo "$failures failure case(s) misbehaved"; exit 1; fi

@@ -10,8 +10,11 @@
 #
 # Concurrency: every run works in its own staging directory under the work
 # directory, so overlapping runs (full, --checks-only, any mix) cannot touch each
-# other's files. Only toolchain bootstrapping is serialized, with an flock(1) lock
-# that the kernel releases when its holder exits or crashes (no stale lock files).
+# other's files. Each run holds a kernel flock(1) on its own staging directory for
+# its whole lifetime, and pruning only removes old directories whose lock it can
+# take: the kernel drops a lock when its holder exits or crashes, so there are no
+# stale lock files to clean up and a paused-but-live run is never pruned.
+# Toolchain bootstrapping is serialized with the same kind of lock.
 #
 # Exit codes (stable, so CI and tests can tell failures apart):
 #   0 ok   2 usage   10 missing base utility   11 download failed
@@ -80,7 +83,9 @@ fi
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BUILD_ID="${SWORDSTER_BUILD_ID:-$(date -u +%Y%m%d-%H%M%S)-${SOURCE_COMMIT:0:9}}"
 [[ "$SOURCE_DIRTY" == "true" && -z "${SWORDSTER_BUILD_ID:-}" ]] && BUILD_ID="$BUILD_ID-dirty"
-[[ "$BUILD_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die 18 "build id '$BUILD_ID' may only contain letters, digits, '.', '_' and '-'"
+# A build id never starts with '.', so a published pair can never be mistaken for
+# (or collide with) a hidden .incoming-* directory left behind by a killed run.
+[[ "$BUILD_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die 18 "build id '$BUILD_ID' must start with a letter or digit and may only contain letters, digits, '.', '_' and '-'"
 if [[ "$MODE" == "full" && -e "$DIST/$BUILD_ID" ]]; then
   die 18 "$DIST/$BUILD_ID already exists; refusing to overwrite or reuse a previous artifact pair"
 fi
@@ -153,11 +158,24 @@ fi
 exec 9>&-   # bootstrap done; the lock must not leak into Godot processes
 
 # ---------------------------------------------------------------- invocation-private staging
+prune_abandoned() { # parent name-glob min-age-days: remove old directories no live run holds
+  # Old failed runs are kept for inspection but not forever. A directory is removed
+  # only if it is older than the limit AND its flock can be taken, i.e. no running
+  # build (however long it has been paused) holds it. -mtime +N means "at least N+1
+  # days"; the age floor also covers the instant between a run's mktemp -d and its
+  # flock.
+  local parent="$1" glob="$2" days="$3" d
+  for d in "$parent"/$glob; do
+    [[ -d "$d" && ! -L "$d" ]] || continue
+    [[ -n "$(find "$d" -maxdepth 0 -mtime "+$days" 2>/dev/null)" ]] || continue
+    ( flock -n 7 && rm -rf -- "$d" ) 7<"$d" 2>/dev/null || true
+  done
+}
 mkdir -p "$WORK"
-# Old failed runs are kept for inspection but not forever; a live run is never
-# that old, so this cannot remove another run's staging directory.
-find "$WORK" -mindepth 1 -maxdepth 1 -type d -name 'staging.*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+prune_abandoned "$WORK" 'staging.*' 7
 STAGE="$(mktemp -d "$WORK/staging.XXXXXX")"
+exec 8<"$STAGE"   # held until this process (and anything it started) is gone
+flock -n 8 || die 1 "cannot lock the new staging directory $STAGE"
 godot() { # isolated from any user/system Godot configuration and templates
   XDG_DATA_HOME="$STAGE/home/data" XDG_CONFIG_HOME="$STAGE/home/config" XDG_CACHE_HOME="$STAGE/home/cache" \
     "$GODOT_BIN" "$@"
@@ -189,11 +207,15 @@ sleep 0.05
 # failures and timeouts are never retried. A retry must stand on its own:
 #   * every attempt writes its own log (<name>.attemptN.log) and a script error
 #     or failed check in ANY attempt fails the step, even in one that was killed;
-#   * the step's expected outputs (STEP_OUTPUTS) are deleted before every attempt,
-#     so whatever a failed attempt left behind cannot be packaged, and a retry
-#     that exits 0 without writing them fails with 17;
+#   * before every attempt the step's output directory (STEP_DIR, an export
+#     directory) is emptied and recreated, and any other expected output
+#     (STEP_OUTPUTS) is deleted, so whatever a failed attempt left behind cannot
+#     be packaged; after the final attempt every expected output must exist, be
+#     non-empty and be newer than the build start (else 17), and an export
+#     directory may hold nothing but the expected outputs (else 17);
 #   * the final attempt's log is copied to <name>.log for later inspection.
 STEP_OUTPUTS=()
+STEP_DIR=""
 FAILURE_PATTERN='SCRIPT ERROR|Parse Error|Failed to load script|^CHECKS FAILED|^  FAIL '
 run_godot() { # logname timeout code description args...   (expected outputs: STEP_OUTPUTS)
   local name="$1" limit="$2" code="$3" what="$4"; shift 4
@@ -201,6 +223,8 @@ run_godot() { # logname timeout code description args...   (expected outputs: ST
   log "$what"
   for attempt in 1 2 3; do
     for out in "${STEP_OUTPUTS[@]}"; do rm -rf -- "$out"; done
+    # Godot does not create the export directory itself, so recreate it empty.
+    if [[ -n "$STEP_DIR" ]]; then rm -rf -- "$STEP_DIR"; mkdir -p -- "$STEP_DIR"; fi
     attempt_log="$STAGE/logs/$name.attempt$attempt.log"
     status=0
     timeout "$limit" env \
@@ -222,7 +246,14 @@ run_godot() { # logname timeout code description args...   (expected outputs: ST
     [[ -s "$out" ]] || die 17 "$what did not produce ${out#"$STAGE"/} (missing or empty after the final attempt)"
     [[ "$out" -nt "$STAGE/.started" ]] || die 17 "${out#"$STAGE"/} predates this build (stale file)"
   done
-  STEP_OUTPUTS=()
+  if [[ -n "$STEP_DIR" ]]; then
+    local entry known
+    while IFS= read -r -d '' entry; do
+      known=0; for out in "${STEP_OUTPUTS[@]}"; do [[ "$entry" == "$out" ]] && known=1; done
+      ((known)) || die 17 "$what produced unexpected ${entry#"$STAGE"/} (the export must contain exactly: ${STEP_OUTPUTS[*]##*/})"
+    done < <(find "$STEP_DIR" -mindepth 1 -print0)
+  fi
+  STEP_OUTPUTS=(); STEP_DIR=""
 }
 
 # ---------------------------------------------------------------- import + checks
@@ -234,21 +265,30 @@ log "$(grep -E '^CHECKS PASSED' "$STAGE/logs/checks.log")"
 [[ "$MODE" == "checks" ]] && { log "Checks complete (no exports requested)"; exit 0; }
 
 # ---------------------------------------------------------------- exports
-STEP_OUTPUTS=("$STAGE/out/windows/Swordster.exe" "$STAGE/out/windows/Swordster.pck")
+# The exact file sets the pinned Godot 4.7.2 exports (see tools/godot/godot.lock).
+# Windows: the executable and its pack. Web (single-thread, no PWA): the page, the
+# engine loader/wasm/pack named by index.html's config, the splash and the two
+# icons index.html links, and the two AudioWorklet scripts the engine fetches
+# beside index.js (audio.worklet.js, audio.position.worklet.js). Adding a thread
+# worker, side module, manifest or service worker changes this list on purpose.
+WINDOWS_EXPORT_FILES=(Swordster.exe Swordster.pck)
+WEB_EXPORT_FILES=(index.html index.js index.wasm index.pck index.png index.icon.png index.apple-touch-icon.png
+                  index.audio.worklet.js index.audio.position.worklet.js)
+STEP_DIR="$STAGE/out/windows"; STEP_OUTPUTS=(); for f in "${WINDOWS_EXPORT_FILES[@]}"; do STEP_OUTPUTS+=("$STEP_DIR/$f"); done
 run_godot export-windows 600 16 "Exporting Windows (release)" \
   --headless --path "$STAGE/project" --export-release Windows "$STAGE/out/windows/Swordster.exe"
-STEP_OUTPUTS=(); for f in index.html index.js index.wasm index.pck; do STEP_OUTPUTS+=("$STAGE/out/web/$f"); done
+STEP_DIR="$STAGE/out/web"; STEP_OUTPUTS=(); for f in "${WEB_EXPORT_FILES[@]}"; do STEP_OUTPUTS+=("$STEP_DIR/$f"); done
 run_godot export-web 600 16 "Exporting Web (release, single-thread, no extensions)" \
   --headless --path "$STAGE/project" --export-release Web "$STAGE/out/web/index.html"
 
-# Web must be single-thread without extensions: no worker script, no isolation
-# requirement, and no GDExtension libraries listed.
+# Web must be single-thread without extensions: no isolation requirement and no
+# GDExtension libraries listed.
 grep -Eq '"ensureCrossOriginIsolationHeaders":false' "$STAGE/out/web/index.html" \
   || die 17 "web export does not declare ensureCrossOriginIsolationHeaders:false"
 grep -Eq '"gdextensionLibs":\[\]' "$STAGE/out/web/index.html" \
   || die 17 "web export lists GDExtension libraries; extensions must stay disabled"
-[[ ! -e "$STAGE/out/web/index.worker.js" ]] || die 17 "web export contains a thread worker script"
-[[ ! -e "$STAGE/out/web/index.side.wasm" ]] || die 17 "web export contains a GDExtension side module"
+# (A thread worker or GDExtension side module would also be rejected as an
+# unexpected file by run_godot's exact-set check above.)
 
 # ---------------------------------------------------------------- packaging
 log "Packaging"
@@ -282,7 +322,7 @@ mv "$STAGE/pkg/outer.sums" "$FINAL/SHA256SUMS"
 # ---------------------------------------------------------------- validate the pair
 log "Validating the artifact pair"
 zip_listing="$("${PACK[@]}" list-zip "$FINAL/$WIN_NAME.zip")"
-for member in Swordster.exe Swordster.pck Swordster.ico READ-ME-FIRST.txt BUILD-INFO.json SHA256SUMS; do
+for member in "${WINDOWS_EXPORT_FILES[@]}" Swordster.ico READ-ME-FIRST.txt BUILD-INFO.json SHA256SUMS; do
   grep -q "$WIN_NAME/$member\$" <<<"$zip_listing" || die 17 "Windows ZIP is missing $member"
 done
 "${PACK[@]}" verify-manifest "$FINAL/SHA256SUMS" "$FINAL" >/dev/null || die 17 "final manifest does not verify"
@@ -292,11 +332,46 @@ grep -q "\"build_id\": \"$BUILD_ID\"" "$FINAL/$WEB_NAME/BUILD-INFO.json" || die 
 # ---------------------------------------------------------------- publish to dist
 mkdir -p "$DIST"
 [[ ! -e "$DIST/$BUILD_ID" ]] || die 18 "$DIST/$BUILD_ID appeared during the build; refusing to overwrite it"
-INCOMING="$DIST/.incoming-$BUILD_ID.$$"
-mv "$FINAL" "$INCOMING"
+# Hidden .incoming-* directories only ever exist for the instant of a publication
+# (published pairs never start with '.'); one left by a killed run is removed here
+# once it is a day old and no live run holds it. It is never reused: every
+# publication reserves its own fresh, empty directory.
+prune_abandoned "$DIST" '.incoming-*' 0
+# BEGIN publish-move
+INCOMING="$(mktemp -d "$DIST/.incoming-$BUILD_ID.XXXXXX")"   # unique and empty: nothing can be merged into it
+exec 7<"$INCOMING"; flock -n 7 || true
+mv -T "$FINAL" "$INCOMING/pair" || { rm -rf "$INCOMING"; die 17 "could not move the finished pair into $DIST"; }
 # rename(2) onto an existing non-empty directory fails, so a concurrent run that
 # published the same id first is never merged into or overwritten.
-mv -T "$INCOMING" "$DIST/$BUILD_ID" 2>/dev/null || { rm -rf "$INCOMING"; die 18 "$DIST/$BUILD_ID appeared during the build; refusing to overwrite it"; }
+mv -T "$INCOMING/pair" "$DIST/$BUILD_ID" 2>/dev/null || { rm -rf "$INCOMING"; die 18 "$DIST/$BUILD_ID appeared during the build; refusing to overwrite it"; }
+rmdir "$INCOMING" 2>/dev/null || true
+exec 7<&-
+# END publish-move
+
+# Re-check what is actually at the published location. This is the check that
+# counts: it looks at the published root itself, not at the staging copy.
+verify_published() { # prints a reason and fails if the published pair is not exactly ours
+  local pub="$DIST/$BUILD_ID" entries want f listing member
+  entries="$(ls -A "$pub" | sort | tr '\n' ' ')"
+  want="$(printf '%s\n' BUILD-INFO.json SHA256SUMS "$WEB_NAME" "$WIN_NAME.zip" | sort | tr '\n' ' ')"
+  [[ "$entries" == "$want" ]] || { echo "published root holds [${entries% }], expected [${want% }]"; return 1; }
+  grep -q "\"build_id\": \"$BUILD_ID\"" "$pub/BUILD-INFO.json" 2>/dev/null || { echo "published BUILD-INFO.json is not for $BUILD_ID"; return 1; }
+  grep -q "\"build_id\": \"$BUILD_ID\"" "$pub/$WEB_NAME/BUILD-INFO.json" 2>/dev/null || { echo "published web BUILD-INFO.json is not for $BUILD_ID"; return 1; }
+  [[ -s "$pub/$WIN_NAME.zip" ]] || { echo "advertised $WIN_NAME.zip is missing or empty"; return 1; }
+  listing="$("${PACK[@]}" list-zip "$pub/$WIN_NAME.zip" 2>/dev/null)" || { echo "published ZIP is unreadable"; return 1; }
+  for member in "${WINDOWS_EXPORT_FILES[@]}" Swordster.ico READ-ME-FIRST.txt BUILD-INFO.json SHA256SUMS; do
+    grep -q "$WIN_NAME/$member\$" <<<"$listing" || { echo "published ZIP is missing $member"; return 1; }
+  done
+  for f in "${WEB_EXPORT_FILES[@]}" BUILD-INFO.json SHA256SUMS; do
+    [[ -s "$pub/$WEB_NAME/$f" ]] || { echo "advertised web file $WEB_NAME/$f is missing or empty"; return 1; }
+  done
+  "${PACK[@]}" verify-manifest "$pub/SHA256SUMS" "$pub" >/dev/null || { echo "published SHA256SUMS does not verify"; return 1; }
+  "${PACK[@]}" verify-manifest "$pub/$WEB_NAME/SHA256SUMS" "$pub/$WEB_NAME" >/dev/null || { echo "published web SHA256SUMS does not verify"; return 1; }
+}
+if ! problem="$(verify_published)"; then
+  rm -rf -- "$DIST/$BUILD_ID"   # ours: we just created it by an atomic rename of a path that did not exist
+  die 17 "published pair failed its post-publication check ($problem); the published directory was removed"
+fi
 
 log "BUILD OK: $BUILD_ID"
 echo "  windows: $DIST/$BUILD_ID/$WIN_NAME.zip"

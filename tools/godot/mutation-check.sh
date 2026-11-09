@@ -3,10 +3,12 @@
 # time to a scratch copy of the Godot project and requires run_checks.gd to
 # reject each one (and to accept the unmodified project first).
 #
-# A mutation only counts as caught when run_checks.gd itself rejects it: it must
-# print "CHECKS FAILED" with at least one "  FAIL" line and no script errors. Any
-# other unsuccessful execution (engine crash, timeout, parse/script error, no
-# verdict at all) is INCONCLUSIVE: it is retried once, then reported and, if it
+# A mutation only counts as caught when run_checks.gd itself rejects it: the process
+# must exit with the checks' ordinary failure status (1, from quit(1) after the
+# verdict) AND print "CHECKS FAILED" with at least one "  FAIL" line and no script
+# errors. Printing a failure verdict and then dying (signal, timeout, any other
+# status) proves nothing, so any other execution (engine crash, timeout,
+# parse/script error, no verdict at all) is INCONCLUSIVE: it is retried once, then reported and, if it
 # persists, makes the script fail instead of silently counting as detection.
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
 set -Eeuo pipefail
@@ -45,7 +47,7 @@ PY
     status=0; log="$(run_checks "$dir")" || status=$?
     if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
       verdict=SURVIVED; break
-    elif grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
+    elif ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
          && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
       verdict=CAUGHT; detail="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"; break
     fi
