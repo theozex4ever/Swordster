@@ -43,14 +43,15 @@ into `dist/`.
 dist/<build-id>/
 ├── Swordster-<build-id>-windows.zip     Swordster.exe, Swordster.pck, Swordster.ico,
 │                                        READ-ME-FIRST.txt, BUILD-INFO.json, SHA256SUMS
-├── Swordster-<build-id>-web/            index.html/.js/.wasm/.pck + audio worklets,
-│                                        BUILD-INFO.json, SHA256SUMS
+├── Swordster-<build-id>-web/            index.html/.js/.wasm/.pck, index.png, the two icons,
+│                                        both audio worklet scripts, BUILD-INFO.json, SHA256SUMS
 ├── BUILD-INFO.json                      build_id, source_commit, source_dirty, built_at_utc, ...
 └── SHA256SUMS                           covers the ZIP, every Web file and BUILD-INFO.json
 ```
 
 Build id is `<UTC timestamp>-<commit prefix>` (`-dirty` appended for an unclean
-working tree). The same id and full commit appear in both packages, in
+working tree); a custom id must start with a letter or digit (a leading `.` is
+reserved for hidden `.incoming-*` publication directories). The same id and full commit appear in both packages, in
 `BUILD-INFO.json`, in the tester `READ-ME-FIRST.txt`, and in the game's top-left
 label. Verify a pair with `sha256sum -c SHA256SUMS` from inside `dist/<build-id>/`.
 This documents identifiable outputs, not byte-for-byte reproducibility.
@@ -67,7 +68,7 @@ a warning are in the ZIP).
 | Variable | Default | Purpose |
 |---|---|---|
 | `SWORDSTER_CACHE_DIR` | `$XDG_CACHE_HOME/swordster` | tool cache |
-| `SWORDSTER_WORK_DIR` | `<repo>/.build-godot` | one private `staging.XXXXXX/` per run (removed on success; kept with its `logs/` after a failure, pruned after 7 days) |
+| `SWORDSTER_WORK_DIR` | `<repo>/.build-godot` | one private `staging.XXXXXX/` per run (removed on success; kept with its `logs/` after a failure, pruned after 7 days unless a live run still holds its lock) |
 | `SWORDSTER_DIST_DIR` | `<repo>/dist` | finished pairs |
 | `SWORDSTER_BUILD_ID` | timestamp + commit | refuses an id that already exists |
 | `SWORDSTER_SOURCE_COMMIT` | `git rev-parse HEAD` | for builds outside a git checkout |
@@ -86,14 +87,27 @@ Godot's headless editor sometimes aborts at shutdown after finishing its work
 times only when the process was killed by a signal; ordinary failures and
 timeouts are never retried. Retries cannot hide anything: each attempt has its own
 log and a script error or failed check in *any* attempt fails the step, and the
-step's expected output files are deleted before every attempt, so a retry that
-exits 0 without writing them fails (exit 17).
+step's export directory is emptied and recreated before every attempt (other
+expected outputs are deleted), so a retry that exits 0 without writing them fails
+(exit 17). After the final attempt each export must contain exactly the pinned
+4.7.2 file set — Windows: `Swordster.exe`, `Swordster.pck`; Web: `index.html`,
+`.js`, `.wasm`, `.pck`, `.png`, `.icon.png`, `.apple-touch-icon.png`,
+`.audio.worklet.js`, `.audio.position.worklet.js` — a missing, empty or stale file or
+any unexpected extra file (a thread worker, a side module) fails with 17.
 
 Runs may overlap (full builds, `--checks-only`, any mix, even in one work
-directory): each uses its own staging directory, only toolchain bootstrapping is
-serialized with an `flock` lock (released by the kernel if a run crashes, so there
-is no stale lock to clean up), and `dist/<build-id>` is published by an atomic
-rename that cannot overwrite or merge into an existing pair.
+directory): each uses its own staging directory and holds an `flock` on it for
+its whole lifetime, pruning only removes old directories whose lock it can take
+(so a paused build is never pruned), and toolchain bootstrapping is serialized
+with the same kind of lock. The kernel releases these locks when a run exits or
+crashes, so there is no stale lock to clean up. `dist/<build-id>` is published by
+moving the pair into a freshly reserved, empty `.incoming-<id>.XXXXXX` directory and
+renaming it onto the final path with `mv -T`, which cannot overwrite or merge into
+an existing pair; the published root is then re-verified (exact entries, build ids,
+ZIP, every Web file, both manifests) before `BUILD OK`, and removed again with exit
+17 if anything is off. A `.incoming-*` directory left by a killed run is not a
+pair (pair names never start with `.`) and is removed by a later publication once
+it is a day old and unlocked.
 
 A failed run never touches `dist/`: output is assembled in staging and moved in
 only after every step and the manifest verification pass. Corrupted or
