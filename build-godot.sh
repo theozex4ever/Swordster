@@ -105,7 +105,8 @@ fetch_verified() { # name sha512
 
 install_toolchain() {
   local stage="$CACHE_ROOT/.installing-$$"
-  rm -rf "$stage"; mkdir -p "$stage/editor"
+  rm -rf "$CACHE_ROOT"/.installing-*   # leftovers from an interrupted install
+  mkdir -p "$stage/editor"
   fetch_verified "$GODOT_EDITOR_FILE" "$GODOT_EDITOR_SHA512"
   fetch_verified "$GODOT_TEMPLATES_FILE" "$GODOT_TEMPLATES_SHA512"
   log "Installing Godot $GODOT_VERSION into the cache"
@@ -163,13 +164,24 @@ GD
 touch "$STAGE/.started"
 sleep 0.05
 
+# Godot's headless editor occasionally aborts or segfaults at shutdown (about 1
+# in 25 runs observed with 4.7.2) even after finishing its work. Only a process
+# killed by a signal (status > 128) is retried, up to 3 attempts; ordinary
+# failures, timeouts and detected script errors are never retried, and every
+# step's output is still validated afterwards.
 run_godot() { # logname timeout code description args...
   local name="$1" limit="$2" code="$3" what="$4"; shift 4
-  local logfile="$STAGE/logs/$name.log" status=0
+  local logfile="$STAGE/logs/$name.log" status attempt
   log "$what"
-  timeout "$limit" env \
-    XDG_DATA_HOME="$WORK/home/data" XDG_CONFIG_HOME="$WORK/home/config" XDG_CACHE_HOME="$WORK/home/cache" \
-    "$GODOT_BIN" "$@" >"$logfile" 2>&1 || status=$?
+  for attempt in 1 2 3; do
+    status=0
+    timeout "$limit" env \
+      XDG_DATA_HOME="$WORK/home/data" XDG_CONFIG_HOME="$WORK/home/config" XDG_CACHE_HOME="$WORK/home/cache" \
+      "$GODOT_BIN" "$@" >"$logfile" 2>&1 || status=$?
+    ((status > 128)) || break
+    echo "    attempt $attempt: Godot was killed by signal $((status - 128)); retrying" >&2
+    cp "$logfile" "$logfile.attempt$attempt"
+  done
   if ((status != 0)); then
     tail -n 25 "$logfile" >&2 || true
     die "$code" "$what failed with status $status (full log: $logfile)"

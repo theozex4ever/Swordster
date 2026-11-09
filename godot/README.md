@@ -79,6 +79,11 @@ inside the `-web` folder works). Windows builds are unsigned, so SmartScreen sho
 `16` export failed · `17` expected output missing/invalid ·
 `18` unknown source commit or build id already exists.
 
+Godot's headless editor sometimes aborts at shutdown after finishing its work
+(roughly 1 run in 25 observed with 4.7.2). The script retries a Godot step up to 3
+times only when the process was killed by a signal; ordinary failures, timeouts and
+script errors are never retried, and outputs are validated regardless.
+
 A failed run never touches `dist/`: output is assembled in staging and moved in
 only after every step and the manifest verification pass. Corrupted or
 tampered cached tools are reported, not silently re-downloaded or upgraded; delete
