@@ -35,13 +35,13 @@ func _ready() -> void:
 	_restart_button.pressed.connect(func() -> void: restart_pressed.emit())
 
 	_pause_overlay = _make_label(root, "PAUSED\nPress P / Esc or tap Resume")
-	_center(_pause_overlay)
+	_fill_and_center(_pause_overlay, VERTICAL_ALIGNMENT_CENTER)
+	_pause_overlay.add_theme_font_size_override("font_size", 40)
 	_pause_overlay.visible = false
 
 	_audio_prompt = _make_label(root, "Click or tap to enable sound")
-	_audio_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_audio_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_audio_prompt.position.y = -96.0
+	_fill_and_center(_audio_prompt, VERTICAL_ALIGNMENT_BOTTOM)
+	_audio_prompt.offset_bottom = -72.0
 
 	_stick = Control.new()
 	_stick.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -104,9 +104,7 @@ func _make_button(parent: Control, text: String, offset: Vector2) -> Button:
 	return button
 
 
-func _center(label: Label) -> void:
-	label.set_anchors_preset(Control.PRESET_CENTER)
-	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	label.grow_vertical = Control.GROW_DIRECTION_BOTH
+func _fill_and_center(label: Label, vertical: VerticalAlignment) -> void:
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 40)
+	label.vertical_alignment = vertical
