@@ -4,3 +4,6 @@ game/build/
 Swordster-Windows-Tester/
 Swordster-Windows-Tester.zip
 windows/.build/
+.build-godot/
+dist/
+godot/.godot/
