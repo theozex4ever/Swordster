@@ -1,0 +1,74 @@
+SWORDSTER - Thanks for playtesting!
+===================================
+
+Build: @BUILD_ID@
+Source commit: @SOURCE_COMMIT@
+
+This is an early test of the new Swordster. For now it is only a small
+empty arena: you can walk around, pause, restart and hear a few sounds. The
+sword fighting comes in later builds.
+
+Nothing to install. It takes about a minute to get started.
+
+
+GETTING STARTED
+---------------
+1. Unzip the folder first.
+   If you're looking at this inside a zip file, right-click the zip file
+   and choose "Extract All...", then click "Extract". Open the new folder
+   that appears. Keep Swordster.exe and Swordster.pck together in the
+   same folder - the game needs both.
+
+2. Double-click "Swordster.exe".
+
+3. You may see a blue box saying "Windows protected your PC".
+   This is normal for small games that aren't sold in a store.
+   Click "More info", then click "Run anyway".
+   You only need to do this the first time.
+
+4. Wait a few seconds. The game window opens by itself.
+   Click inside the window once to turn the sound on.
+
+To quit, just close the game window.
+
+
+CONTROLS
+--------
+  Move around ................ W A S D keys (or the arrow keys)
+  Pause / resume ............. P or Esc
+  Start over ................. R
+
+On a touch screen: drag on the left side to move; use the Pause and
+Restart buttons at the top right.
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+- Nothing happens when I double-click:
+  Wait 10 seconds - the first start can be slow. Make sure you unzipped
+  the folder first (step 1).
+
+- My antivirus blocked or deleted it:
+  This sometimes happens with small homemade games. Let whoever sent you
+  the game know - that's useful feedback too.
+
+- No sound: click inside the game window once, then try pausing and
+  resuming. Please tell us if there is still nothing.
+
+
+WE'D LOVE YOUR THOUGHTS
+-----------------------
+When you report anything, please include the BUILD line from the top of
+this file (it is also shown in the top-left corner of the game). Some ideas:
+
+- Was it easy to get the game running?
+- Did the movement feel good? Did pausing and restarting work?
+- Did you hear the sounds?
+- Did anything strange happen (freezing, glitches, crashes)?
+  What were you doing when it happened?
+- What kind of computer are you using (Windows 10 or 11)?
+
+A picture of anything odd helps a lot. To take one, press the Windows key,
+Shift and S at the same time, then drag over the screen.
+
+Thank you!

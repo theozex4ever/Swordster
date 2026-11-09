@@ -49,6 +49,12 @@ Restart the server after editing the game to rebuild, then refresh your browser.
 Press **Ctrl+C** to stop the server. See [Sharing the browser demo](#sharing-the-browser-demo)
 for server options and remote access.
 
+## Godot port (in progress)
+
+A Godot 4 port is underway alongside this prototype. Its Windows and Web builds
+come from one Linux command, `./build-godot.sh`; see [godot/README.md](godot/README.md).
+The Python game above is unchanged and remains the behavioural reference.
+
 ## How to play
 
 - **Survive the waves.** Position yourself while your three swords attack nearby enemies automatically.
