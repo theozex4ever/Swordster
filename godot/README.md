@@ -26,9 +26,10 @@ data are redirected into the build's work directory.
 
 **Required base utilities** (the script checks them and never installs anything):
 `bash`, `curl`, `python3` (3.8+, standard library only), `git` (or set
-`SWORDSTER_SOURCE_COMMIT`), `sha256sum`, `sha512sum`, and coreutils-style `timeout`,
-`sleep`, `date`, `grep`, `sed`, `cp`, `mv`, `rm`, `mkdir`, `find`, `sort`, `xargs`,
-`cut`, `tr`, `head`, `tail`, `cat`, `env`. Linux x86_64 host.
+`SWORDSTER_SOURCE_COMMIT`), `sha512sum`, and coreutils/findutils-style `timeout`,
+`sleep`, `date`, `grep`, `sed`, `cp`, `mv`, `rm`, `mkdir`, `touch`, `find`, `sort`,
+`xargs`, `cut`, `tr`, `head`, `tail`, `cat`, `env` (`sha256sum` to check a finished
+pair by hand). Linux x86_64 host.
 
 Pipeline: prerequisite check → verified tool bootstrap/cache → fresh staging copy
 of `godot/` (with the build identity written into `BuildInfo`) → asset import →

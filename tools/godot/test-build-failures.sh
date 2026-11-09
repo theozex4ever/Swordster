@@ -55,7 +55,7 @@ run_case() { # name expected-exit sandbox [extra env...] -- [PATH override via P
 
 # 1. missing base utility: a PATH that has everything but sha512sum
 sb="$(new_sandbox missing-utility)"; bin="$sb/bin"; mkdir -p "$bin"
-for u in bash curl python3 sha256sum timeout sleep date grep sed cp mv rm mkdir find sort xargs cut tr head tail cat env git ls mktemp; do
+for u in bash curl python3 sha256sum timeout sleep date grep sed cp mv rm mkdir touch find sort xargs cut tr head tail cat env git ls mktemp; do
   ln -s "$(command -v "$u")" "$bin/$u"
 done
 PATH_OVERRIDE="$bin" run_case "missing base utility (sha512sum)" 10 "$sb"

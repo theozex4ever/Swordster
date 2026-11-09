@@ -45,7 +45,7 @@ source "$TOOLS_SRC/godot.lock"
 
 # ---------------------------------------------------------------- prerequisites
 log "Checking base utilities"
-REQUIRED_UTILS=(curl python3 sha256sum sha512sum timeout sleep date grep sed cp mv rm mkdir find sort xargs cut tr head tail cat env)
+REQUIRED_UTILS=(curl python3 sha512sum timeout sleep date grep sed cp mv rm mkdir touch find sort xargs cut tr head tail cat env)
 if [[ -z "${SWORDSTER_SOURCE_COMMIT:-}" ]]; then REQUIRED_UTILS+=(git); fi
 missing=()
 for util in "${REQUIRED_UTILS[@]}"; do
@@ -167,7 +167,7 @@ run_godot() { # logname timeout code description args...
   local name="$1" limit="$2" code="$3" what="$4"; shift 4
   local logfile="$STAGE/logs/$name.log" status=0
   log "$what"
-  timeout "$limit" bash -c 'exec "$@"' _ env \
+  timeout "$limit" env \
     XDG_DATA_HOME="$WORK/home/data" XDG_CONFIG_HOME="$WORK/home/config" XDG_CACHE_HOME="$WORK/home/cache" \
     "$GODOT_BIN" "$@" >"$logfile" 2>&1 || status=$?
   if ((status != 0)); then
