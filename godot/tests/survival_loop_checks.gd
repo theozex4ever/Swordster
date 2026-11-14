@@ -302,7 +302,41 @@ func _check_damage_and_death() -> void:
 	var expected_delay: int = roundi(float(damage_ref["restart_eligible_real_s_after_death"]) * 60.0)
 	_ok("R becomes eligible %d real ticks after death (reference %d)" % [eligible_after, expected_delay], absi(eligible_after - expected_delay) <= TICK_TOL)
 	_ok("dead players take no further damage", dying.hp == float(damage_ref["hp_after_death"]))
-	_ok("a dead player's enemies stop chasing and wander", dying.enemies.size() == 1)
+	_check_post_death_wandering()
+
+
+## After the player dies husks stop chasing and drift at 0.3x their speed in a
+## slowly turning direction. The drift's starting angle depends on object
+## identity in the prototype, so only phase-independent numbers are compared:
+## speed, distance from the start and how far the heading turns.
+func _check_post_death_wandering() -> void:
+	var ref: Dictionary = _ref["death_wander"]
+	var scenario: RunScenario = _plain()
+	scenario.initial_husks = [GameRun.WORLD.get_center() + Vector2(300.0, 0.0)]
+	var run: GameRun = GameRun.new(scenario)
+	var start: Vector2 = run.enemies[0].position
+	run.dead = true
+	run.hp = 0.0
+	var checkpoints: Dictionary = {30: "0.5", 60: "1.0", 120: "2.0", 180: "3.0"}
+	var headings: Dictionary = {}
+	var speeds_match: bool = true
+	var distances_match: bool = true
+	var detail: String = ""
+	for i: int in range(1, 181):
+		run.step()
+		if checkpoints.has(i):
+			var key: String = checkpoints[i]
+			var enemy: EnemyState = run.enemies[0]
+			var expected: Dictionary = ref["samples"][key]
+			speeds_match = speeds_match and _near(enemy.velocity.length(), float(expected["speed"]), VELOCITY_TOL)
+			distances_match = distances_match and _near((enemy.position - start).length(), float(expected["distance"]), POSITION_TOL)
+			headings[key] = enemy.velocity.angle()
+			detail += " %ss: speed %.4f dist %.4f;" % [key, enemy.velocity.length(), (enemy.position - start).length()]
+	_ok("a dead player's husk drifts at the prototype's speed ramp toward 0.3 x its speed" + detail, speeds_match and _near(run.enemies[0].velocity.length(), float(ref["target_speed"]), VELOCITY_TOL))
+	_ok("a dead player's husk covers the prototype's distance from where it stood", distances_match)
+	var turn: float = wrapf(float(headings["3.0"]) - float(headings["1.0"]), -PI, PI)
+	_ok("the drift heading keeps turning (%.4f rad from 1 s to 3 s, reference %.4f)" % [turn, float(ref["heading_turn_1s_to_3s_rad"])], _near(turn, float(ref["heading_turn_1s_to_3s_rad"]), 0.002))
+	_ok("the husk does not chase: it ends no closer to the dead player than it began", (run.enemies[0].position - run.position).length() > (start - run.position).length() - 100.0)
 
 
 func _check_restart_rules() -> void:
@@ -652,6 +686,10 @@ func _check_wave_and_outcomes() -> void:
 	for entry: Dictionary in survival_ref:
 		lowest = minf(lowest, float(entry["cleared_at"]))
 		highest = maxf(highest, float(entry["cleared_at"]))
+	var reference_unarmed: bool = survival_ref.size() == 8
+	for entry: Dictionary in survival_ref:
+		reference_unarmed = reference_unarmed and int(entry["armed_enemies"]) == 0 and int(entry["husks_spawned"]) == 8 and int(entry["kills"]) == 8 and not bool(entry["died"])
+	_ok("the survival reference is the unarmed fixture (no armed foe, 8 husks, 8 kills, never died)", reference_unarmed)
 	var all_survived: bool = true
 	var cleared_in_band: bool = true
 	var min_hp: float = 100.0

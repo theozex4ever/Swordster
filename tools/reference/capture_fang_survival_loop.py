@@ -242,6 +242,36 @@ def case_damage():
     return out
 
 
+def case_death_wander():
+    """After the player dies, husks stop chasing and drift (game/main.py Enemy.update).
+
+    The drift direction is polar(t * 0.3 + id(self) % 7, speed * 0.3): its phase
+    depends on object identity, so the case records only quantities that do not
+    depend on that phase (speed, distance from the start, and how far the heading
+    turns), which is also all a port can reproduce.
+    """
+    out = {}
+    g = new_game(swords=[])
+    hold()
+    e = husk_at(g, (300, 0))
+    e.t = 0.0
+    g.player.dead = True
+    start = V(e.pos)
+    checkpoints = {30: "0.5", 60: "1.0", 120: "2.0", 180: "3.0"}
+    samples = {}
+    headings = {}
+    for i in range(1, 181):
+        e.update(g, DT)
+        if i in checkpoints:
+            samples[checkpoints[i]] = dict(speed=r(e.vel.length(), 4), distance=r((e.pos - start).length(), 4))
+            headings[checkpoints[i]] = math.atan2(e.vel.y, e.vel.x)
+    out["samples"] = samples
+    turn = headings["3.0"] - headings["1.0"]
+    out["heading_turn_1s_to_3s_rad"] = r((turn + math.pi) % (2 * math.pi) - math.pi, 4)
+    out["target_speed"] = r(e.speed * 0.3, 4)
+    return out
+
+
 def case_hitstop_slowmo():
     out = {}
     g = new_game(swords=[])
@@ -462,6 +492,33 @@ def case_wave():
     return out
 
 
+def disarm_waves(game):
+    """Make the prototype's wave spawner produce unarmed foes only.
+
+    `start_wave` arms the first two foes of wave 1 unconditionally and the rest
+    by `ENEMY_TYPES[kind]["armed"]`; an armed foe has 1.35x health and drops a
+    sword, none of which exists in the Godot slice yet. The prototype rolls
+    that arming first, so the random stream is consumed exactly as in the game;
+    only the result is discarded, before any marker or enemy is created.
+    """
+    original = game.start_wave
+
+    def start_wave():
+        original()
+        game.spawn_queue = [(kind, None) for kind, _armed in game.spawn_queue]
+
+    game.start_wave = start_wave
+
+
+def assert_all_unarmed(game, wave_one_husk_hp):
+    """The fixture must really be unarmed: stop the capture if anything is not."""
+    for marker in game.markers:
+        assert marker.armed is None, "armed spawn marker in the unarmed fixture"
+    for enemy in game.enemies:
+        assert enemy.armed is None, "armed enemy in the unarmed fixture"
+        assert enemy.kind == "husk" and enemy.maxhp == wave_one_husk_hp, (enemy.kind, enemy.maxhp)
+
+
 def case_survival():
     """Three Fangs vs the first wave (husks only, nothing armed), player stationary."""
     out = {}
@@ -469,28 +526,33 @@ def case_survival():
     for seed in range(1, 9):
         random.seed(seed)
         g = new_game(swords=[("fang", "poison"), ("fang", "ice"), ("fang", "fire")])
+        disarm_waves(g)
         g.in_wave = False
         g.break_t = 1.6
         hold()
         t_real = 0.0
         cleared_at = None
+        husks_seen = set()
         for _ in range(round(60.0 / DT)):
             g.update(DT)
             t_real += DT
+            assert_all_unarmed(g, 30.0)
+            husks_seen.update(id(e) for e in g.enemies)
             if g.wave >= 1 and not g.in_wave and g.banner and g.banner[0] == "WAVE CLEARED" and cleared_at is None:
                 cleared_at = t_real
                 break
             if g.player.dead:
                 break
         results.append(dict(seed=seed, cleared_at=None if cleared_at is None else r(cleared_at, 2),
-                            died=g.player.dead, hp=r(g.player.hp, 1), kills=g.kills))
+                            died=g.player.dead, hp=r(g.player.hp, 1), kills=g.kills,
+                            husks_spawned=len(husks_seen), armed_enemies=0))
     out["wave1_three_fangs_stationary_player"] = results
     return out
 
 
 def main():
     cases = dict(
-        movement=case_movement(), dash=case_dash(), damage=case_damage(), time_scale=case_hitstop_slowmo(),
+        movement=case_movement(), dash=case_dash(), damage=case_damage(), death_wander=case_death_wander(), time_scale=case_hitstop_slowmo(),
         motes=case_motes(), fang=case_fang(), wave=case_wave(), survival=case_survival(),
     )
     text = json.dumps(cases, indent=2, sort_keys=False)

@@ -239,6 +239,28 @@
     "restart_eligible_real_s_after_death": 1.933,
     "hp_after_death": 0
   },
+  "death_wander": {
+    "samples": {
+      "0.5": {
+        "speed": 26.414,
+        "distance": 9.8282
+      },
+      "1.0": {
+        "speed": 27.5217,
+        "distance": 23.3942
+      },
+      "2.0": {
+        "speed": 27.5689,
+        "distance": 50.3822
+      },
+      "3.0": {
+        "speed": 27.569,
+        "distance": 76.2461
+      }
+    },
+    "heading_turn_1s_to_3s_rad": 0.5995,
+    "target_speed": 27.6
+  },
   "time_scale": {
     "hitstop_0.05_frozen_updates": 4,
     "time_advanced_during_hitstop": 0.0,
@@ -545,59 +567,75 @@
     "wave1_three_fangs_stationary_player": [
       {
         "seed": 1,
-        "cleared_at": 13.42,
+        "cleared_at": 13.33,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 2,
-        "cleared_at": 14.27,
+        "cleared_at": 13.72,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 3,
-        "cleared_at": 13.83,
+        "cleared_at": 13.8,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 4,
-        "cleared_at": 13.98,
+        "cleared_at": 14.27,
         "died": false,
         "hp": 83.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 5,
-        "cleared_at": 13.15,
+        "cleared_at": 13.7,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 6,
-        "cleared_at": 14.22,
+        "cleared_at": 14.62,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 7,
-        "cleared_at": 13.48,
+        "cleared_at": 13.1,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       },
       {
         "seed": 8,
-        "cleared_at": 13.82,
+        "cleared_at": 13.78,
         "died": false,
         "hp": 100.0,
-        "kills": 8
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
       }
     ]
   }
