@@ -715,6 +715,11 @@ func _check_exactly_once() -> void:
 	run.step()
 	var again: int = run.parry_projectiles(Vector2(900.0, 500.0), Vector2(1200.0, 700.0), 100.0)
 	_ok("an orb that was parried cannot be parried again (a second sweep over it finds nothing, one cue, one hitstop)", again == 0 and run.cue_count(SimCue.Kind.PROJECTILE_PARRIED) == 1 and a.fate == ProjectileState.Fate.PARRIED)
+	var twice_run: GameRun = GameRun.new(_arena([]))
+	var twice_orb: ProjectileState = twice_run.spawn_projectile(Vector2(1000.0, 600.0), Vector2.ZERO)
+	var first_parry: int = twice_run.parry_projectiles(Vector2(990.0, 600.0), Vector2(1010.0, 600.0), 6.0)
+	var second_parry: int = twice_run.parry_projectiles(Vector2(990.0, 600.0), Vector2(1010.0, 600.0), 6.0)
+	_ok("two sweeps in the same tick over one orb parry it once (%d then %d), with one cue" % [first_parry, second_parry], first_parry == 1 and second_parry == 0 and twice_orb.fate == ProjectileState.Fate.PARRIED and twice_run.cue_count(SimCue.Kind.PROJECTILE_PARRIED) == 1)
 	_ok("resolving a resolved orb changes nothing: the first fate stands", not a.resolve(ProjectileState.Fate.HIT_PLAYER) and a.fate == ProjectileState.Fate.PARRIED)
 	var arena: GameRun = GameRun.new(_arena([]))
 	var struck: ProjectileState = _shoot(arena, _ref["player_hit"]["head_on"]["setup"])
@@ -890,7 +895,10 @@ func _check_encounter_and_cycle() -> void:
 	for i: int in 3:
 		custom_run.apply(GameCommand.toggle_encounter())
 	_ok("a custom scenario is the normal slot and returns after the cycle", custom_run.scenario == custom)
-	_ok("the launch option asks for the spitter encounter", LaunchOptions.scenario_for("spitters").encounter == RunScenario.ENCOUNTER_SPITTERS and LaunchOptions.scenario_for("crowd").encounter == RunScenario.ENCOUNTER_CROWD and LaunchOptions.scenario_for("wall").encounter == RunScenario.ENCOUNTER_CROWD and LaunchOptions.scenario_for("nonsense") == null)
+	var launched_spitters: RunScenario = LaunchOptions.scenario_for("spitters")
+	var launched_crowd: RunScenario = LaunchOptions.scenario_for("crowd")
+	var launched_wall: RunScenario = LaunchOptions.scenario_for("wall")
+	_ok("the launch option asks for the spitter encounter", launched_spitters != null and launched_spitters.encounter == RunScenario.ENCOUNTER_SPITTERS and launched_crowd != null and launched_crowd.encounter == RunScenario.ENCOUNTER_CROWD and launched_wall != null and launched_wall.encounter == RunScenario.ENCOUNTER_CROWD and LaunchOptions.scenario_for("nonsense") == null)
 	_ok("the dev button names where it leads: %s" % [[RunScenario.encounter_title(RunScenario.next_encounter(&"")), RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")), RunScenario.encounter_title(RunScenario.next_encounter(&"spitters"))]],
 		RunScenario.encounter_title(RunScenario.next_encounter(&"")) == "Crowd" and RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")) == "Spitters" and RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")) == "Normal")
 	var played: RunScenario = RunScenario.spitter_encounter()
@@ -898,11 +906,19 @@ func _check_encounter_and_cycle() -> void:
 	played.first_wave_delay = 0.2
 	var played_run: GameRun = GameRun.new(played)
 	var kinds: Dictionary = {}
+	var first_cooldowns: Dictionary = {}
 	for tick_index: int in 60 * 8:
 		played_run.step()
 		played_run.take_cues()
 		for enemy: EnemyState in played_run.enemies:
 			kinds[enemy.kind] = true
+			if enemy.kind == EnemyDefs.SPITTER and not first_cooldowns.has(enemy.serial):
+				first_cooldowns[enemy.serial] = enemy.shoot_cooldown
+	# A spitter that the wave director spawns draws the prototype's 1.5-3.0 s first cooldown
+	# (it has already counted down a tick or two by the time it is first seen).
+	var draws: Array = first_cooldowns.values()
+	var in_range: bool = draws.size() == 5 and draws.all(func(value: float) -> bool: return value >= EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN - 0.05 and value <= EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)
+	_ok("each spitter the wave director spawns starts with a first cooldown drawn from 1.5-3.0 s, and the draws differ (%s)" % [draws], in_range and draws.any(func(value: float) -> bool: return not is_equal_approx(value, draws[0])))
 	_ok("the encounter's wave spawns through telegraphs and fields spitters that shoot (%s, %d orbs)" % [kinds.keys(), played_run.cue_count(SimCue.Kind.PROJECTILE_FIRED)], kinds.has(EnemyDefs.SPITTER) and kinds.has(EnemyDefs.HUSK) and played_run.cue_count(SimCue.Kind.PROJECTILE_FIRED) >= 1 and played_run.cue_count(SimCue.Kind.ENEMY_SPAWNED) == 8)
 
 

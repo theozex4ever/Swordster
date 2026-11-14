@@ -46,12 +46,17 @@ const page = targets.find((t) => t.type === "page");
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((ok) => ws.addEventListener("open", ok));
 let nextId = 1;
+let castIndex = 0;
 const pending = new Map();
 const consoleLines = [];
 ws.addEventListener("message", (event) => {
   const msg = JSON.parse(event.data);
   if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
-  else if (msg.method === "Runtime.consoleAPICalled") consoleLines.push(`${msg.params.type}: ${msg.params.args.map((a) => a.value ?? a.description).join(" ")}`);
+  else if (msg.method === "Page.screencastFrame") {
+    // CAST=1: every rendered frame, so short effects (parry sparks) are not missed.
+    writeFileSync(join(outDir, `cast-${String(castIndex++).padStart(5, "0")}.png`), Buffer.from(msg.params.data, "base64"));
+    ws.send(JSON.stringify({ id: nextId++, method: "Page.screencastFrameAck", params: { sessionId: msg.params.sessionId } }));
+  } else if (msg.method === "Runtime.consoleAPICalled") consoleLines.push(`${msg.params.type}: ${msg.params.args.map((a) => a.value ?? a.description).join(" ")}`);
   else if (msg.method === "Runtime.exceptionThrown") consoleLines.push(`exception: ${msg.params.exceptionDetails.text} ${msg.params.exceptionDetails.exception?.description ?? ""}`);
 });
 const send = (method, params = {}) => new Promise((ok) => { const id = nextId++; pending.set(id, ok); ws.send(JSON.stringify({ id, method, params })); });
@@ -125,6 +130,14 @@ if (scenario === "crowd") {
   }
   // BURST=n: a dense run of screenshots (about one per 150 ms) while walking about,
   // so the half-second parry sparks are caught; tools pick frames afterwards.
+  if (process.env.CAST) await send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+  for (let i = 0; i < Number(process.env.CAST_ROUNDS ?? 0); i++) {
+    const moves = [["KeyD", "d", 68], ["KeyW", "w", 87], ["KeyA", "a", 65], ["KeyS", "s", 83]];
+    const [code, k, vk] = moves[i % 4];
+    await hold(code, k, vk, 600);
+    if (i % 4 === 3) await key("Space", " ", 32);
+  }
+  if (process.env.CAST) { await send("Page.stopScreencast"); console.log(`screencast frames: ${castIndex}`); }
   for (let i = 0; i < Number(process.env.BURST ?? 0); i++) {
     await shot(`spitters-burst-${String(i).padStart(3, "0")}`);
     if (i % 6 === 0) { const moves = [["KeyD", "d", 68], ["KeyW", "w", 87], ["KeyA", "a", 65], ["KeyS", "s", 83]]; const [code, k, vk] = moves[(i / 6) % 4]; hold(code, k, vk, 500); }
