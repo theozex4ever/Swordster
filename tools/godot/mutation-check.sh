@@ -31,8 +31,13 @@ if ! out="$(run_checks "$SCRATCH/base")" || ! grep -q '^CHECKS PASSED' <<<"$out"
 fi
 echo "baseline: $(grep '^CHECKS PASSED' <<<"$out")"
 
+# SHARD=i SHARDS=n runs every n-th mutation starting at i (0-based), so n copies of
+# this script can run in parallel over the same list; each prints its own totals.
+SHARD="${SHARD:-0}" SHARDS="${SHARDS:-1}" mutation_index=0
 mutate() { # name file old new
   local name="$1" file="$2" old="$3" new="$4" dir="$SCRATCH/m-$1"
+  if (( mutation_index++ % SHARDS != SHARD )); then return 0; fi
+  ran=$((ran + 1))
   cp -a "$SCRATCH/base" "$dir"
   python3 -I - "$dir/$file" "$old" "$new" <<'PY' || { echo "MUTATION NOT APPLIED: $name"; exit 1; }
 import sys
@@ -61,7 +66,7 @@ PY
   esac
 }
 
-survived=0; inconclusive=0
+survived=0; inconclusive=0; ran=0
 mutate speed-zero           scripts/sim/game_run.gd  "PLAYER_SPEED: float = 285.0" "PLAYER_SPEED: float = 0.0"
 mutate pause-ignored        scripts/sim/game_run.gd  "	if paused:
 		return
@@ -460,11 +465,16 @@ mutate flurry-hud-bar-full         scripts/hud.gd "(1.0 if active else sword.ult
 mutate flurry-hud-no-active        scripts/hud.gd "		if active:
 			_ult_status[slot].text = \"ACTIVE\"" "		if false:
 			_ult_status[slot].text = \"ACTIVE\""
+mutate hud-card-below-the-view     scripts/hud.gd "	card.offset_bottom = -16.0" "	card.offset_bottom = 40.0"
+mutate hud-cards-anchored-top      scripts/hud.gd "	card.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)" "	card.set_anchors_preset(Control.PRESET_TOP_LEFT)"
+mutate hud-dash-below-the-view     scripts/hud.gd "	_dash_button.offset_bottom = -24.0" "	_dash_button.offset_bottom = 24.0"
+mutate hud-stretch-not-expand      project.godot "window/stretch/aspect=\"expand\"" "window/stretch/aspect=\"keep_width\""
 mutate flurry-sound-lost           scripts/audio/sfx_bank.gd "SimCue.Kind.DASH, SimCue.Kind.ULTIMATE_STARTED:" "SimCue.Kind.DASH:"
 mutate flurry-refusal-text-lost    scripts/presentation/effects_layer.gd "\"recharging %ds\" % cue.amount" "\"\""
 mutate flurry-presenter-phase-lost scripts/presentation/run_presenter.gd "visual.apply_pose(sword.position, sword.angle, sword.phase)" "visual.apply_pose(sword.position, sword.angle, SwordState.Phase.IDLE)"
 
 echo
+echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi
 if ((inconclusive)); then echo "$inconclusive mutation(s) were inconclusive (crash, timeout or script error instead of a check verdict)"; fi
 ((survived + inconclusive == 0)) || exit 1

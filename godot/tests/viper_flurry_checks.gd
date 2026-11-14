@@ -57,6 +57,7 @@ func run_all() -> void:
 	_check_touch_aim()
 	_check_restart_clears()
 	await _check_main_scene()
+	await _check_hud_layout()
 	await _check_visual_independence()
 	await _check_render_rates()
 
@@ -493,6 +494,68 @@ func _check_removed_while_alive() -> void:
 	_ok("an automatic attack's target removed while alive is dropped and its aim stops following it", acquired and fang.target == null and fang.aim == aim_before)
 	_steps(run_auto, 30)
 	_ok("and the attack ends without ever damaging it", husk.hp == 500.0 and run_auto.cue_count(SimCue.Kind.ENEMY_HIT) == 0 and fang.phase != SwordState.Phase.STRIKE)
+
+
+# ------------------------------------------------------------ HUD layout
+## The window the player gets is not always 1280x720 (a monitor narrower than the base
+## width, a maximised window, a phone): with the project's `canvas_items` stretch and
+## `expand` aspect the HUD sees a viewport rectangle that is never smaller than the
+## 1280x720 base, anchored to the edges of that rectangle. Every visible HUD control
+## (the ultimate cards bottom left, Dash/Shove bottom right, Pause/Restart/Dev top
+## right, the top-left lines) must lie inside it at each shape, in the same stretch
+## settings the project ships.
+const HUD_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1084, 720), Vector2i(1000, 563), Vector2i(1366, 768), Vector2i(1920, 1080), Vector2i(2560, 1080), Vector2i(800, 1280), Vector2i(1280, 1024)]
+
+
+func _check_hud_layout() -> void:
+	print("flurry: the HUD lies inside the viewport at every window shape")
+	_ok("the project stretches the 1280x720 base with canvas_items and expand (what the HUD layout relies on)",
+		ProjectSettings.get_setting("display/window/size/viewport_width") == 1280 and ProjectSettings.get_setting("display/window/size/viewport_height") == 720
+		and ProjectSettings.get_setting("display/window/stretch/mode") == "canvas_items" and ProjectSettings.get_setting("display/window/stretch/aspect") == "expand")
+	for size: Vector2i in HUD_WINDOW_SIZES:
+		var window: Window = Window.new()
+		window.size = size
+		window.content_scale_size = Vector2i(1280, 720)
+		window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+		_tree.root.add_child(window)
+		var hud: Hud = Hud.new()
+		window.add_child(hud)
+		var run: GameRun = GameRun.new(RunScenario.crowd_encounter())
+		await _tree.process_frame
+		hud.show_state(false, false)
+		hud.show_run(run)
+		await _tree.process_frame
+		var visible_rect: Rect2 = window.get_visible_rect()
+		var inside: bool = true
+		var outside_names: Array[String] = []
+		var counted: int = 0
+		for control: Control in _visible_hud_controls(hud):
+			var rect: Rect2 = control.get_global_rect()
+			counted += 1
+			if rect.size.x > 0.0 and rect.size.y > 0.0 and not visible_rect.grow(0.5).encloses(rect):
+				inside = false
+				outside_names.append("%s %s" % [control.name, rect])
+		var cards_ready: bool = [0, 1, 2].all(func(slot: int) -> bool: return hud.ultimate_status(slot) == "READY" and hud.ultimate_card_visible(slot))
+		_ok("window %s: visible rect %s is at least the 1280x720 base, and all %d visible HUD controls (cards READY: %s) lie inside it" % [size, visible_rect.size, counted, cards_ready],
+			visible_rect.size.x >= 1280.0 - 0.5 and visible_rect.size.y >= 720.0 - 0.5 and inside and cards_ready and counted > 30, str(outside_names))
+		window.queue_free()
+		await _tree.process_frame
+
+
+## Every visible HUD control that is not a screen-wide backdrop or overlay.
+func _visible_hud_controls(node: Node) -> Array[Control]:
+	var found: Array[Control] = []
+	for child: Node in node.get_children():
+		if child is Control:
+			var control: Control = child as Control
+			if not control.visible:
+				continue
+			var full: bool = control.anchor_left == 0.0 and control.anchor_top == 0.0 and control.anchor_right == 1.0 and control.anchor_bottom == 1.0
+			if not full and not (control is ColorRect and control.get_parent() is Hud):
+				found.append(control)
+		found.append_array(_visible_hud_controls(child))
+	return found
 
 
 # -------------------------------------------------------------- recharge
