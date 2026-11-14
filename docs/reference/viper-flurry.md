@@ -232,4 +232,34 @@ Each is a scope or correctness decision of slice #12, not a rebalance.
 
 ## Validation
 
-__VALIDATION__
+Run on build `20261114-182303-7a90f29b4` (source commit 7a90f29, clean tree; the commits after
+it only add documentation), Linux, Godot 4.7.2-stable.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 824` (683 before this slice plus 141 new, two of the old ones reworded for R); full build OK, Windows ZIP and Web bundle produced |
+| `tools/godot/mutation-check.sh` | 251 of 251 deliberate bugs caught, 0 inconclusive (baseline 824 checks pass; 197 before this slice plus 54 new: every flurry constant, the clamp and where it is measured, the recharge being armed, running through the ultimate and scaled by rarity, each refusal, wrong slot, victim repeats, strikes or targets the dead, blink, parry-by-flurry, death not ending it, the heavy hit's hitstop, key mapping and order of R, the mouse-to-world conversion, HUD card text and bar, sound, refusal text and the phase reaching the visual). The suite was run as five parallel shards of the same list; the first pass found two survivors (a dead victim still shaking the screen; a corpse still a candidate on the tick it died) and three mutants that crashed a check instead of failing it, each now has a check that fails on it. |
+| Reference regeneration | `capture_viper_flurry.py`, `capture_spitters_and_parries.py`, `capture_crowd_and_walls.py` and `capture_fang_survival_loop.py` each run twice give byte-identical output equal to the committed JSON; `crowd_and_walls.json`, `fang_survival_loop.json`, `spitters_and_parries.json` and `game/` are unchanged against the base commit 435308d |
+| Low/high render rates | The scripted flurry fight (six flurries from all three slots, four refused commands, 43 darts, six kills, player alive) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time (darts, kills, positions, phases and recharges) |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Served build `20261114-175450-59536bf6e` (identical game code; only test files changed since) over HTTP with `?encounter=crowd` and drove it with browser mouse-move and key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=flurry`): the cursor was moved and Q, E and R pressed; each sword blinked to the cursor, the 150 px area was outlined, darts streaked between foes with damage numbers (8, 17!), the cards read ACTIVE / READY and then counted down (`2s`, `5s`), Q while recharging printed "recharging 3s", and Q worked again after the recharge. No console errors. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The full build's `Swordster.exe` (the shipped binary) run with Godot's Movie Maker (`--write-movie`, 30 fps frames, 20 s) and a **scratch evidence pack** in place of `Swordster.pck`: the game's own files plus an autoload that hands `Main._input` mouse-move and key events (Q, E, Q while recharging, R). Frames show the Q sword blinking into its area ("VIPER FLURRY") and the E sword's darts with 8 / 17! hits. The pack differs from the shipped one only by that driver, so this proves the exported binary runs the ultimates, not that the shipped `.pck` was driven. In this Wine frame the HUD sits about 35 px too high (the bottom cards and the top-left lines are cropped), which did not happen in the #10 Wine run nor in Chromium; it was not investigated. |
+
+Screenshots (in `docs/reference/viper-flurry/`):
+[`web-flurry-02-q-150.png`](viper-flurry/web-flurry-02-q-150.png),
+[`web-flurry-03-q-refused.png`](viper-flurry/web-flurry-03-q-refused.png),
+[`web-flurry-04-r-200.png`](viper-flurry/web-flurry-04-r-200.png),
+[`wine-flurry-blink.png`](viper-flurry/wine-flurry-blink.png),
+[`wine-flurry-darts.png`](viper-flurry/wine-flurry-darts.png).
+
+## What was not verified
+
+- **No real Windows machine** and no real Android device (#6, #22). The Wine run proves the
+  export launches and runs the ultimates, not that it behaves on Windows. No touch ultimate
+  controls exist yet (#20), so Android has nothing to test.
+- Web was run in headless Chromium with a software renderer and synthetic browser input, not
+  Firefox, a real GPU or a phone. Frame pacing and audio were not measured (audio was muted;
+  the blink sound is asserted by a check only).
+- The Wine run's HUD cropping (see above) is unexplained.
+- Viper Flurry was not tuned for fun or difficulty; the numbers are the prototype's.
+- Out of scope and untouched: conditions (#11), Warden/Pike/Colossus (#13-#15), Converge (#16),
+  drops and swaps (#17), later waves (#18), touch controls (#20).
