@@ -24,8 +24,18 @@ var first_wave_delay: float = 1.6
 var wave_count: int = 1
 ## Husks in the wave; negative uses the prototype formula `5 + 3 * wave`.
 var husk_count: int = -1
+## Explicit wave composition, spawned in this order. Empty means `husk_count`
+## husks. The prototype only unlocks runners and brutes from wave 2; a fixture
+## can field them in the first wave (full wave generation is issue #18).
+var wave_kinds: Array[StringName] = []
 ## Husks already standing when the run starts (world positions).
 var initial_husks: Array[Vector2] = []
+## Enemies of any ported type already standing (or flying) when the run starts.
+var initial_enemies: Array[EnemyPlacement] = []
+## DEVELOPMENT FIXTURE: enables `GameCommand.dev_shove`, a stand-in for a heavy
+## Colossus blow so crowd bowling and wall slams can be played before the
+## sword types that cause them are ported. Off in the normal game.
+var dev_shove: bool = false
 ## Healing motes already in the arena (world positions).
 var initial_motes: Array[Vector2] = []
 ## Prototype husks draw their speed factor from uniform(0.9, 1.12); false pins it to 1.
@@ -34,6 +44,11 @@ var enemy_speed_jitter: bool = true
 var enemy_speed_scale: float = 1.0
 ## Probability of a critical hit (prototype: 12%).
 var crit_chance: float = 0.12
+
+const CROWD_WAVE: Array[StringName] = [
+	&"brute", &"runner", &"husk", &"runner", &"husk", &"runner", &"husk",
+	&"brute", &"runner", &"husk", &"runner", &"husk",
+]
 
 
 ## DEVELOPMENT FIXTURE, not the final default loadout: three Fang swords (one
@@ -46,3 +61,16 @@ static func fang_fixture_loadout() -> Array[SwordSpec]:
 	specs.append(SwordSpec.make(&"fang", 0, &"ice"))
 	specs.append(SwordSpec.make(&"fang", 0, &"fire"))
 	return specs
+
+
+## The crowd encounter: DEVELOPMENT FIXTURE for issue #9. One wave of five
+## husks, five runners and two brutes (interleaved so the arrival reads), played
+## with the three-Fang fixture loadout and the dev shove enabled. The prototype
+## would not field runners or brutes before wave 2; the composition is a
+## deliberate fixture, not a wave-generation rule (issue #18).
+static func crowd_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.wave_kinds = CROWD_WAVE.duplicate()
+	scenario.dev_shove = true
+	scenario.first_wave_delay = 1.0
+	return scenario

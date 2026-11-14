@@ -14,6 +14,12 @@ enum Kind {
 	MOTE_COLLECTED,
 	WAVE_STARTED,
 	WAVE_CLEARED,
+	## A launched enemy knocked into another (`amount` = the 3 damage dealt).
+	BOWLED,
+	## An enemy hit the arena wall hard enough to take damage (`amount` = damage).
+	WALL_SLAM,
+	## The dev shove went off around the player.
+	SHOVE,
 }
 
 var kind: Kind = Kind.DASH

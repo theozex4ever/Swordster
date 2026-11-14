@@ -27,6 +27,8 @@ func _run_all() -> void:
 	await _check_main_scene()
 	var survival: SurvivalLoopChecks = SurvivalLoopChecks.new(_check, self)
 	await survival.run_all()
+	var crowd: CrowdAndWallChecks = CrowdAndWallChecks.new(_check, self)
+	await crowd.run_all()
 	if _failed == 0 and _total > 0:
 		print("CHECKS PASSED: %d" % _total)
 		quit(0)

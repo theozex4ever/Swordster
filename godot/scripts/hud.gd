@@ -1,7 +1,8 @@
 class_name Hud
 extends CanvasLayer
 ## Overlay UI: build label, controls hint, health bar, wave/kill counters, dash
-## cooldown, wave banner, run outcome screens, pause/restart/dash buttons,
+## cooldown, wave banner, run outcome screens, pause/restart/dash buttons, the
+## crowd-encounter fixture's Crowd/Shove buttons and legend,
 ## audio-unlock prompt, pause overlay and the touch joystick indicator. It
 ## reports button presses by signal and owns no gameplay state: everything it
 ## shows is read from the run each tick.
@@ -9,6 +10,8 @@ extends CanvasLayer
 signal pause_pressed
 signal restart_pressed
 signal dash_pressed
+signal encounter_pressed
+signal shove_pressed
 
 const HP_BAR_SIZE: Vector2 = Vector2(260.0, 18.0)
 ## Death screen fades in after this many gameplay seconds (prototype 0.8).
@@ -23,6 +26,9 @@ var _restart_button: Button
 var _stick: Control
 var _joystick: TouchJoystick
 var _dash_button: Button
+var _encounter_button: Button
+var _shove_button: Button
+var _encounter_label: Label
 var _hp_back: ColorRect
 var _hp_lag: ColorRect
 var _hp_fill: ColorRect
@@ -46,7 +52,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   P / Esc: pause   R: restart after death\nTouch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   P / Esc: pause   R: restart after death   C: crowd encounter\nTouch: drag on the left half to move, Dash button to evade")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -104,6 +110,21 @@ func _ready() -> void:
 	_dash_button.offset_bottom = -24.0
 	_dash_button.button_down.connect(func() -> void: dash_pressed.emit())
 
+	_encounter_button = _make_button(root, "Crowd", Vector2(-256.0, 16.0))
+	_encounter_button.button_down.connect(func() -> void: encounter_pressed.emit())
+	_shove_button = _make_button(root, "Shove", Vector2.ZERO)
+	_shove_button.custom_minimum_size = Vector2(104.0, 104.0)
+	_shove_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_shove_button.offset_left = -248.0
+	_shove_button.offset_top = -128.0
+	_shove_button.offset_right = -144.0
+	_shove_button.offset_bottom = -24.0
+	_shove_button.button_down.connect(func() -> void: shove_pressed.emit())
+	_shove_button.visible = false
+	_encounter_label = _make_label(root, "")
+	_encounter_label.position = Vector2(16.0, 146.0)
+	_encounter_label.visible = false
+
 	_pause_overlay = _make_label(root, "PAUSED\nPress P / Esc or tap Resume")
 	_fill_and_center(_pause_overlay, VERTICAL_ALIGNMENT_CENTER)
 	_pause_overlay.add_theme_font_size_override("font_size", 40)
@@ -130,6 +151,8 @@ func button_rects() -> Array[Rect2]:
 	rects.append(_pause_button.get_global_rect().grow(8.0))
 	rects.append(_restart_button.get_global_rect().grow(8.0))
 	rects.append(_dash_button.get_global_rect().grow(8.0))
+	rects.append(_encounter_button.get_global_rect().grow(8.0))
+	rects.append(_shove_button.get_global_rect().grow(8.0))
 	return rects
 
 
@@ -149,6 +172,7 @@ func show_run(run: GameRun) -> void:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
 	else:
 		_dash_label.text = "dash ready"
+	_show_encounter(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
 
@@ -174,6 +198,26 @@ func show_run(run: GameRun) -> void:
 			_outcome_prompt.modulate.a = 1.0
 		_:
 			_set_outcome_visible(false)
+
+
+## The crowd encounter fixture's controls and legend: the Shove button, the
+## switch label, and how many foes of each type are still to be beaten
+## (standing, telegraphed or queued).
+func _show_encounter(run: GameRun) -> void:
+	var active: bool = run.scenario.dev_shove
+	_encounter_button.text = "Normal" if active else "Crowd"
+	_shove_button.visible = active
+	_encounter_label.visible = active
+	if not active:
+		return
+	var left: Dictionary[StringName, int] = {EnemyDefs.HUSK: 0, EnemyDefs.RUNNER: 0, EnemyDefs.BRUTE: 0}
+	for enemy: EnemyState in run.enemies:
+		left[enemy.kind] += 1
+	for marker: SpawnMarker in run.director.markers:
+		left[marker.kind] += 1
+	for kind: StringName in run.director.queue:
+		left[kind] += 1
+	_encounter_label.text = "CROWD ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute\nF / Shove: launch nearby foes into each other and the wall   C / Normal: back to the husk wave" % [left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE]]
 
 
 ## Text of the run outcome currently on screen ("" when none). Checks read it.

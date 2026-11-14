@@ -16,6 +16,10 @@ const PAUSE_KEYS: Array[Key] = [KEY_P, KEY_ESCAPE]
 ## Godot reports left and right Shift as the same key.
 const DASH_KEYS: Array[Key] = [KEY_SPACE, KEY_SHIFT]
 const RESTART_KEYS: Array[Key] = [KEY_R]
+## DEVELOPMENT FIXTURE keys (crowd encounter): F shoves nearby enemies, C
+## switches between the normal wave and the crowd encounter.
+const SHOVE_KEYS: Array[Key] = [KEY_F]
+const ENCOUNTER_KEYS: Array[Key] = [KEY_C]
 
 var joystick: TouchJoystick = TouchJoystick.new()
 var _held: Dictionary = {}
@@ -37,6 +41,10 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 				commands.append(GameCommand.dash())
 			elif code in RESTART_KEYS:
 				commands.append(GameCommand.restart_from_key())
+			elif code in SHOVE_KEYS:
+				commands.append(GameCommand.dev_shove())
+			elif code in ENCOUNTER_KEYS:
+				commands.append(GameCommand.toggle_encounter())
 		else:
 			_held.erase(code)
 	else:

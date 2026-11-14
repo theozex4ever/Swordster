@@ -3,7 +3,7 @@ extends RefCounted
 ## One gameplay command. Keyboard and touch input both translate into these;
 ## automated checks submit the very same commands.
 
-enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY }
+enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER }
 
 var kind: Kind = Kind.MOVE
 ## Only meaningful for MOVE. Magnitude is clamped to 1 by the run.
@@ -43,6 +43,19 @@ static func restart() -> GameCommand:
 ## slot-three ultimate key (not ported yet), so it does nothing then.
 static func restart_from_key() -> GameCommand:
 	return _of(Kind.RESTART_FROM_KEY)
+
+
+## DEVELOPMENT FIXTURE: launches the enemies around the player like a heavy
+## blow. Does nothing unless the scenario enables `dev_shove`.
+static func dev_shove() -> GameCommand:
+	return _of(Kind.DEV_SHOVE)
+
+
+## DEVELOPMENT FIXTURE: switches between the normal wave and the crowd
+## encounter. The run does not interpret it; the scene that owns the scenarios
+## does, by restarting the run with the other one.
+static func toggle_encounter() -> GameCommand:
+	return _of(Kind.TOGGLE_ENCOUNTER)
 
 
 static func _of(kind_value: Kind) -> GameCommand:

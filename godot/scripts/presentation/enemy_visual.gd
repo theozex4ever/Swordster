@@ -11,10 +11,11 @@ func setup(kind: StringName) -> void:
 
 
 ## Called every fixed tick. `flash` and `squash` are cosmetic timers from the
-## simulation; `hp_fraction` is health as 0..1.
-func apply_pose(world_position: Vector2, facing: Vector2, flash: float, squash: float, hp_fraction: float) -> void:
+## simulation; `hp_fraction` is health as 0..1; `stunned` is true while the
+## enemy is knocked back and out of control (launched enemies are stunned).
+func apply_pose(world_position: Vector2, facing: Vector2, flash: float, squash: float, hp_fraction: float, stunned: bool = false) -> void:
 	position = world_position
-	_on_pose(facing, flash, squash, hp_fraction)
+	_on_pose(facing, flash, squash, hp_fraction, stunned)
 
 
 func snap() -> void:
@@ -25,5 +26,5 @@ func _on_setup(_kind: StringName) -> void:
 	pass
 
 
-func _on_pose(_facing: Vector2, _flash: float, _squash: float, _hp_fraction: float) -> void:
+func _on_pose(_facing: Vector2, _flash: float, _squash: float, _hp_fraction: float, _stunned: bool) -> void:
 	pass
