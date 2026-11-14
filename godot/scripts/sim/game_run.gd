@@ -171,7 +171,7 @@ var _cues: Array[SimCue] = []
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
 ## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
-## order (normal, crowd, spitters, conditions): the one the run was made with keeps its own
+## order (normal, crowd, spitters, conditions, warden): the one the run was made with keeps its own
 ## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
 var _encounter_scenarios: Array[RunScenario] = []
 
@@ -183,6 +183,7 @@ func _init(scenario_value: RunScenario = null) -> void:
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CROWD else RunScenario.crowd_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_SPITTERS else RunScenario.spitter_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS else RunScenario.conditions_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 	]
 	if scenario.seed < 0:
 		rng.randomize()
@@ -514,8 +515,9 @@ func _bowl(launched: EnemyState, hit: EnemyState, normal: Vector2, sign_value: f
 ## (Python round-half-even), knockback, stun, hitstop and shake; a blow that leaves the
 ## enemy alive then applies the sword's element (`stacks` doses of it). A dead enemy
 ## ignores further hits so its death and rewards resolve exactly once.
-## A `heavy` blow (a Fang flurry dart) flashes the enemy longer and, unlike a normal hit,
-## causes no hitstop and no hit shake of its own (the caller adds its own).
+## A `heavy` blow (a Fang flurry dart, a Maelstrom beat or burst) flashes the enemy longer and,
+## unlike a normal hit, causes no hitstop and no hit shake of its own (the caller adds its own).
+## A normal hit's hitstop and shake are the sword type's own (Fang 0.02 / 0.07, Warden 0.05 / 0.16).
 func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: float, sword: SwordState, heavy: bool = false, stacks: int = 1) -> void:
 	if enemy.dead:
 		return
@@ -534,9 +536,10 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 	var force: float = knock * enemy.knock_mult * (CRIT_KNOCK_BONUS if crit else 1.0)
 	enemy.launch(d, force)
 	if not heavy:
-		var stop: float = SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR if crit else 1.0)
+		# The sword type's own feedback (prototype `sword.t["hitstop"]` / `["shake"]`).
+		var stop: float = (sword.hit_stop if sword != null else SwordDefs.FANG_HITSTOP) * (CRIT_HITSTOP_FACTOR if crit else 1.0)
 		hitstop = maxf(hitstop, stop)
-		add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
+		add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
 	var hit_cue: SimCue = SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, d, dealt, crit)
 	if shattered:
 		hit_cue.element = ConditionDefs.ICE

@@ -5,7 +5,8 @@ extends RefCounted
 ## in a browser, the page address (`index.html?encounter=crowd`). The value is
 ## `crowd` (the wave of husks, runners and brutes), `wall` (a crowd already
 ## pinned against the east wall), `spitters` (the wave of spitters and husks) or
-## `conditions` (husks, runners and two brutes, for fire, poison and ice).
+## `conditions` (husks, runners and two brutes, for fire, poison and ice) or `warden`
+## (a mixed crowd against Fang / Warden / Warden: sweeping arcs and Maelstrom).
 ## Anything else, or nothing, starts the normal run. The C key and the dev
 ## encounter button cycle the encounters at any time, so launch options are a
 ## convenience, not the only way in.
@@ -29,6 +30,8 @@ static func scenario_for(encounter: String) -> RunScenario:
 			return RunScenario.spitter_encounter()
 		"conditions":
 			return RunScenario.conditions_encounter()
+		"warden":
+			return RunScenario.warden_encounter()
 		_:
 			return null
 

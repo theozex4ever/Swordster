@@ -40,13 +40,20 @@ const CONDITIONS_WAVE: Array[StringName] = [
 	&"brute", &"husk", &"husk", &"runner", &"husk", &"husk", &"brute", &"husk", &"husk", &"runner", &"husk", &"husk",
 ]
 
+## The warden encounter's wave: a mixed crowd (husks and runners around two brutes) that
+## a sweeping arc catches several of at once and a Maelstrom can gather and finish.
+const WARDEN_WAVE: Array[StringName] = [
+	&"husk", &"husk", &"runner", &"husk", &"brute", &"husk", &"runner", &"husk", &"husk", &"runner", &"brute", &"husk", &"husk", &"runner",
+]
+
 ## The dev encounters the C key / dev button cycles through, in order. The empty
 ## name is the normal run (or whatever custom scenario the run was made with).
 const ENCOUNTER_NORMAL: StringName = &""
 const ENCOUNTER_CROWD: StringName = &"crowd"
 const ENCOUNTER_SPITTERS: StringName = &"spitters"
 const ENCOUNTER_CONDITIONS: StringName = &"conditions"
-const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS]
+const ENCOUNTER_WARDEN: StringName = &"warden"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]
 
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
@@ -116,6 +123,18 @@ static func fang_fixture_loadout() -> Array[SwordSpec]:
 	return specs
 
 
+## DEVELOPMENT FIXTURE for issue #13, not the final default loadout: Fang, Warden and Warden
+## (one per sword slot, poison / ice / fire) so Warden's sweeps, its Maelstrom and a mixed
+## loadout can be played before Colossus is ported. The prototype's own default is Fang /
+## Warden / Colossus with the same three elements; the final default arrives with #16.
+static func warden_fixture_loadout() -> Array[SwordSpec]:
+	var specs: Array[SwordSpec] = []
+	specs.append(SwordSpec.make(&"fang", 0, &"poison"))
+	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &"ice"))
+	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &"fire"))
+	return specs
+
+
 ## The crowd encounter: DEVELOPMENT FIXTURE for issue #9. One wave of five
 ## husks, five runners and two brutes (interleaved so the arrival reads), played
 ## with the three-Fang fixture loadout and the dev shove enabled. The prototype
@@ -171,6 +190,19 @@ static func conditions_encounter() -> RunScenario:
 	return scenario
 
 
+## The warden encounter: DEVELOPMENT FIXTURE for issue #13. One wave of husks, runners and two
+## brutes against the mixed Fang / Warden / Warden loadout: sweeps alternate and catch several
+## foes at once, Q / E / R each start their slot's ultimate (Viper Flurry, Maelstrom, Maelstrom).
+## The wave is a fixture, not a wave-generation rule (issue #18); the normal run is unchanged.
+static func warden_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_WARDEN
+	scenario.loadout = warden_fixture_loadout()
+	scenario.wave_kinds = WARDEN_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
 ## Display name of an encounter for the dev button and legend.
 static func encounter_title(name: StringName) -> String:
 	match name:
@@ -180,6 +212,8 @@ static func encounter_title(name: StringName) -> String:
 			return "Spitters"
 		ENCOUNTER_CONDITIONS:
 			return "Conditions"
+		ENCOUNTER_WARDEN:
+			return "Warden"
 		_:
 			return "Normal"
 

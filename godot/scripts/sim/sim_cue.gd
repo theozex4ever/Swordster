@@ -43,6 +43,12 @@ enum Kind {
 	## A burning enemy died and set its neighbours alight (`position` = where it died);
 	## alongside ENEMY_KILLED.
 	FIRE_SPREAD,
+	## One beat of a Maelstrom (`position` = its centre, `radius` = the blades' reach, `amount` =
+	## how many enemies it struck, `element` = the sword's element).
+	MAELSTROM_BEAT,
+	## A Maelstrom's finishing burst (`position` = its centre, `radius` = the reach it struck
+	## within, `amount` = how many enemies it struck, `element` = the sword's element).
+	MAELSTROM_BURST,
 }
 
 var kind: Kind = Kind.DASH
@@ -56,6 +62,8 @@ var origin: Vector2 = Vector2.ZERO
 ## The element a condition cue speaks of; `ice` on an ENEMY_HIT that struck a frozen
 ## enemy for the shatter bonus. Empty when no element is involved.
 var element: StringName = &""
+## The reach of an area effect (a Maelstrom beat or burst), in pixels.
+var radius: float = 0.0
 
 
 static func make(kind_value: Kind, at: Vector2, direction_value: Vector2 = Vector2.ZERO, amount_value: int = 0, critical_value: bool = false) -> SimCue:

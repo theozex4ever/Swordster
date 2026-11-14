@@ -7,7 +7,8 @@ extends RefCounted
 ## (issue #10: orbs fired, parried and dodged) and "flurry" (issue #12: Viper
 ## Flurry commanded from every sword slot, repeated and refused) and "conditions"
 ## (issue #11: three elemental swords burning, poisoning and freezing standing packs,
-## burning deaths spreading, brutes freezing for less). The probe (`frame_rate_probe.gd`)
+## burning deaths spreading, brutes freezing for less) and "warden" (issue #13: a Fang and two
+## Wardens sweeping standing packs and whirling Maelstroms through them). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
@@ -17,6 +18,7 @@ const CROWD: String = "crowd"
 const SPITTERS: String = "spitters"
 const FLURRY: String = "flurry"
 const CONDITIONS: String = "conditions"
+const WARDEN: String = "warden"
 const TOTAL_TICKS: int = 900
 ## Simulation ticks (ticks already completed) before which each command is issued.
 const SHOVE_TICKS: Array[int] = [0, 200, 420, 520, 560, 640, 700]
@@ -54,6 +56,33 @@ const CONDITIONS_COMMANDS: Array[Vector3] = [
 	Vector3(150.0, 2.0, 0.0), Vector3(260.0, 0.0, 0.0), Vector3(380.0, 1.0, 0.0), Vector3(520.0, 2.0, 0.0), Vector3(640.0, 0.0, 0.0), Vector3(760.0, 1.0, 0.0),
 ]
 const CONDITIONS_AIMS: Array[Vector2] = [Vector2(170.0, 0.0), Vector2(180.0, 20.0), Vector2(-150.0, 0.0), Vector2(160.0, -20.0), Vector2(0.0, -140.0), Vector2(190.0, 10.0)]
+## The warden script: the player stands still while a Fang and two Wardens (poison, ice, fire)
+## fight standing enemies: fragile husks and runners that die to the sweeps and Maelstroms,
+## sturdier husks that survive the first whirls, two brutes and two tough posts that take hit
+## after hit. Commands: (tick, slot) with the aim as an offset from the player. Slots one and two
+## whirl Maelstroms (the second time after the recharge, which hitstop stretches, so the last two
+## are still whirling when the script ends), slot zero's Viper Flurry is cast twice, and three
+## presses at ticks the slot is still recharging are refused.
+const WARDEN_FRAGILE: Array[Vector2] = [
+	Vector2(160.0, 0.0), Vector2(200.0, 40.0), Vector2(180.0, -50.0), Vector2(-170.0, 20.0), Vector2(-210.0, -30.0),
+	Vector2(40.0, 190.0),
+]
+const WARDEN_STURDY: Array[Vector2] = [
+	Vector2(-30.0, -200.0), Vector2(250.0, 100.0), Vector2(-240.0, 90.0), Vector2(110.0, -150.0), Vector2(190.0, -20.0),
+	Vector2(-200.0, 10.0), Vector2(230.0, -90.0), Vector2(-170.0, -120.0),
+]
+const WARDEN_STURDY_HP: float = 220.0
+const WARDEN_RUNNERS: Array[Vector2] = [Vector2(215.0, -10.0), Vector2(-195.0, 60.0), Vector2(70.0, 230.0)]
+const WARDEN_BRUTES: Array[Vector2] = [Vector2(300.0, -60.0), Vector2(-300.0, 60.0)]
+const WARDEN_POSTS: Array[Vector2] = [Vector2(130.0, 110.0), Vector2(-120.0, -110.0)]
+const WARDEN_COMMANDS: Array[Vector3] = [
+	Vector3(40.0, 1.0, 0.0), Vector3(60.0, 2.0, 0.0), Vector3(100.0, 0.0, 0.0), Vector3(300.0, 1.0, 0.0), Vector3(320.0, 2.0, 0.0),
+	Vector3(400.0, 0.0, 0.0), Vector3(720.0, 0.0, 0.0), Vector3(800.0, 1.0, 0.0), Vector3(810.0, 2.0, 0.0),
+]
+const WARDEN_AIMS: Array[Vector2] = [
+	Vector2(220.0, 20.0), Vector2(-210.0, 10.0), Vector2(180.0, -40.0), Vector2(0.0, 250.0), Vector2(-250.0, 0.0),
+	Vector2(260.0, 0.0), Vector2(-200.0, 30.0), Vector2(230.0, 10.0), Vector2(-220.0, 20.0),
+]
 ## The first SPITTER_PINNED shooters stand their ground (their shots keep flying
 ## along the husk spokes the swords strike); the rest move as spitters do.
 const SPITTER_PINNED: int = 8
@@ -70,6 +99,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _flurry_scenario()
 	if name == CONDITIONS:
 		return _conditions_scenario()
+	if name == WARDEN:
+		return _warden_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	var reference: Dictionary = JSON.parse_string(file.get_as_text())
 	var crowd: Dictionary = reference["crowd_encounter"]
@@ -129,6 +160,40 @@ static func _flurry_scenario() -> RunScenario:
 	return scenario
 
 
+static func _warden_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 13
+	scenario.waves_enabled = false
+	scenario.loadout = RunScenario.warden_fixture_loadout()
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	var center: Vector2 = scenario.start_position
+	var placements: Array[EnemyPlacement] = []
+	for offset: Vector2 in WARDEN_FRAGILE:
+		var husk: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + offset)
+		husk.speed_scale = 0.0
+		placements.append(husk)
+	for offset: Vector2 in WARDEN_STURDY:
+		var sturdy: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + offset)
+		sturdy.speed_scale = 0.0
+		sturdy.hp = WARDEN_STURDY_HP
+		placements.append(sturdy)
+	for offset: Vector2 in WARDEN_RUNNERS:
+		var runner: EnemyPlacement = EnemyPlacement.make(EnemyDefs.RUNNER, center + offset)
+		runner.speed_scale = 0.0
+		placements.append(runner)
+	for offset: Vector2 in WARDEN_BRUTES:
+		var brute: EnemyPlacement = EnemyPlacement.make(EnemyDefs.BRUTE, center + offset)
+		brute.speed_scale = 0.0
+		placements.append(brute)
+	for offset: Vector2 in WARDEN_POSTS:
+		var post: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + offset)
+		post.speed_scale = 0.0
+		post.hp = 5000.0
+		placements.append(post)
+	scenario.initial_enemies = placements
+	return scenario
+
+
 static func _conditions_scenario() -> RunScenario:
 	var scenario: RunScenario = RunScenario.new()
 	scenario.seed = 11
@@ -160,6 +225,12 @@ static func _conditions_scenario() -> RunScenario:
 ## Commands to issue once `completed_ticks` ticks have run.
 static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
+	if name == WARDEN:
+		for i: int in WARDEN_COMMANDS.size():
+			var entry: Vector3 = WARDEN_COMMANDS[i]
+			if completed_ticks == int(entry.x):
+				commands.append(GameCommand.ultimate(int(entry.y), GameRun.WORLD.get_center() + WARDEN_AIMS[i]))
+		return commands
 	if name == CONDITIONS:
 		for i: int in CONDITIONS_COMMANDS.size():
 			var entry: Vector3 = CONDITIONS_COMMANDS[i]
@@ -224,6 +295,8 @@ static func digest(run: GameRun) -> Dictionary:
 		"spawn_cues": run.cue_count(SimCue.Kind.ENEMY_SPAWNED),
 		"hit_cues": run.cue_count(SimCue.Kind.ENEMY_HIT),
 		"ultimate_cues": run.cue_count(SimCue.Kind.ULTIMATE_STARTED),
+		"beat_cues": run.cue_count(SimCue.Kind.MAELSTROM_BEAT),
+		"burst_cues": run.cue_count(SimCue.Kind.MAELSTROM_BURST),
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
 		"frozen_cues": run.cue_count(SimCue.Kind.ENEMY_FROZEN),
 		"shatter_cues": run.cue_count(SimCue.Kind.ENEMY_SHATTERED),
