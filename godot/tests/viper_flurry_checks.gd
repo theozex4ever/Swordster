@@ -353,15 +353,16 @@ func _check_target_replacement() -> void:
 		var alternates: bool = true
 		for i: int in range(order.size() - 1):
 			alternates = alternates and order[i] != order[i + 1]
-		firsts[order[0]] = true
+		firsts[order[0] if not order.is_empty() else "none"] = true
 		_ok("seed %d: with two enemies in the area the darts strictly alternate (%d darts) at the reference ticks" % [seed_value, order.size()],
 			alternates and bool(case["alternates"]) and order.size() == (case["order"] as Array).size() and ticks == _int_array(case["ticks"]), "%s %s" % [order, ticks])
 	_ok("the first victim is a random pick: both enemies were chosen first across the seeds", firsts.size() == 2, "%s" % [firsts.keys()])
 	var single: Dictionary = cases["one_enemy_repeats"]
 	var run_single: GameRun = _run_of(single["setup"])
+	var only: EnemyState = run_single.enemies[0]
 	run_single.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
 	_steps(run_single, 99)
-	_ok("with one enemy in the area it is struck again and again (%d darts)" % int(single["hits"]), _hits(run_single.enemies[0], 500.0) == float(single["hits"]))
+	_ok("with one enemy in the area it is struck again and again (%d darts)" % int(single["hits"]), _hits(only, 500.0) == float(single["hits"]))
 	var dies: Dictionary = cases["target_dies"]
 	var run_dies: GameRun = _run_of(dies["setup"])
 	var doomed: EnemyState = run_dies.enemies[0]
@@ -402,6 +403,8 @@ func _check_target_replacement() -> void:
 	# A victim that left the run (dead and removed at the end of its tick) between darts.
 	var run_removed: GameRun = _run_of(other["setup"])
 	var sword_removed: SwordState = run_removed.swords[0]
+	var bystander: EnemyState = run_removed.enemies[0]
+	var bystander_b: EnemyState = run_removed.enemies[1]
 	run_removed.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
 	run_removed.step()
 	var gone: EnemyState = sword_removed.ultimate_victim
@@ -412,7 +415,7 @@ func _check_target_replacement() -> void:
 	_steps(run_removed, 4)  # the hit's own hitstop first, then the dead enemy leaves the run
 	_ok("a victim already removed from the run (killed and cleared) is simply skipped: still one kill, the run does not error", run_removed.kills == 1 and not run_removed.enemies.has(gone) and sword_removed.phase == SwordState.Phase.ULTIMATE)
 	_steps(run_removed, 12)
-	var survivor: EnemyState = run_removed.enemies[0]
+	var survivor: EnemyState = bystander_b if gone == bystander else bystander
 	_ok("and the remaining enemy takes the rest of the darts (%.0f)" % _hits(survivor, 500.0), _hits(survivor, 500.0) >= 1.0)
 
 
@@ -657,12 +660,13 @@ func _check_pause_and_death() -> void:
 	_ok("the recharge keeps running after death (%.3f then %.3f s left)" % [cooldown_at_death, sword_death.ultimate_cooldown_left], _near(cooldown_at_death, float(death["ult_cd_at_death"]), SCALAR_TOL) and _near(sword_death.ultimate_cooldown_left, float(death["ult_cd_100_ticks_later"]), SCALAR_TOL))
 	# Death from a hit during the flurry: the dying tick's remaining darts do not happen.
 	var run_late: GameRun = _run_of(death["setup"])
+	var late_husk: EnemyState = run_late.enemies[0]
 	run_late.apply(GameCommand.ultimate(0, point))
 	_steps(run_late, 8)
-	var hp_mid: float = run_late.enemies[0].hp
+	var hp_mid: float = late_husk.hp
 	run_late.hurt_player(1000, CENTER)
 	_steps(run_late, 200)
-	_ok("a flurry cut off right after its first dart leaves exactly that one dart's damage (%.0f)" % ((500.0 - run_late.enemies[0].hp) / 8.0), run_late.enemies[0].hp == hp_mid and run_late.swords[0].phase == SwordState.Phase.IDLE)
+	_ok("a flurry cut off right after its first dart leaves exactly that one dart's damage (%.0f)" % ((500.0 - late_husk.hp) / 8.0), late_husk.hp == hp_mid and run_late.swords[0].phase == SwordState.Phase.IDLE)
 
 
 # ----------------------------------------------------------- time scales
