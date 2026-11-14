@@ -91,9 +91,9 @@ func _ready() -> void:
 	_set_outcome_visible(false)
 
 	_pause_button = _make_button(root, "Pause", Vector2(-176.0, 16.0))
-	_pause_button.pressed.connect(func() -> void: pause_pressed.emit())
+	_pause_button.button_down.connect(func() -> void: pause_pressed.emit())
 	_restart_button = _make_button(root, "Restart", Vector2(-96.0, 16.0))
-	_restart_button.pressed.connect(func() -> void: restart_pressed.emit())
+	_restart_button.button_down.connect(func() -> void: restart_pressed.emit())
 
 	_dash_button = _make_button(root, "Dash", Vector2.ZERO)
 	_dash_button.custom_minimum_size = Vector2(104.0, 104.0)
@@ -102,7 +102,7 @@ func _ready() -> void:
 	_dash_button.offset_top = -128.0
 	_dash_button.offset_right = -24.0
 	_dash_button.offset_bottom = -24.0
-	_dash_button.pressed.connect(func() -> void: dash_pressed.emit())
+	_dash_button.button_down.connect(func() -> void: dash_pressed.emit())
 
 	_pause_overlay = _make_label(root, "PAUSED\nPress P / Esc or tap Resume")
 	_fill_and_center(_pause_overlay, VERTICAL_ALIGNMENT_CENTER)
@@ -226,6 +226,12 @@ func _make_label(parent: Control, text: String) -> Label:
 	return label
 
 
+## The prototype's touch buttons act on pointerdown (web/mobile.js), so a Dash
+## must start the instant the finger lands, not when it lifts. Callers connect
+## `button_down`, not `pressed`: `pressed` fires on release by default, and even
+## in press mode Godot delivers a real touch twice (the touch itself and its
+## emulated mouse button), so `pressed` would fire twice per touch while
+## `button_down` fires once.
 func _make_button(parent: Control, text: String, offset: Vector2) -> Button:
 	var button: Button = Button.new()
 	button.text = text

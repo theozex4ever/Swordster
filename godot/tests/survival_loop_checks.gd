@@ -46,6 +46,7 @@ func run_all() -> void:
 	_check_restart_cleanup()
 	_check_input_aliases()
 	await _check_main_scene_loop()
+	await _check_touch_buttons()
 	await _check_visual_independence()
 
 
@@ -859,6 +860,95 @@ func _check_main_scene_loop() -> void:
 	loser.queue_free()
 	await _tree.process_frame
 
+
+# ------------------------------------------------ HUD buttons, real input
+## One pointer contact on a HUD button, delivered the way the engine delivers
+## it: a mouse button through the viewport's GUI pipeline, or a screen touch
+## that Godot's touch-to-mouse emulation turns into that same mouse button.
+func _contact(main: Main, position: Vector2, pressed: bool, via_touch: bool) -> void:
+	if via_touch:
+		var touch: InputEventScreenTouch = InputEventScreenTouch.new()
+		touch.index = 0
+		touch.position = position
+		touch.pressed = pressed
+		Input.parse_input_event(touch)
+		Input.flush_buffered_events()
+		return
+	var click: InputEventMouseButton = InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.position = position
+	click.global_position = position
+	click.pressed = pressed
+	click.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = position
+	motion.global_position = position
+	main.get_viewport().push_input(motion)
+	main.get_viewport().push_input(click)
+
+
+func _check_touch_buttons() -> void:
+	print("survival: HUD buttons act on press like the prototype's pointerdown")
+	# The headless window is 64x64; give it the game's real size so pointer
+	# positions map onto the HUD exactly as on a 1280x720 screen.
+	var window_size: Vector2i = _tree.root.size
+	_tree.root.size = Vector2i(1280, 720)
+	for via_touch: bool in [false, true]:
+		var how: String = "touch" if via_touch else "mouse"
+		var main: Main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
+		main.scenario = _contact_scenario()
+		_tree.root.add_child(main)
+		main.set_physics_process(false)
+		await _tree.process_frame
+		await _tree.process_frame
+		var hud: Hud = main._hud
+		var presses: Array[int] = [0, 0, 0]  # dash, pause, restart
+		hud.dash_pressed.connect(func() -> void: presses[0] += 1)
+		hud.pause_pressed.connect(func() -> void: presses[1] += 1)
+		hud.restart_pressed.connect(func() -> void: presses[2] += 1)
+
+		# Dash: the whole point is that the finger-down starts it, with the
+		# invulnerability window open before the very next contact tick.
+		var dash_at: Vector2 = hud._dash_button.get_global_rect().get_center()
+		_contact(main, dash_at, true, via_touch)
+		_ok("%s: Dash starts on finger-down, before release" % how, main.run.dash_left > 0.0 and main.run.iframes > 0.0 and presses[0] == 1, "dash_left=%f iframes=%f presses=%d" % [main.run.dash_left, main.run.iframes, presses[0]])
+		_tick_main(main, 2)
+		_ok("%s: the contact tick right after the press costs no health" % how, main.run.hp == GameRun.PLAYER_MAX_HP, str(main.run.hp))
+		_tick_main(main, 90)
+		_ok("%s: holding the Dash button does not repeat the dash (even after the cooldown)" % how, presses[0] == 1 and main.run.dash_cooldown_left == 0.0, "presses=%d" % presses[0])
+		_contact(main, dash_at, false, via_touch)
+		_ok("%s: releasing Dash does nothing extra" % how, presses[0] == 1 and main.run.dash_left <= 0.0 and main.run.dash_cooldown_left == 0.0, "presses=%d dash_left=%f cooldown=%f" % [presses[0], main.run.dash_left, main.run.dash_cooldown_left])
+		_contact(main, dash_at, true, via_touch)
+		_contact(main, dash_at, false, via_touch)
+		_ok("%s: a second tap dashes again once the cooldown is over" % how, presses[0] == 2 and main.run.dash_left > 0.0)
+
+		# Pause / Resume toggle on press, never again on release.
+		var pause_at: Vector2 = hud._pause_button.get_global_rect().get_center()
+		_contact(main, pause_at, true, via_touch)
+		_ok("%s: Pause pauses on finger-down" % how, main.run.paused and presses[1] == 1)
+		_contact(main, pause_at, false, via_touch)
+		_ok("%s: releasing Pause does not resume" % how, main.run.paused and presses[1] == 1)
+		_contact(main, pause_at, true, via_touch)
+		_ok("%s: Resume resumes on finger-down" % how, not main.run.paused and presses[1] == 2)
+		_contact(main, pause_at, false, via_touch)
+		_ok("%s: releasing Resume does not pause again" % how, not main.run.paused and presses[1] == 2)
+
+		# Restart restarts on press.
+		_tick_main(main, 10)
+		var restart_at: Vector2 = hud._restart_button.get_global_rect().get_center()
+		_contact(main, restart_at, true, via_touch)
+		_ok("%s: Restart restarts on finger-down" % how, main.run.restarts == 1 and presses[2] == 1 and main.run.tick == 0)
+		_contact(main, restart_at, false, via_touch)
+		_ok("%s: releasing Restart does not restart again" % how, main.run.restarts == 1 and presses[2] == 1)
+
+		# A press that slides off a button and lifts elsewhere still counted on
+		# the press; a press that begins off a button never triggers it.
+		_contact(main, Vector2(5.0, 700.0), true, via_touch)
+		_contact(main, dash_at, false, via_touch)
+		_ok("%s: a contact that starts off the button and lifts on it does nothing" % how, presses[0] == 2 and main.run.dash_left <= 0.0)
+		main.queue_free()
+		await _tree.process_frame
+	_tree.root.size = window_size
 
 func _check_visual_independence() -> void:
 	print("survival: swapping actor, sword and enemy visuals leaves combat unchanged")
