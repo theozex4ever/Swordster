@@ -113,9 +113,12 @@ quarters the timer for the first 1.4 real seconds, the delay is ~1.93 real secon
 
 ### Time: hitstop, slow motion, pause (Game.update 1549–1560)
 
-Real time (shake decay, the hitstop and slow-motion timers) keeps running during
-hitstop and slow motion; gameplay time does not advance during hitstop and is
-scaled during slow motion; pause freezes everything.
+Real time (`real_time`, shake decay and the hitstop timer itself) keeps running
+during hitstop and slow motion; gameplay time does not advance during hitstop and
+is scaled during slow motion. Both implementations return from the update before
+the slow-motion timer is decremented while hitstop is active, so **slow motion
+waits out hitstop** rather than running down alongside it. Pause freezes
+everything.
 
 | Case | Reference |
 |---|---|
@@ -123,6 +126,7 @@ scaled during slow motion; pause freezes everything.
 | slow motion ×0.25, 0.5 real s | 0.125 scaled s, 0.9 s left |
 | slow motion ×0.25, 2 real s | 0.95 scaled s, finished |
 | shake 1.0 after 0.25 s of hitstop | 0.6 |
+| slow motion 1.0 s ×0.25 set during 0.05 s hitstop | 4 frozen ticks, slow motion still 1.0 s, no scaled time |
 
 ### Fang (SWORD_TYPES["fang"] 79–86; acquire 629; strike 1008; update 738–764)
 

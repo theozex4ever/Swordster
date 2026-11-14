@@ -129,6 +129,19 @@ mutate focus-keeps-input    scripts/main.gd "	input.release_all()
 mutate focus-keeps-running  scripts/main.gd "	if run != null and not run.paused:
 		_submit(GameCommand.pause())" "	if false:
 		_submit(GameCommand.pause())"
+mutate dash-button-on-release scripts/hud.gd "_dash_button.button_down.connect" "_dash_button.pressed.connect"
+mutate pause-button-on-release scripts/hud.gd "_pause_button.button_down.connect" "_pause_button.pressed.connect"
+mutate restart-button-on-release scripts/hud.gd "_restart_button.button_down.connect" "_restart_button.pressed.connect"
+mutate dead-husk-keeps-chasing scripts/sim/enemy_state.gd "		if run.dead:
+			want = SimMath.polar" "		if false:
+			want = SimMath.polar"
+mutate wander-too-fast      scripts/sim/enemy_state.gd "speed * 0.3)" "speed * 0.6)"
+mutate slowmo-runs-in-hitstop scripts/sim/game_run.gd "	if hitstop > 0.0:
+		hitstop -= TICK_DT
+		return" "	if hitstop > 0.0:
+		hitstop -= TICK_DT
+		slowmo -= TICK_DT
+		return"
 mutate visual-not-updated   scripts/main.gd "	visual.apply_pose(run.position, run.facing, moving)" "	pass"
 mutate sound-never-unlocks  scripts/audio/sfx_bank.gd "	unlocked = true
 	play(\"unlock\")" "	play(\"unlock\")"

@@ -275,6 +275,11 @@
       "scaled_time": 0.95,
       "slowmo_left": -0.0
     },
+    "slowmo_during_0.05s_hitstop": {
+      "frozen_updates": 4,
+      "slowmo_left": 1.0,
+      "scaled_time": 0.0
+    },
     "paused_1s": {
       "real_time": 0.0,
       "time": 0.0,

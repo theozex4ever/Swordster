@@ -303,6 +303,16 @@ def case_hitstop_slowmo():
     g.slowmo, g.slowmo_scale = 1.4, 0.25
     run(g, 2.0)
     out["slowmo_2s_real"] = dict(real_time=r(g.real_time), scaled_time=r(g.time), slowmo_left=r(g.slowmo))
+    # hitstop returns before the slow-motion timer is decremented: it waits
+    g = new_game(swords=[])
+    hold()
+    g.hitstop = 0.05
+    g.slowmo, g.slowmo_scale = 1.0, 0.25
+    frozen = 0
+    while g.hitstop > 0:
+        g.update(DT)
+        frozen += 1
+    out["slowmo_during_0.05s_hitstop"] = dict(frozen_updates=frozen, slowmo_left=r(g.slowmo), scaled_time=r(g.time))
     # paused: nothing advances
     g = new_game(swords=[])
     hold("d")

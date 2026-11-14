@@ -426,6 +426,17 @@ func _check_time_scales() -> void:
 	var full_ref: Dictionary = ref["slowmo_2s_real"]
 	_ok("slow motion ends on schedule: 2 real s is %.2f scaled s" % float(full_ref["scaled_time"]), _near(slow_full.gameplay_time, float(full_ref["scaled_time"]), 0.02), str(slow_full.gameplay_time))
 
+	var waiting: GameRun = GameRun.new(_plain())
+	waiting.hitstop = 0.05
+	waiting.slowmo = 1.0
+	waiting.slowmo_scale = 0.25
+	var waiting_ref: Dictionary = ref["slowmo_during_0.05s_hitstop"]
+	var waiting_ticks: int = 0
+	while waiting.hitstop > 0.0 and waiting_ticks < 600:
+		waiting.step()
+		waiting_ticks += 1
+	_ok("the slow-motion timer waits out hitstop instead of running down (left %.3f, reference %.3f)" % [waiting.slowmo, float(waiting_ref["slowmo_left"])], waiting_ticks == int(waiting_ref["frozen_updates"]) and _near(waiting.slowmo, float(waiting_ref["slowmo_left"]), SCALAR_TOL) and _near(waiting.gameplay_time, float(waiting_ref["scaled_time"]), 1e-6))
+
 	var paused: GameRun = GameRun.new(_plain())
 	paused.apply(GameCommand.move_axis(Vector2.RIGHT))
 	paused.apply(GameCommand.pause())
