@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Plays the exported Web build's crowd encounter in headless Chromium and writes
-// page screenshots. Evidence for issue #9; not part of the build.
+// Plays the exported Web build's dev encounters in headless Chromium and writes
+// page screenshots. Evidence for issues #9 (crowd, wall) and #10 (spitters); not
+// part of the build. SCENARIO=crowd|wall|spitters|normal.
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -73,7 +74,7 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | normal
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal
 const query = scenario === "normal" ? "" : `?encounter=${scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
@@ -98,10 +99,39 @@ if (scenario === "crowd") {
   await click(1084, 644); // the Shove button (bottom right, left of Dash)
   console.log(`shove button at ${stamp()}s`);
   await sleep(300); await shot("crowd-04-shove-button");
-  await key("KeyC", "c", 67); // switch back to the normal husk wave
-  await sleep(1500); await shot("crowd-05-normal-wave");
-  await key("KeyC", "c", 67); // and into the encounter again
-  await sleep(1500); await shot("crowd-06-encounter-again");
+  await key("KeyC", "c", 67); // the next dev encounter is the spitters (this restarts play)
+  await sleep(1500); await shot("crowd-05-next-dev-encounter");
+  await key("KeyC", "c", 67); // then the normal husk wave
+  await sleep(1500); await shot("crowd-06-normal-wave");
+  await key("KeyC", "c", 67); // and round to the crowd again
+  await sleep(1500); await shot("crowd-07-encounter-again");
+} else if (scenario === "spitters") {
+  // The spitters arrive, glow, shoot. Walk toward them with the keyboard so the
+  // Fang swords strike near the orbs, dash through some, and keep shooting the
+  // page (the HUD legend counts orbs fired and parried).
+  await sleep(1500); await shot("spitters-01-arrival");
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  for (let round = 0; round < Number(process.env.ROUNDS ?? 14); round++) {
+    await shot(`spitters-02-round-${String(round).padStart(2, "0")}`);
+    const moves = [["KeyD", "d", 68], ["KeyW", "w", 87], ["KeyA", "a", 65], ["KeyS", "s", 83]];
+    const [code, k, vk] = moves[round % 4];
+    await hold(code, k, vk, 450);
+    if (round % 3 === 2) { await key("Space", " ", 32); console.log(`dash at ${stamp()}s`); }
+  }
+  // BURST=n: a dense run of screenshots (about one per 150 ms) while walking about,
+  // so the half-second parry sparks are caught; tools pick frames afterwards.
+  for (let i = 0; i < Number(process.env.BURST ?? 0); i++) {
+    await shot(`spitters-burst-${String(i).padStart(3, "0")}`);
+    if (i % 6 === 0) { const moves = [["KeyD", "d", 68], ["KeyW", "w", 87], ["KeyA", "a", 65], ["KeyS", "s", 83]]; const [code, k, vk] = moves[(i / 6) % 4]; hold(code, k, vk, 500); }
+    if (i % 17 === 16) await key("Space", " ", 32);
+  }
+  await key("KeyC", "c", 67); // the next dev encounter after the spitters is the normal run
+  await sleep(1200); await shot("spitters-03-next-dev-encounter-normal");
 } else if (scenario === "wall") {
   for (let i = 1; i <= 4; i++) { await shot(`wall-01-shoved-${i}`); await sleep(150); }
   await sleep(2000); await shot("wall-02-aftermath");

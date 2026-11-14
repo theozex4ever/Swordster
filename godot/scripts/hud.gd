@@ -112,8 +112,8 @@ func _ready() -> void:
 
 	# DEVELOPMENT FIXTURE control: cycles the dev encounters and restarts play, so
 	# it says so (the label names the encounter the press leads to).
-	_encounter_button = _make_button(root, "Dev: Crowd (restarts)", Vector2(-392.0, 16.0))
-	_encounter_button.size = Vector2(208.0, 44.0)
+	_encounter_button = _make_button(root, "Dev: Crowd (restarts)", Vector2(-216.0, 64.0))
+	_encounter_button.size = Vector2(200.0, 44.0)
 	_encounter_button.button_down.connect(func() -> void: encounter_pressed.emit())
 	_shove_button = _make_button(root, "Shove", Vector2.ZERO)
 	_shove_button.custom_minimum_size = Vector2(104.0, 104.0)
@@ -220,9 +220,9 @@ func _show_encounter(run: GameRun) -> void:
 		left[marker.kind] += 1
 	for kind: StringName in run.director.queue:
 		left[kind] += 1
-	var switch_hint: String = "C / dev button: next dev encounter (restarts play)"
+	var switch_hint: String = "C: next dev encounter (restarts)"
 	if run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS:
-		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dodge it (dash is invulnerable) or let a striking Fang sweep through it.   %s" % [
+		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dash through it or let a striking Fang sweep it away.   %s" % [
 			left[EnemyDefs.SPITTER], left[EnemyDefs.HUSK], run.cue_count(SimCue.Kind.PROJECTILE_FIRED), run.cue_count(SimCue.Kind.PROJECTILE_PARRIED), switch_hint]
 	else:
 		_encounter_label.text = "CROWD ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute\nF / Shove: launch nearby foes into each other and the wall   %s" % [left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], switch_hint]
