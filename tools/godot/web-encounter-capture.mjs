@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Plays the exported Web build's dev encounters in headless Chromium and writes
 // page screenshots. Evidence for issues #9 (crowd, wall) and #10 (spitters); not
-// part of the build. SCENARIO=crowd|wall|spitters|normal|flurry (issue #12: the mouse
+// part of the build. SCENARIO=crowd|wall|spitters|normal|flurry|conditions (issue #11: the
+// conditions encounter, with the player walking about and Q, E and R pressed as browser key
+// events so burning, poisoned, chilled and frozen foes and fire spreading can be seen); flurry (issue #12: the mouse
 // is moved and Q, E and R are pressed as browser key events; the flurry scenario
 // starts in the crowd encounter so there is something to dart between).
 //
@@ -82,7 +84,7 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions
 const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
@@ -134,6 +136,27 @@ if (scenario === "crowd") {
   await key("KeyQ", "q", 81);
   console.log(`Q after the recharge at ${stamp()}s`);
   await sleep(150); await shot("flurry-05-q-again");
+} else if (scenario === "conditions") {
+  // Walk about in the conditions encounter so the swords keep fighting, press the three
+  // ultimates now and then, and take a page screenshot every half second or so. CAST=1
+  // also records every rendered frame so short effects (a freeze burst, a fire ring) are caught.
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  await sleep(1200); await shot("conditions-01-arrival");
+  if (process.env.CAST) await send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+  const moves = [["KeyD", "d", 68], ["KeyW", "w", 87], ["KeyA", "a", 65], ["KeyS", "s", 83]];
+  const ultimates = [["KeyQ", "q", 81], ["KeyE", "e", 69], ["KeyR", "r", 82]];
+  for (let round = 0; round < Number(process.env.ROUNDS ?? 30); round++) {
+    await shot(`conditions-02-round-${String(round).padStart(2, "0")}`);
+    const [code, k, vk] = moves[round % 4];
+    await hold(code, k, vk, 400);
+    if (round % 5 === 4) { const [c, kk, v] = ultimates[(round / 5 | 0) % 3]; await move(640 + 150, 360); await key(c, kk, v); console.log(`ultimate ${kk} at ${stamp()}s`); }
+  }
+  if (process.env.CAST) { await send("Page.stopScreencast"); console.log(`screencast frames: ${castIndex}`); }
 } else if (scenario === "spitters") {
   // The spitters arrive, glow, shoot. Walk toward them with the keyboard so the
   // Fang swords strike near the orbs, dash through some, and keep shooting the
