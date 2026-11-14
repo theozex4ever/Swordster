@@ -1,7 +1,8 @@
 class_name Hud
 extends CanvasLayer
 ## Overlay UI: build label, controls hint, health bar, wave/kill counters, dash
-## cooldown, wave banner, run outcome screens, pause/restart/dash buttons, the
+## cooldown, one card per sword slot showing its ultimate key, name, availability and
+## recharge, wave banner, run outcome screens, pause/restart/dash buttons, the
 ## dev-encounter button, the crowd fixture's Shove button and the encounter
 ## legend, audio-unlock prompt, pause overlay and the touch joystick indicator. It
 ## reports button presses by signal and owns no gameplay state: everything it
@@ -41,6 +42,15 @@ var _outcome_title: Label
 var _outcome_detail: Label
 var _outcome_prompt: Label
 var _hp_shown: float = GameRun.PLAYER_MAX_HP
+## One card per sword slot: key badge, ultimate name, status text and recharge bar.
+var _ult_cards: Array[Control] = []
+var _ult_names: Array[Label] = []
+var _ult_status: Array[Label] = []
+var _ult_bars: Array[ColorRect] = []
+var _ult_badges: Array[ColorRect] = []
+
+const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 62.0)
+const ULT_KEYS: Array[String] = ["Q", "E", "R"]
 
 
 func _ready() -> void:
@@ -52,7 +62,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   P / Esc: pause   R: restart after death   C: next dev encounter\nTouch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Q / E / R: sword ultimates at the cursor   P / Esc: pause\nR after death: restart   C: next dev encounter   Touch: drag on the left half to move, Dash button to evade")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -135,13 +145,91 @@ func _ready() -> void:
 
 	_audio_prompt = _make_label(root, "Click or tap to enable sound")
 	_fill_and_center(_audio_prompt, VERTICAL_ALIGNMENT_BOTTOM)
-	_audio_prompt.offset_bottom = -72.0
+	_audio_prompt.offset_bottom = -96.0
+
+	for slot: int in ULT_KEYS.size():
+		_make_ultimate_card(root, slot)
 
 	_stick = Control.new()
 	_stick.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_stick.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stick.draw.connect(_draw_stick)
 	root.add_child(_stick)
+
+
+## One sword slot's ultimate card, bottom left, drawn from run state each tick.
+func _make_ultimate_card(parent: Control, slot: int) -> void:
+	var card: Control = Control.new()
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	card.offset_left = 16.0 + float(slot) * (ULT_CARD_SIZE.x + 8.0)
+	card.offset_right = card.offset_left + ULT_CARD_SIZE.x
+	card.offset_bottom = -16.0
+	card.offset_top = -16.0 - ULT_CARD_SIZE.y
+	parent.add_child(card)
+	var back: ColorRect = _make_rect(card, Color(0.07, 0.06, 0.1, 0.72))
+	back.size = ULT_CARD_SIZE
+	var badge: ColorRect = _make_rect(card, Color(0.13, 0.12, 0.18))
+	badge.position = Vector2(8.0, 8.0)
+	badge.size = Vector2(34.0, 34.0)
+	var key_label: Label = _make_label(card, ULT_KEYS[slot])
+	key_label.position = Vector2(8.0, 10.0)
+	key_label.size = Vector2(34.0, 30.0)
+	key_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	key_label.add_theme_font_size_override("font_size", 22)
+	var name_label: Label = _make_label(card, "")
+	name_label.position = Vector2(50.0, 4.0)
+	var status_label: Label = _make_label(card, "")
+	status_label.position = Vector2(50.0, 26.0)
+	var track: ColorRect = _make_rect(card, Color(0.16, 0.14, 0.21))
+	track.position = Vector2(8.0, 50.0)
+	track.size = Vector2(ULT_CARD_SIZE.x - 16.0, 5.0)
+	var bar: ColorRect = _make_rect(card, Color.WHITE)
+	bar.position = Vector2(8.0, 50.0)
+	bar.size = Vector2(0.0, 5.0)
+	_ult_cards.append(card)
+	_ult_names.append(name_label)
+	_ult_status.append(status_label)
+	_ult_bars.append(bar)
+	_ult_badges.append(badge)
+
+
+## What the slot's card says: READY, ACTIVE while the ultimate runs, or the whole
+## seconds left to recharge. Checks read it.
+func ultimate_status(slot: int) -> String:
+	return _ult_status[slot].text
+
+
+func ultimate_card_visible(slot: int) -> bool:
+	return _ult_cards[slot].visible
+
+
+func ultimate_bar_fraction(slot: int) -> float:
+	return _ult_bars[slot].size.x / (ULT_CARD_SIZE.x - 16.0)
+
+
+func _show_ultimates(run: GameRun) -> void:
+	for slot: int in _ult_cards.size():
+		var shown: bool = slot < run.swords.size()
+		_ult_cards[slot].visible = shown
+		if not shown:
+			continue
+		var sword: SwordState = run.swords[slot]
+		var tint: Color = PlaceholderSwordVisual.ELEMENT_COLORS.get(sword.spec.element, Color.WHITE)
+		var active: bool = sword.phase == SwordState.Phase.ULTIMATE
+		var ready: bool = sword.ultimate_ready()
+		_ult_names[slot].text = SwordDefs.ultimate_name(sword.spec.type_id)
+		_ult_names[slot].modulate = Color(0.92, 0.92, 0.98) if ready or active else Color(0.55, 0.53, 0.62)
+		if active:
+			_ult_status[slot].text = "ACTIVE"
+		elif ready:
+			_ult_status[slot].text = "READY"
+		else:
+			_ult_status[slot].text = "%ds" % SimMath.py_round(sword.ultimate_cooldown_left)
+		_ult_status[slot].modulate = tint if ready or active else Color(0.62, 0.6, 0.7)
+		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
+		_ult_bars[slot].color = tint
+		_ult_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 if active else sword.ultimate_charge())
 
 
 func bind_joystick(joystick: TouchJoystick) -> void:
@@ -175,6 +263,7 @@ func show_run(run: GameRun) -> void:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
 	else:
 		_dash_label.text = "dash ready"
+	_show_ultimates(run)
 	_show_encounter(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
