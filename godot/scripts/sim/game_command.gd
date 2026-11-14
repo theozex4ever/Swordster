@@ -3,7 +3,7 @@ extends RefCounted
 ## One gameplay command. Keyboard and touch input both translate into these;
 ## automated checks submit the very same commands.
 
-enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, RESTART }
+enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY }
 
 var kind: Kind = Kind.MOVE
 ## Only meaningful for MOVE. Magnitude is clamped to 1 by the run.
@@ -29,8 +29,20 @@ static func toggle_pause() -> GameCommand:
 	return _of(Kind.TOGGLE_PAUSE)
 
 
+static func dash() -> GameCommand:
+	return _of(Kind.DASH)
+
+
+## The on-screen Restart button: always restarts (and un-pauses), like the
+## prototype's touch "restart" action.
 static func restart() -> GameCommand:
 	return _of(Kind.RESTART)
+
+
+## The R key: only restarts once the death screen is up. While alive R is the
+## slot-three ultimate key (not ported yet), so it does nothing then.
+static func restart_from_key() -> GameCommand:
+	return _of(Kind.RESTART_FROM_KEY)
 
 
 static func _of(kind_value: Kind) -> GameCommand:

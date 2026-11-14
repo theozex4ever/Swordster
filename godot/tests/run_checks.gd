@@ -25,6 +25,8 @@ func _run_all() -> void:
 	_check_keyboard_translation()
 	_check_touch_joystick()
 	await _check_main_scene()
+	var survival: SurvivalLoopChecks = SurvivalLoopChecks.new(_check, self)
+	await survival.run_all()
 	if _failed == 0 and _total > 0:
 		print("CHECKS PASSED: %d" % _total)
 		quit(0)
@@ -81,6 +83,14 @@ func _drag(index: int, at: Vector2) -> InputEventScreenDrag:
 
 
 # ---------------------------------------------------------------- checks
+## Seeded, wave-free scenario so scene-level movement checks stay deterministic.
+func _quiet_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 3
+	scenario.waves_enabled = false
+	return scenario
+
+
 func _check_scripts_load() -> void:
 	print("scripts")
 	var unloadable: Array[String] = []
@@ -224,7 +234,7 @@ func _check_keyboard_translation() -> void:
 	_check("P toggles pause", _kinds(pause_keys.handle_event(_key(KEY_P, true))) == [GameCommand.Kind.TOGGLE_PAUSE])
 	_check("Escape toggles pause", _kinds(pause_keys.handle_event(_key(KEY_ESCAPE, true))) == [GameCommand.Kind.TOGGLE_PAUSE])
 	_check("held pause key does not repeat", pause_keys.handle_event(_key(KEY_P, true, true)).is_empty())
-	_check("R restarts", _kinds(pause_keys.handle_event(_key(KEY_R, true))) == [GameCommand.Kind.RESTART])
+	_check("R asks for the delayed keyboard restart", _kinds(pause_keys.handle_event(_key(KEY_R, true))) == [GameCommand.Kind.RESTART_FROM_KEY])
 	_check("key release emits no command", pause_keys.handle_event(_key(KEY_P, false)).is_empty())
 
 	var stuck: InputTranslator = InputTranslator.new()
@@ -286,6 +296,7 @@ func _check_main_scene() -> void:
 	print("main scene")
 	var scene: PackedScene = load("res://scenes/main.tscn")
 	var main: Main = scene.instantiate() as Main
+	main.scenario = _quiet_scenario()
 	root.add_child(main)
 	await process_frame
 	main.run.apply(GameCommand.restart())
@@ -318,14 +329,18 @@ func _check_main_scene() -> void:
 	_check("focus loss released held keys (nothing stuck after resume)", _near(main.input.move_axis(), Vector2.ZERO))
 	_check("explicit resume after focus loss decays rather than drives", main.run.velocity.length() < 285.0 and main.run.position.distance_to(resumed_at) < 100.0)
 
+	var restarts_before: int = main.run.restarts
 	main._input(_key(KEY_R, true))
-	_check("R restarts the scene's run", main.run.restarts == 2 and main.run.tick == 0 and _near(main.run.position, GameRun.WORLD.get_center()))
+	_check("R while alive does not restart (it is the slot-three ultimate key)", main.run.restarts == restarts_before)
+	main._hud.restart_pressed.emit()
+	_check("the Restart button restarts the scene's run", main.run.restarts == restarts_before + 1 and main.run.tick == 0 and _near(main.run.position, GameRun.WORLD.get_center()))
 	_check("restart snaps the visual back", _near(main.visual.position, GameRun.WORLD.get_center()))
 
 	# Visual independence: the same commands against a very different visual
 	# must produce identical gameplay.
 	var alt_scene: Node = load("res://scenes/main.tscn").instantiate()
 	var alt: Main = alt_scene as Main
+	alt.scenario = _quiet_scenario()
 	alt.actor_visual = load("res://tests/alt_actor.tscn")
 	root.add_child(alt)
 	await process_frame

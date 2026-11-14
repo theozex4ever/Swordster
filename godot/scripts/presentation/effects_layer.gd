@@ -1,0 +1,94 @@
+class_name EffectsLayer
+extends Node2D
+## Cosmetic world effects: spawn telegraphs, healing motes, hit rings, damage
+## numbers and dash afterimages. Purely visual: it reads the run's state and
+## cues, owns its own random stream and never influences gameplay.
+
+const MAX_EFFECTS: int = 160
+
+var _rings: Array[Dictionary] = []
+var _texts: Array[Dictionary] = []
+var _run: GameRun
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+
+func clear() -> void:
+	_rings.clear()
+	_texts.clear()
+	queue_redraw()
+
+
+## Called once per fixed tick after the run stepped.
+func sync(run: GameRun) -> void:
+	_run = run
+	var dt: float = GameRun.TICK_DT
+	if not run.paused:
+		for ring: Dictionary in _rings:
+			ring["life"] = float(ring["life"]) - dt
+		for text: Dictionary in _texts:
+			text["life"] = float(text["life"]) - dt
+			text["pos"] = Vector2(text["pos"]) + Vector2(text["vel"]) * dt
+			text["vel"] = Vector2(text["vel"]) * exp(-dt * 4.0)
+		_rings = _rings.filter(func(r: Dictionary) -> bool: return float(r["life"]) > 0.0)
+		_texts = _texts.filter(func(t: Dictionary) -> bool: return float(t["life"]) > 0.0)
+		if run.dash_left > 0.0:
+			_add_ring(run.position, GameRun.PLAYER_RADIUS * 0.6, GameRun.PLAYER_RADIUS * 1.2, 0.22, Color(0.35, 0.65, 0.85, 0.7), 2.0)
+	queue_redraw()
+
+
+func apply_cue(cue: SimCue) -> void:
+	match cue.kind:
+		SimCue.Kind.ENEMY_HIT:
+			_add_ring(cue.position, 10.0, 30.0 + float(cue.amount) * 0.4, 0.18, Color(1.0, 0.95, 0.8, 0.9), 2.0)
+			var jitter: Vector2 = Vector2(_rng.randf_range(-10.0, 10.0), -22.0)
+			var label: String = "%d%s" % [cue.amount, "!" if cue.critical else ""]
+			_add_text(cue.position + jitter, label, Color(1.0, 0.88, 0.35) if cue.critical else Color.WHITE, 1.0 if cue.critical else 0.75, 28 if cue.critical else 22)
+		SimCue.Kind.ENEMY_KILLED:
+			_add_ring(cue.position, 12.0, 52.0, 0.3, Color(0.9, 0.5, 0.6, 0.9), 3.0)
+		SimCue.Kind.ENEMY_SPAWNED:
+			_add_ring(cue.position, 6.0, 50.0, 0.3, Color(0.78, 0.31, 0.47, 0.9), 2.0)
+		SimCue.Kind.PLAYER_HURT:
+			_add_ring(cue.position, 10.0, 60.0, 0.3, Color(1.0, 0.35, 0.35, 0.9), 3.0)
+			_add_text(cue.position + Vector2(0.0, -30.0), "-%d" % cue.amount, Color(1.0, 0.35, 0.35), 0.8, 30)
+		SimCue.Kind.PLAYER_DIED:
+			_add_ring(cue.position, 10.0, 220.0, 0.8, Color(0.47, 0.86, 1.0, 0.9), 4.0)
+		SimCue.Kind.DASH:
+			_add_ring(cue.position, 10.0, 46.0, 0.25, Color(0.35, 0.65, 0.85, 0.8), 2.0)
+		_:
+			pass
+
+
+func _add_ring(at: Vector2, r0: float, r1: float, life: float, color: Color, width: float) -> void:
+	if _rings.size() < MAX_EFFECTS:
+		_rings.append({"pos": at, "r0": r0, "r1": r1, "life": life, "max": life, "color": color, "width": width})
+
+
+func _add_text(at: Vector2, text: String, color: Color, life: float, size: int) -> void:
+	if _texts.size() < MAX_EFFECTS:
+		_texts.append({"pos": at, "vel": Vector2(0.0, -80.0), "life": life, "max": life, "text": text, "color": color, "size": size})
+
+
+func _draw() -> void:
+	if _run == null:
+		return
+	for marker: SpawnMarker in _run.director.markers:
+		var u: float = 1.0 - clampf(marker.remaining / SpawnMarker.TELEGRAPH, 0.0, 1.0)
+		var pulse: float = 0.5 + 0.5 * sin(u * 24.0)
+		draw_arc(marker.position, 38.0 - 22.0 * u, 0.0, TAU, 32, Color(0.85, 0.3, 0.45, 0.35 + 0.5 * u), 2.0 + pulse)
+		draw_circle(marker.position, 5.0 + 6.0 * u, Color(0.85, 0.3, 0.45, 0.25 + 0.4 * u))
+	for mote: Mote in _run.motes:
+		draw_circle(mote.position, 6.0, Color(0.4, 1.0, 0.8, 0.25))
+		draw_circle(mote.position, 3.0, Color(0.75, 1.0, 0.92))
+	for ring: Dictionary in _rings:
+		var t: float = 1.0 - float(ring["life"]) / float(ring["max"])
+		var color: Color = ring["color"]
+		color.a *= 1.0 - t
+		draw_arc(Vector2(ring["pos"]), lerpf(float(ring["r0"]), float(ring["r1"]), t), 0.0, TAU, 24, color, float(ring["width"]))
+	var font: Font = ThemeDB.fallback_font
+	for text: Dictionary in _texts:
+		var a: float = clampf(float(text["life"]) / float(text["max"]) * 2.0, 0.0, 1.0)
+		var color: Color = text["color"]
+		color.a = a
+		var at: Vector2 = Vector2(text["pos"])
+		draw_string(font, at + Vector2(2.0, 2.0), String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), Color(0.0, 0.0, 0.0, a))
+		draw_string(font, at, String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), color)

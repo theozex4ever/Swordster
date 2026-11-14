@@ -1,0 +1,647 @@
+{
+  "movement": {
+    "dt_0.0167": {
+      "0.25": {
+        "x": 55.933,
+        "vx": 279.704,
+        "cam_x": 52.92,
+        "cam_lead": -3.013
+      },
+      "0.5": {
+        "x": 126.898,
+        "vx": 284.902,
+        "cam_x": 122.925,
+        "cam_lead": -3.973
+      },
+      "1.0": {
+        "x": 269.393,
+        "vx": 285.0,
+        "cam_x": 265.214,
+        "cam_lead": -4.179
+      },
+      "2.0": {
+        "x": 554.393,
+        "vx": 285.0,
+        "cam_x": 550.207,
+        "cam_lead": -4.185
+      }
+    },
+    "dt_0.0333": {
+      "0.5": {
+        "x": 131.644,
+        "vx": 284.977,
+        "cam_x": 129.779,
+        "cam_lead": -1.865
+      },
+      "1.0": {
+        "x": 274.143,
+        "vx": 285.0,
+        "cam_x": 272.197,
+        "cam_lead": -1.946
+      },
+      "2.0": {
+        "x": 559.143,
+        "vx": 285.0,
+        "cam_x": 557.194,
+        "cam_lead": -1.949
+      }
+    },
+    "dt_0.0083": {
+      "0.25": {
+        "x": 53.703,
+        "vx": 278.104,
+        "cam_x": 49.958,
+        "cam_lead": -3.745
+      },
+      "0.5": {
+        "x": 124.528,
+        "vx": 284.833,
+        "cam_x": 119.483,
+        "cam_lead": -5.045
+      },
+      "1.0": {
+        "x": 267.018,
+        "vx": 285.0,
+        "cam_x": 261.688,
+        "cam_lead": -5.329
+      },
+      "2.0": {
+        "x": 552.018,
+        "vx": 285.0,
+        "cam_x": 546.68,
+        "cam_lead": -5.338
+      }
+    },
+    "diagonal_speed_after_2s": 285.0,
+    "diagonal_facing": [
+      0.7071,
+      0.7071
+    ],
+    "east_wall": {
+      "player_x": 2586.0,
+      "cam_x": 2100.0,
+      "cam_x_limit": 2100.0
+    },
+    "north_west_wall": {
+      "player": [
+        14.0,
+        14.0
+      ],
+      "cam": [
+        500.0,
+        220.0
+      ],
+      "cam_limit": [
+        500.0,
+        220.0
+      ]
+    },
+    "release_velocity": {
+      "0.1": 57.874,
+      "0.2": 11.752,
+      "0.5": 0.098
+    }
+  },
+  "dash": {
+    "dt_0.0167": {
+      "trace": {
+        "0.2": {
+          "dx": 180.085,
+          "vx": 450.63
+        },
+        "0.3": {
+          "dx": 199.751,
+          "vx": 91.508
+        },
+        "0.5": {
+          "dx": 204.555,
+          "vx": 3.773
+        },
+        "1.0": {
+          "dx": 204.762,
+          "vx": 0.001
+        }
+      },
+      "dash_motion_ticks": 9,
+      "iframes_after": 0.0,
+      "dash_cd_after_1s": 0.0
+    },
+    "dt_0.0333": {
+      "trace": {
+        "0.2": {
+          "dx": 184.444,
+          "vx": 533.333
+        },
+        "0.3": {
+          "dx": 201.68,
+          "vx": 80.909
+        },
+        "0.5": {
+          "dx": 204.691,
+          "vx": 1.862
+        },
+        "1.0": {
+          "dx": 204.762,
+          "vx": 0.0
+        }
+      },
+      "dash_motion_ticks": 5,
+      "iframes_after": 0.0,
+      "dash_cd_after_1s": 0.0
+    },
+    "dt_0.0083": {
+      "trace": {
+        "0.2": {
+          "dx": 178.285,
+          "vx": 419.636
+        },
+        "0.3": {
+          "dx": 198.787,
+          "vx": 94.704
+        },
+        "0.5": {
+          "dx": 204.458,
+          "vx": 4.823
+        },
+        "1.0": {
+          "dx": 204.762,
+          "vx": 0.003
+        }
+      },
+      "dash_motion_ticks": 17,
+      "iframes_after": 0.0,
+      "dash_cd_after_1s": 0.0
+    },
+    "dash_diagonal_velocity": [
+      -707.107,
+      -707.107
+    ],
+    "dash_uses_facing_when_idle": [
+      -1000.0,
+      0.0
+    ],
+    "iframes_at_dash": 0.24,
+    "cooldown_at_dash": 0.65,
+    "dash_gating": {
+      "0.5": "refused",
+      "0.6": "refused",
+      "0.64": "refused",
+      "0.66": "accepted",
+      "0.7": "accepted"
+    },
+    "dead_dash_cooldown": 0.0
+  },
+  "damage": {
+    "first_contact": {
+      "hp": 90.0,
+      "iframes": 0.8,
+      "hitstop": 0.07,
+      "shake_trauma": 0.45,
+      "player_vel": [
+        -420.0,
+        0.0
+      ]
+    },
+    "contact_hit_sequence_first_6": [
+      {
+        "t_real": 0.017,
+        "time": 0.017,
+        "hp": 90.0
+      },
+      {
+        "t_real": 0.9,
+        "time": 0.817,
+        "hp": 80.0
+      },
+      {
+        "t_real": 1.783,
+        "time": 1.617,
+        "hp": 70.0
+      },
+      {
+        "t_real": 2.667,
+        "time": 2.417,
+        "hp": 60.0
+      },
+      {
+        "t_real": 3.55,
+        "time": 3.217,
+        "hp": 50.0
+      }
+    ],
+    "death": {
+      "hp": 0,
+      "slowmo": 1.4,
+      "slowmo_scale": 0.25,
+      "death_t": 0.0,
+      "hitstop": 0.07
+    },
+    "restart_eligible_real_s_after_death": 1.933,
+    "hp_after_death": 0
+  },
+  "death_wander": {
+    "samples": {
+      "0.5": {
+        "speed": 26.414,
+        "distance": 9.8282
+      },
+      "1.0": {
+        "speed": 27.5217,
+        "distance": 23.3942
+      },
+      "2.0": {
+        "speed": 27.5689,
+        "distance": 50.3822
+      },
+      "3.0": {
+        "speed": 27.569,
+        "distance": 76.2461
+      }
+    },
+    "heading_turn_1s_to_3s_rad": 0.5995,
+    "target_speed": 27.6
+  },
+  "time_scale": {
+    "hitstop_0.05_frozen_updates": 4,
+    "time_advanced_during_hitstop": 0.0,
+    "hitstop_0.02_frozen_updates": 2,
+    "slowmo_0.5s_real": {
+      "real_time": 0.5,
+      "scaled_time": 0.125,
+      "slowmo_left": 0.9
+    },
+    "slowmo_2s_real": {
+      "real_time": 2.0,
+      "scaled_time": 0.95,
+      "slowmo_left": -0.0
+    },
+    "slowmo_during_0.05s_hitstop": {
+      "frozen_updates": 4,
+      "slowmo_left": 1.0,
+      "scaled_time": 0.0
+    },
+    "paused_1s": {
+      "real_time": 0.0,
+      "time": 0.0,
+      "x": 0.0
+    },
+    "trauma_after_0.25s_hitstop": 0.6
+  },
+  "motes": {
+    "three_motes_from_50": {
+      "hp": 51.5,
+      "motes_left": 0
+    },
+    "three_motes_from_99.8": {
+      "hp": 100.0,
+      "motes_left": 0
+    },
+    "mote_at_full_health": {
+      "hp": 100.0,
+      "motes_left": 0
+    },
+    "mote_when_dead": {
+      "hp": 0.0,
+      "motes_left": 0
+    }
+  },
+  "fang": {
+    "fang_constants": {
+      "name": "Fang",
+      "blurb": "close / rapid",
+      "length": 34,
+      "width": 6,
+      "range": 175,
+      "cooldown": 0.3,
+      "damage": 7,
+      "knock": 170,
+      "windup": 0.06,
+      "speed": 1700,
+      "hitstop": 0.02,
+      "shake": 0.07,
+      "sound": "tick"
+    },
+    "one_fang_one_husk_timeline_seed1": [
+      {
+        "t": 0.417,
+        "state": "idle->windup"
+      },
+      {
+        "t": 0.483,
+        "state": "windup->strike"
+      },
+      {
+        "t": 0.5,
+        "state": "strike->recover"
+      },
+      {
+        "t": 0.5,
+        "hit": 7.0,
+        "hp": 23.0
+      },
+      {
+        "t": 0.8,
+        "state": "recover->idle"
+      },
+      {
+        "t": 0.833,
+        "state": "idle->windup"
+      },
+      {
+        "t": 0.9,
+        "state": "windup->strike"
+      },
+      {
+        "t": 0.933,
+        "state": "strike->recover"
+      },
+      {
+        "t": 0.933,
+        "hit": 7.0,
+        "hp": 16.0
+      },
+      {
+        "t": 1.233,
+        "state": "recover->idle"
+      },
+      {
+        "t": 1.25,
+        "state": "idle->windup"
+      },
+      {
+        "t": 1.317,
+        "state": "windup->strike"
+      },
+      {
+        "t": 1.383,
+        "state": "strike->recover"
+      },
+      {
+        "t": 1.383,
+        "hit": 7.0,
+        "hp": 9.0
+      },
+      {
+        "t": 1.683,
+        "state": "recover->idle"
+      },
+      {
+        "t": 1.7,
+        "state": "idle->windup"
+      },
+      {
+        "t": 1.767,
+        "state": "windup->strike"
+      },
+      {
+        "t": 1.85,
+        "state": "strike->recover"
+      },
+      {
+        "t": 1.85,
+        "hit": 7.0,
+        "hp": 2.0
+      },
+      {
+        "t": 2.15,
+        "state": "recover->idle"
+      }
+    ],
+    "one_fang_one_husk_hit_times_by_seed": {
+      "1": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "2": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "3": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "4": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "5": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "6": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "7": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ],
+      "8": [
+        0.5,
+        0.933,
+        1.383,
+        1.85
+      ]
+    },
+    "one_fang_one_husk_death_times": [
+      4.0,
+      4.0,
+      4.0,
+      4.0,
+      4.0,
+      4.0,
+      4.0,
+      4.0
+    ],
+    "one_fang_hit_interval_min_max": [
+      0.433,
+      0.467
+    ],
+    "one_fang_first_hit_times": [
+      0.5
+    ],
+    "common_hit": {
+      "damage": 7.0,
+      "vel": [
+        170.0,
+        0.0
+      ],
+      "stun": 0.193,
+      "hitstop": 0.02,
+      "trauma": 0.07
+    },
+    "crit_hit": {
+      "damage": 14.0,
+      "vel": [
+        221.0,
+        0.0
+      ],
+      "stun": 0.227,
+      "hitstop": 0.03,
+      "trauma": 0.17
+    },
+    "rounding": {
+      "rarity0": {
+        "sword_damage": 7.0,
+        "dealt": 7.0
+      },
+      "rarity1": {
+        "sword_damage": 9.1,
+        "dealt": 9.0
+      },
+      "rarity2": {
+        "sword_damage": 12.25,
+        "dealt": 12.0
+      },
+      "rarity0_crit": {
+        "sword_damage": 7.0,
+        "dealt": 14.0
+      },
+      "rarity1_crit": {
+        "sword_damage": 9.1,
+        "dealt": 18.0
+      },
+      "rarity2_crit": {
+        "sword_damage": 12.25,
+        "dealt": 24.0
+      }
+    },
+    "acquire_range_175_plus_radius_16_is_191": {
+      "150": "engaged",
+      "190": "engaged",
+      "192": "ignored",
+      "195": "ignored"
+    }
+  },
+  "wave": {
+    "wave1_queue_kinds": [
+      "husk",
+      "husk",
+      "husk",
+      "husk",
+      "husk",
+      "husk",
+      "husk",
+      "husk"
+    ],
+    "wave1_armed_first_two": [
+      true,
+      true
+    ],
+    "wave1_start_real_s": 1.617,
+    "wave1_marker_times": [
+      1.933,
+      2.35,
+      2.767,
+      3.183,
+      3.6,
+      4.017,
+      4.433,
+      4.85
+    ],
+    "wave1_enemy_spawn_times": [
+      2.617,
+      3.033,
+      3.45,
+      3.867,
+      4.283,
+      4.7,
+      5.117,
+      5.533
+    ],
+    "wave1_enemy_hp_if_unarmed": 30.0,
+    "marker_telegraph_s": 0.7,
+    "spawn_spacing_formula": "max(0.12, 0.42 - wave*0.02)",
+    "enemy_count_wave1": 8
+  },
+  "survival": {
+    "wave1_three_fangs_stationary_player": [
+      {
+        "seed": 1,
+        "cleared_at": 13.33,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 2,
+        "cleared_at": 13.72,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 3,
+        "cleared_at": 13.8,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 4,
+        "cleared_at": 14.27,
+        "died": false,
+        "hp": 83.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 5,
+        "cleared_at": 13.7,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 6,
+        "cleared_at": 14.62,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 7,
+        "cleared_at": 13.1,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      },
+      {
+        "seed": 8,
+        "cleared_at": 13.78,
+        "died": false,
+        "hp": 100.0,
+        "kills": 8,
+        "husks_spawned": 8,
+        "armed_enemies": 0
+      }
+    ]
+  }
+}
