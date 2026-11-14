@@ -30,6 +30,9 @@ var _embers: Array[Dictionary] = []
 ## sword was drawn at last tick.
 var _wedges: Array[Dictionary] = []
 var _last_sweep_angle: Dictionary = {}
+## How many times each kind of Warden effect has been drawn (`telegraph`, `fan`, `maelstrom`);
+## checks read it to prove the layer really draws what the sword's state asks for.
+var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -254,6 +257,7 @@ func _draw() -> void:
 	for projectile: ProjectileState in _run.projectiles:
 		_draw_projectile(projectile)
 	for wedge: Dictionary in _wedges:
+		draw_counts[&"fan"] = draw_counts.get(&"fan", 0) + 1
 		var wedge_fade: float = clampf(float(wedge["life"]) / float(wedge["max"]), 0.0, 1.0)
 		var span: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
 		var mid: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
@@ -299,6 +303,7 @@ func _draw() -> void:
 ## The arc a Warden is about to cut: a faint band along the whole sweep that brightens as the
 ## windup runs out, so a strike can be read before it lands. Follows the target like the sweep.
 func _draw_sweep_telegraph(sword: SwordState) -> void:
+	draw_counts[&"telegraph"] = draw_counts.get(&"telegraph", 0) + 1
 	var u: float = 1.0 - clampf(sword.timer / sword.windup, 0.0, 1.0)
 	var span: float = sword.length * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
 	var mid: float = sword.length * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
@@ -310,6 +315,7 @@ func _draw_sweep_telegraph(sword: SwordState) -> void:
 ## A running Maelstrom: the range it pulls from (dashed), spinning arcs inside the reach of its
 ## blades, and the pull's inward ticks on every enemy it is dragging.
 func _draw_maelstrom(sword: SwordState, tint: Color) -> void:
+	draw_counts[&"maelstrom"] = draw_counts.get(&"maelstrom", 0) + 1
 	var centre: Vector2 = sword.ultimate_point
 	var pull: float = sword.maelstrom_pull_range()
 	for dash: int in 36:

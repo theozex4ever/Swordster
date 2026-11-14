@@ -1082,10 +1082,22 @@ func _check_main_scene() -> void:
 	var telegraph_seen: bool = false
 	for i: int in 240:
 		_tick_main(main, 1)
+		await _tree.process_frame
 		wedges_seen = wedges_seen or not main._presenter._effects._wedges.is_empty()
 		for swordstate: SwordState in main.run.swords:
 			telegraph_seen = telegraph_seen or (swordstate.phase == SwordState.Phase.WINDUP and swordstate.spec.type_id == SwordDefs.WARDEN)
-	_ok("while the Wardens sweep, the effects layer keeps the fan the arc leaves and the windup shows where it will cut", wedges_seen and telegraph_seen)
+	var drawn: Dictionary[StringName, int] = main._presenter._effects.draw_counts
+	_ok("while the Wardens sweep, the effects layer keeps the fan the arc leaves and the windup shows where it will cut (drawn: %s)" % [drawn], wedges_seen and telegraph_seen and drawn.get(&"telegraph", 0) > 0 and drawn.get(&"fan", 0) > 0 and drawn.get(&"maelstrom", 0) > 0)
+	await _tree.create_timer(0.1).timeout
+	main._sfx.played.clear()
+	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BEAT, Vector2.ZERO, Vector2.ZERO, 0))
+	var silent_beat: bool = main._sfx.played.is_empty()
+	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BEAT, Vector2.ZERO, Vector2.ZERO, 2))
+	var struck_beat: bool = main._sfx.played.has("strike")
+	main._sfx.played.clear()
+	await _tree.create_timer(0.1).timeout
+	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BURST, Vector2.ZERO, Vector2.ZERO, 1))
+	_ok("a beat that struck something is heard (a slash), one that struck nothing is silent, and the burst is heard", silent_beat and struck_beat and main._sfx.played.has("strike"), "%s" % [main._sfx.played]) 
 	var warden_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._warden:

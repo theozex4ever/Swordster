@@ -4,16 +4,20 @@ Godot 4 port of Swordster, built slice by slice. Currently playable: a complete
 Fang survival loop (move, dash, three Fang spirit swords attacking on their own, a
 telegraphed wave of eight husks, healing motes, death and restart) with **Viper
 Flurry** on Q / E / R (each sword slot's ultimate, aimed at the cursor), a **crowd
-encounter** with runners and brutes, crowd bowling and wall slams, and a **spitter
-encounter** with ranged foes, enemy orbs and sword parries, on top of the
-delivery-proof arena, exported to Windows and Web from one Linux command. The other
-sword types and their ultimates, conditions, drops and further waves arrive in later
-slices; the Python/Pygame prototype in `game/` stays the behavioural reference
+encounter** with runners and brutes, crowd bowling and wall slams, a **spitter
+encounter** with ranged foes, enemy orbs and sword parries, **elemental conditions**
+(burn, poison, chill and freeze on every blow) and **Warden**, the sword of sweeping
+arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), on top of the
+delivery-proof arena, exported to Windows and Web from one Linux command. Pike and
+Colossus with their ultimates, Converge, drops and swaps, and further waves arrive in
+later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
 [runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
 [spitters, projectiles and parries](../docs/reference/spitters-projectiles-parries.md) (#10) and
-[Viper Flurry](../docs/reference/viper-flurry.md) (#12).
+[Viper Flurry](../docs/reference/viper-flurry.md) (#12) and
+[elemental conditions](../docs/reference/elemental-conditions.md) (#11) and
+[Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13).
 
 ### Viper Flurry (Q / E / R)
 
@@ -23,8 +27,26 @@ mouse and press: the sword blinks to the cursor (at most 420 px from you), darts
 the enemies inside the 150 px area for 1.25 s (one dart every 0.08 s, 1.2x the sword's
 damage), then recovers. The ultimate recharges for 9 s (shorter for Rare and Mythic
 swords) from the moment it starts; the cards at the bottom left show READY, ACTIVE or
-the seconds left. Three Fang swords are still the fixture loadout, so every slot
-holds Viper Flurry for now; the other sword types' ultimates arrive with their slices.
+the seconds left, with the sword type under the bar. Three Fang swords are still the normal run's
+fixture loadout, so every slot holds Viper Flurry there; the warden encounter below equips a Fang
+and two Wardens, whose slots hold Maelstrom. The other sword types' ultimates arrive with their slices.
+
+### Warden and Maelstrom
+
+Slice #13 ([reference](../docs/reference/warden-maelstrom.md)). **Warden** (the prototype's
+`blade`) is the sword of sweeping arcs: it targets the nearest foe within 245 px, winds up for 0.16 s
+(a faint band shows the arc it will cut), then swings a 0.15 s sweep about a pivot just behind the
+target, alternating its direction every attack. Every foe the blade passes through is hit once per
+sweep (17 damage, 300 knockback, 0.05 s of hitstop), and it knocks enemy orbs out of the air like a
+Fang strike does. Its ultimate, **Maelstrom** (11 s recharge, aimed at the cursor within 400 px), makes
+the sword whirl around that point for 2.2 s: foes inside the pull range are dragged toward it, a beat
+every 0.2 s strikes everything inside the blades' reach for 0.6x damage, and a finishing burst
+(1.6x damage, two doses of the sword's element, heavy knockback and a hitstop) ends it before a 0.3 s recovery.
+Warden does not parry during Maelstrom, as in the prototype. To fight with it: the **warden
+encounter** (`Swordster.exe -- --encounter=warden`, `index.html?encounter=warden`, or the dev button / `C`
+after the conditions encounter) is one wave of husks, runners and two brutes against Fang (poison, Q),
+Warden (ice, E) and Warden (fire, R). This mixed loadout is a development fixture, not the final default
+loadout (issue #16); the normal run is unchanged.
 
 ### The crowd encounter
 
@@ -33,7 +55,7 @@ brutes against the three-Fang fixture loadout, with a **shove** that flings near
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
 are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
 `C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
-conditions → normal; shove with the **Shove** button or `F`. To start in it:
+conditions → warden → normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
@@ -235,6 +257,11 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   hitstop/slow motion, Fang timing, healing and the wave schedule against values
   captured from the Python prototype (`godot/tests/reference/fang_survival_loop.json`,
   regenerated by `tools/reference/capture_fang_survival_loop.py`, needs `pygame`).
+- `godot/tests/warden_maelstrom_checks.gd` (issue #13) replays the Python prototype's captured Warden
+  and Maelstrom cases (`godot/tests/reference/warden_maelstrom.json`, regenerated by
+  `tools/reference/capture_warden_maelstrom.py`) tick by tick on the real simulation: sweep geometry and
+  coverage at hundreds of probe points, hit-once tracking, parries, the pull, beats, burst, recovery,
+  recharge, refusals, pause/death, conditions, plus the HUD, effects and render-rate fights.
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one; a crash or timeout is reported as inconclusive, not as caught.
@@ -267,7 +294,7 @@ Sound effects are baked WAVs; the recipe is `tools/godot/gen_audio.py`.
 ## Controls
 
 W A S D or arrow keys move · Space or Shift dash · Q / E / R trigger the ultimate of
-sword slot one / two / three at the mouse (Viper Flurry for now) · P or Esc pause/resume ·
+sword slot one / two / three at the mouse (Viper Flurry for a Fang, Maelstrom for a Warden) · P or Esc pause/resume ·
 R also restarts once the death screen is up (while alive it is only the slot-three
 ultimate) · touch (no ultimate buttons yet, issue #20): drag in the left part of the screen to move, on-screen
 Dash, Pause and Restart buttons (Restart always works, also after surviving the

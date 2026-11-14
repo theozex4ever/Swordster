@@ -631,7 +631,7 @@ mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if condi
 mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
 	return self" "	return self"
 mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
-mutate conditions-encounter-not-in-cycle  scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS]" "ENCOUNTER_SPITTERS]"
+mutate conditions-encounter-not-in-cycle  scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN]"
 mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
 mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
 			return RunScenario.conditions_encounter()" "		\"conditions\":
@@ -649,6 +649,193 @@ mutate freeze-sound-lost                  scripts/audio/sfx_bank.gd "SimCue.Kind
 mutate condition-particles-lost           scripts/presentation/effects_layer.gd "		_add_condition_particles(run, dt)
 " ""
 mutate freeze-label-lost                  scripts/presentation/effects_layer.gd "\"FROZEN\", element_color(ConditionDefs.ICE)" "\"\", element_color(ConditionDefs.ICE)"
+# --- Warden and Maelstrom (slice #13)
+mutate warden-damage                                scripts/sim/sword_defs.gd "WARDEN_DAMAGE: float = 17.0" "WARDEN_DAMAGE: float = 18.0"
+mutate warden-range                                 scripts/sim/sword_defs.gd "WARDEN_RANGE: float = 245.0" "WARDEN_RANGE: float = 300.0"
+mutate warden-cooldown                              scripts/sim/sword_defs.gd "WARDEN_COOLDOWN: float = 0.85" "WARDEN_COOLDOWN: float = 0.5"
+mutate warden-windup                                scripts/sim/sword_defs.gd "WARDEN_WINDUP: float = 0.16" "WARDEN_WINDUP: float = 0.3"
+mutate warden-knockback                             scripts/sim/sword_defs.gd "WARDEN_KNOCK: float = 300.0" "WARDEN_KNOCK: float = 120.0"
+mutate warden-hitstop                               scripts/sim/sword_defs.gd "WARDEN_HITSTOP: float = 0.05" "WARDEN_HITSTOP: float = 0.0"
+mutate warden-shake                                 scripts/sim/sword_defs.gd "WARDEN_SHAKE: float = 0.16" "WARDEN_SHAKE: float = 0.0"
+mutate warden-length                                scripts/sim/sword_defs.gd "WARDEN_LENGTH: float = 54.0" "WARDEN_LENGTH: float = 30.0"
+mutate warden-sweep-time                            scripts/sim/sword_defs.gd "WARDEN_SWEEP_TIME: float = 0.15" "WARDEN_SWEEP_TIME: float = 0.3"
+mutate warden-sweep-start-angle                     scripts/sim/sword_defs.gd "WARDEN_SWEEP_START: float = 1.9" "WARDEN_SWEEP_START: float = 1.0"
+mutate warden-sweep-end-angle                       scripts/sim/sword_defs.gd "WARDEN_SWEEP_END: float = 1.45" "WARDEN_SWEEP_END: float = 0.6"
+mutate warden-pivot-back                            scripts/sim/sword_defs.gd "WARDEN_PIVOT_BACK: float = 0.55" "WARDEN_PIVOT_BACK: float = 0.2"
+mutate warden-hit-pad                               scripts/sim/sword_defs.gd "WARDEN_HIT_PAD: float = 8.0" "WARDEN_HIT_PAD: float = 2.0"
+mutate warden-parry-pad                             scripts/sim/sword_defs.gd "WARDEN_PARRY_PAD: float = 6.0" "WARDEN_PARRY_PAD: float = 0.0"
+mutate warden-guard-too-far                         scripts/sim/sword_defs.gd "WARDEN_GUARD: float = 0.12" "WARDEN_GUARD: float = 0.5"
+mutate warden-tip-short                             scripts/sim/sword_defs.gd "WARDEN_TIP: float = 1.15" "WARDEN_TIP: float = 0.8"
+mutate warden-tangent-weight                        scripts/sim/sword_defs.gd "WARDEN_TANGENT_WEIGHT: float = 0.6" "WARDEN_TANGENT_WEIGHT: float = 0.0"
+mutate warden-recover-time                          scripts/sim/sword_defs.gd "WARDEN_RECOVER_TIME: float = 0.3" "WARDEN_RECOVER_TIME: float = 0.6"
+mutate warden-recover-speed                         scripts/sim/sword_defs.gd "WARDEN_RECOVER_SPEED: float = 300.0" "WARDEN_RECOVER_SPEED: float = 0.0"
+mutate warden-key-renamed                           scripts/sim/sword_defs.gd "const WARDEN: StringName = &\"blade\"" "const WARDEN: StringName = &\"warden\""
+mutate warden-display-name                          scripts/sim/sword_defs.gd "\"Warden\" if type_id == WARDEN else" "\"Blade\" if type_id == WARDEN else"
+mutate maelstrom-name                               scripts/sim/sword_defs.gd "WARDEN_ULT_NAME: String = \"Maelstrom\"" "WARDEN_ULT_NAME: String = \"Whirl\""
+mutate maelstrom-recharge                           scripts/sim/sword_defs.gd "WARDEN_ULT_COOLDOWN: float = 11.0" "WARDEN_ULT_COOLDOWN: float = 6.0"
+mutate maelstrom-range                              scripts/sim/sword_defs.gd "WARDEN_ULT_RANGE: float = 400.0" "WARDEN_ULT_RANGE: float = 250.0"
+mutate maelstrom-radius                             scripts/sim/sword_defs.gd "WARDEN_ULT_RADIUS: float = 100.0" "WARDEN_ULT_RADIUS: float = 70.0"
+mutate maelstrom-duration                           scripts/sim/sword_defs.gd "WARDEN_ULT_DURATION: float = 2.2" "WARDEN_ULT_DURATION: float = 1.5"
+mutate maelstrom-first-beat                         scripts/sim/sword_defs.gd "WARDEN_ULT_FIRST_BEAT: float = 0.15" "WARDEN_ULT_FIRST_BEAT: float = 0.4"
+mutate maelstrom-beat-period                        scripts/sim/sword_defs.gd "WARDEN_ULT_BEAT: float = 0.2" "WARDEN_ULT_BEAT: float = 0.3"
+mutate maelstrom-spin-rate                          scripts/sim/sword_defs.gd "WARDEN_ULT_SPIN_RATE: float = 15.0" "WARDEN_ULT_SPIN_RATE: float = 8.0"
+mutate maelstrom-approach-rate                      scripts/sim/sword_defs.gd "WARDEN_ULT_APPROACH_RATE: float = 25.0" "WARDEN_ULT_APPROACH_RATE: float = 10.0"
+mutate maelstrom-reach-tail                         scripts/sim/sword_defs.gd "WARDEN_ULT_REACH_TAIL: float = 0.7" "WARDEN_ULT_REACH_TAIL: float = 0.3"
+mutate maelstrom-pull-speed                         scripts/sim/sword_defs.gd "WARDEN_ULT_PULL_SPEED: float = 170.0" "WARDEN_ULT_PULL_SPEED: float = 90.0"
+mutate maelstrom-pull-minimum                       scripts/sim/sword_defs.gd "WARDEN_ULT_PULL_MIN: float = 8.0" "WARDEN_ULT_PULL_MIN: float = 30.0"
+mutate maelstrom-pull-range                         scripts/sim/sword_defs.gd "WARDEN_ULT_PULL_EXTRA: float = 120.0" "WARDEN_ULT_PULL_EXTRA: float = 40.0"
+mutate maelstrom-beat-damage                        scripts/sim/sword_defs.gd "WARDEN_ULT_TICK_FACTOR: float = 0.6" "WARDEN_ULT_TICK_FACTOR: float = 1.0"
+mutate maelstrom-beat-knock                         scripts/sim/sword_defs.gd "WARDEN_ULT_TICK_KNOCK: float = 40.0" "WARDEN_ULT_TICK_KNOCK: float = 200.0"
+mutate maelstrom-beat-shake                         scripts/sim/sword_defs.gd "WARDEN_ULT_TICK_SHAKE: float = 0.08" "WARDEN_ULT_TICK_SHAKE: float = 0.3"
+mutate maelstrom-burst-damage                       scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_FACTOR: float = 1.6" "WARDEN_ULT_BURST_FACTOR: float = 1.0"
+mutate maelstrom-burst-knock                        scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_KNOCK: float = 520.0" "WARDEN_ULT_BURST_KNOCK: float = 200.0"
+mutate maelstrom-burst-margin                       scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_MARGIN: float = 30.0" "WARDEN_ULT_BURST_MARGIN: float = 0.0"
+mutate maelstrom-burst-one-dose                     scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_STACKS: int = 2" "WARDEN_ULT_BURST_STACKS: int = 1"
+mutate maelstrom-burst-shake                        scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_SHAKE: float = 0.35" "WARDEN_ULT_BURST_SHAKE: float = 0.05"
+mutate maelstrom-burst-hitstop                      scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_HITSTOP: float = 0.06" "WARDEN_ULT_BURST_HITSTOP: float = 0.0"
+mutate maelstrom-recover-time                       scripts/sim/sword_defs.gd "WARDEN_ULT_RECOVER_TIME: float = 0.3" "WARDEN_ULT_RECOVER_TIME: float = 0.1"
+mutate maelstrom-recover-speed                      scripts/sim/sword_defs.gd "WARDEN_ULT_RECOVER_SPEED: float = 500.0" "WARDEN_ULT_RECOVER_SPEED: float = 100.0"
+mutate warden-unsupported                           scripts/sim/sword_defs.gd "return type_id == FANG or type_id == WARDEN" "return type_id == FANG"
+mutate sweep-hits-twice                             scripts/sim/sword_state.gd "			if enemy.dead or sweep_hits.has(enemy):
+				continue" "			if enemy.dead:
+				continue"
+mutate sweep-hit-set-kept-between-attacks           scripts/sim/sword_state.gd "	timer = windup
+	sweep_hits.clear()
+	side = -side" "	timer = windup
+	side = -side"
+mutate sweep-never-alternates                       scripts/sim/sword_state.gd "	timer = windup
+	sweep_hits.clear()
+	side = -side" "	timer = windup
+	sweep_hits.clear()
+	side = side"
+mutate sweep-hits-corpses                           scripts/sim/sword_state.gd "			if enemy.dead or sweep_hits.has(enemy):" "			if sweep_hits.has(enemy):"
+mutate sweep-no-parry                               scripts/sim/sword_state.gd "		run.parry_projectiles(guard, tip, SwordDefs.WARDEN_PARRY_PAD)
+" "		pass
+"
+mutate sweep-parry-only-without-a-hit               scripts/sim/sword_state.gd "		run.parry_projectiles(guard, tip, SwordDefs.WARDEN_PARRY_PAD)
+" "		if sweep_hits.is_empty():
+			run.parry_projectiles(guard, tip, SwordDefs.WARDEN_PARRY_PAD)
+"
+mutate sweep-end-sample-only                        scripts/sim/sword_state.gd "	for sample: float in [lerpf(previous_angle, swung, 0.5), swung]:" "	for sample: float in [swung]:"
+mutate sweep-ignores-boost                          scripts/sim/sword_state.gd "run.hit_enemy(enemy, damage * boost, tangent * SwordDefs.WARDEN_TANGENT_WEIGHT + away, knock, self)" "run.hit_enemy(enemy, damage, tangent * SwordDefs.WARDEN_TANGENT_WEIGHT + away, knock, self)"
+mutate sweep-hit-is-heavy                           scripts/sim/sword_state.gd "tangent * SwordDefs.WARDEN_TANGENT_WEIGHT + away, knock, self)" "tangent * SwordDefs.WARDEN_TANGENT_WEIGHT + away, knock, self, true)"
+mutate sweep-linear-easing                          scripts/sim/sim_math.gd "	return 1.0 - pow(1.0 - t, 3.0)" "	return t"
+mutate sweep-wrong-direction                        scripts/sim/sword_state.gd "	sweep_from = amid - float(side) * SwordDefs.WARDEN_SWEEP_START
+	sweep_to = amid + float(side) * SwordDefs.WARDEN_SWEEP_END" "	sweep_from = amid + float(side) * SwordDefs.WARDEN_SWEEP_START
+	sweep_to = amid - float(side) * SwordDefs.WARDEN_SWEEP_END"
+mutate sweep-pivot-ignores-length                   scripts/sim/sword_state.gd "	sweep_pivot = aim - to_aim * (length * SwordDefs.WARDEN_PIVOT_BACK)" "	sweep_pivot = aim - to_aim * (SwordDefs.WARDEN_LENGTH * SwordDefs.WARDEN_PIVOT_BACK)"
+mutate sweep-never-ends                             scripts/sim/sword_state.gd "	if timer <= 0.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.WARDEN_RECOVER_TIME" "	if false:
+		phase = Phase.RECOVER
+		timer = SwordDefs.WARDEN_RECOVER_TIME"
+mutate sweep-recovery-lost                          scripts/sim/sword_state.gd "		velocity = SimMath.polar(swung + float(side) * PI * 0.5, SwordDefs.WARDEN_RECOVER_SPEED)" "		velocity = Vector2.ZERO"
+mutate sweep-windup-not-following                   scripts/sim/sword_state.gd "	sweep_pivot = aim - to_aim * (length * SwordDefs.WARDEN_PIVOT_BACK)
+	var amid: float" "	if sweep_pivot == Vector2.ZERO:
+		sweep_pivot = aim - to_aim * (length * SwordDefs.WARDEN_PIVOT_BACK)
+	var amid: float"
+mutate sweep-cue-lost                               scripts/sim/sword_state.gd "	run.add_cue(SimCue.make(SimCue.Kind.SWORD_STRIKE, position, dir))
+
+
+## Warden's windup" "	pass
+
+
+## Warden's windup"
+mutate warden-uses-fang-damage                      scripts/sim/sword_state.gd "	sword.damage = SwordDefs.base_damage(type_id) * SwordDefs.RARITY_DAMAGE[rarity]" "	sword.damage = SwordDefs.FANG_DAMAGE * SwordDefs.RARITY_DAMAGE[rarity]"
+mutate warden-uses-fang-range                       scripts/sim/sword_state.gd "	sword.attack_range = SwordDefs.base_range(type_id) * SwordDefs.RARITY_RANGE[rarity]" "	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]"
+mutate warden-uses-fang-cooldown                    scripts/sim/sword_state.gd "	sword.cooldown = SwordDefs.base_cooldown(type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]"
+mutate warden-uses-fang-knockback                   scripts/sim/sword_state.gd "	sword.knock = SwordDefs.base_knock(type_id)" "	sword.knock = SwordDefs.FANG_KNOCK"
+mutate warden-rarity-size-lost                      scripts/sim/sword_state.gd "	sword.size_scale = SwordDefs.RARITY_SIZE[rarity]" "	sword.size_scale = 1.0"
+mutate warden-rarity-recharge-lost                  scripts/sim/sword_state.gd "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate hit-stop-always-fang                         scripts/sim/game_run.gd "(sword.hit_stop if sword != null else SwordDefs.FANG_HITSTOP) * (CRIT_HITSTOP_FACTOR" "SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR"
+mutate hit-shake-always-fang                        scripts/sim/game_run.gd "add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS" "add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS"
+mutate maelstrom-blinks-like-flurry                 scripts/sim/sword_state.gd "			ultimate_spin = atan2(position.y - point.y, position.x - point.x)" "			position = point
+			ultimate_spin = atan2(position.y - point.y, position.x - point.x)"
+mutate maelstrom-spin-starts-at-zero                scripts/sim/sword_state.gd "			ultimate_spin = atan2(position.y - point.y, position.x - point.x)" "			ultimate_spin = 0.0"
+mutate maelstrom-spins-backwards                    scripts/sim/sword_state.gd "	ultimate_spin += dt * SwordDefs.WARDEN_ULT_SPIN_RATE" "	ultimate_spin -= dt * SwordDefs.WARDEN_ULT_SPIN_RATE"
+mutate maelstrom-no-pull                            scripts/sim/sword_state.gd "			enemy.position += to_centre / dist * SwordDefs.WARDEN_ULT_PULL_SPEED * enemy.knock_mult * dt" "			enemy.position += Vector2.ZERO"
+mutate maelstrom-pull-ignores-knock-factor          scripts/sim/sword_state.gd "SwordDefs.WARDEN_ULT_PULL_SPEED * enemy.knock_mult * dt" "SwordDefs.WARDEN_ULT_PULL_SPEED * dt"
+mutate maelstrom-pulls-from-everywhere              scripts/sim/sword_state.gd "if SwordDefs.WARDEN_ULT_PULL_MIN < dist and dist < maelstrom_pull_range():" "if SwordDefs.WARDEN_ULT_PULL_MIN < dist:"
+mutate maelstrom-pulls-corpses                      scripts/sim/sword_state.gd "	for enemy: EnemyState in run.enemies:
+		if enemy.dead:
+			continue
+		var to_centre" "	for enemy: EnemyState in run.enemies:
+		var to_centre"
+mutate maelstrom-beat-strikes-corpses               scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
+			if enemy.dead:
+				continue
+			var off: Vector2 = enemy.position - centre
+			if off.length() < reach + enemy.radius:" "		for enemy: EnemyState in run.enemies:
+			var off: Vector2 = enemy.position - centre
+			if off.length() < reach + enemy.radius:"
+mutate maelstrom-beat-reach-ignores-radius          scripts/sim/sword_state.gd "			if off.length() < reach + enemy.radius:
+				run.hit_enemy(enemy, damage * SwordDefs.WARDEN_ULT_TICK_FACTOR" "			if off.length() < reach:
+				run.hit_enemy(enemy, damage * SwordDefs.WARDEN_ULT_TICK_FACTOR"
+mutate maelstrom-beat-is-normal-hit                 scripts/sim/sword_state.gd "Vector2(-off.y, off.x), SwordDefs.WARDEN_ULT_TICK_KNOCK, self, true)" "Vector2(-off.y, off.x), SwordDefs.WARDEN_ULT_TICK_KNOCK, self, false)"
+mutate maelstrom-beat-pushes-the-wrong-way          scripts/sim/sword_state.gd "Vector2(-off.y, off.x), SwordDefs.WARDEN_ULT_TICK_KNOCK" "Vector2(off.y, -off.x), SwordDefs.WARDEN_ULT_TICK_KNOCK"
+mutate maelstrom-beat-shakes-without-a-hit          scripts/sim/sword_state.gd "		if struck > 0:
+			run.add_shake(SwordDefs.WARDEN_ULT_TICK_SHAKE)" "		run.add_shake(SwordDefs.WARDEN_ULT_TICK_SHAKE)"
+mutate maelstrom-burst-never-comes                  scripts/sim/sword_state.gd "	if ultimate_time_left <= 0.0:
+		var caught: int = 0" "	if false:
+		var caught: int = 0"
+mutate maelstrom-burst-strikes-corpses              scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
+			if enemy.dead:
+				continue
+			var off: Vector2 = enemy.position - centre
+			if off.length() < burst_reach + enemy.radius:" "		for enemy: EnemyState in run.enemies:
+			var off: Vector2 = enemy.position - centre
+			if off.length() < burst_reach + enemy.radius:"
+mutate maelstrom-burst-is-normal-hit                scripts/sim/sword_state.gd "off, SwordDefs.WARDEN_ULT_BURST_KNOCK, self, true, SwordDefs.WARDEN_ULT_BURST_STACKS)" "off, SwordDefs.WARDEN_ULT_BURST_KNOCK, self, false, SwordDefs.WARDEN_ULT_BURST_STACKS)"
+mutate maelstrom-burst-no-recovery                  scripts/sim/sword_state.gd "		phase = Phase.RECOVER
+		timer = SwordDefs.WARDEN_ULT_RECOVER_TIME" "		phase = Phase.IDLE
+		timer = SwordDefs.WARDEN_ULT_RECOVER_TIME"
+mutate maelstrom-burst-cue-lost                     scripts/sim/sword_state.gd "	cue.element = spec.element
+	run.add_cue(cue)" "	cue.element = spec.element"
+mutate maelstrom-reach-ignores-rarity-size          scripts/sim/sword_state.gd "	return SwordDefs.WARDEN_ULT_RADIUS * size_scale" "	return SwordDefs.WARDEN_ULT_RADIUS"
+mutate maelstrom-reach-without-the-blade            scripts/sim/sword_state.gd "	return maelstrom_radius() + length * SwordDefs.WARDEN_ULT_REACH_TAIL" "	return maelstrom_radius()"
+mutate maelstrom-keeps-the-old-hit-set              scripts/sim/sword_state.gd "	ultimate_point = point
+	sweep_hits.clear()
+	match spec.type_id:" "	ultimate_point = point
+	match spec.type_id:"
+mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "	return maelstrom_reach() if spec.type_id == SwordDefs.WARDEN else SwordDefs.FANG_ULT_RADIUS" "	return SwordDefs.FANG_ULT_RADIUS"
+mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]" "ENCOUNTER_CONDITIONS]"
+mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
+" "		RunScenario.new(),
+"
+mutate warden-fixture-has-no-wardens                scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
+mutate warden-fixture-wrong-element                 scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))"
+mutate warden-encounter-no-brutes                   scripts/sim/run_scenario.gd "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"brute\", &\"husk\", &\"husk\", &\"runner\"," "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\","
+mutate warden-encounter-not-the-default             scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.warden_fixture_loadout()"
+mutate warden-launch-option-lost                    scripts/launch_options.gd "		\"warden\":
+			return RunScenario.warden_encounter()" "		\"warden\":
+			return null"
+mutate warden-dev-button-title                      scripts/sim/run_scenario.gd "		ENCOUNTER_WARDEN:
+			return \"Warden\"
+" ""
+mutate warden-legend-lost                           scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN:" "	elif false:"
+mutate sword-card-type-lost                         scripts/hud.gd "		_ult_types[slot].text = \"%s sword\" % SwordDefs.display_name(sword.spec.type_id)" "		_ult_types[slot].text = \"\""
+mutate sword-card-name-always-flurry                scripts/sim/sword_defs.gd "	return WARDEN_ULT_NAME if type_id == WARDEN else FANG_ULT_NAME if type_id == FANG else String(type_id)" "	return FANG_ULT_NAME"
+mutate sweep-fan-lost                               scripts/presentation/effects_layer.gd "		_add_sweep_wedges(run)
+" ""
+mutate sweep-telegraph-lost                         scripts/presentation/effects_layer.gd "			_draw_sweep_telegraph(sword)
+" "			pass
+"
+mutate maelstrom-drawing-lost                       scripts/presentation/effects_layer.gd "				_draw_maelstrom(sword, tint)
+" "				pass
+"
+mutate maelstrom-beat-ring-lost                     scripts/presentation/effects_layer.gd "			_add_ring(cue.position, cue.radius * 0.6, cue.radius, 0.2, Color(beat_tint, 0.9), 2.0)
+" "			pass
+"
+mutate maelstrom-burst-ring-lost                    scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 20.0, cue.radius * 1.6, 0.4, Color(burst_tint, 0.95), 5.0)
+" "			pass
+"
+mutate maelstrom-area-ring-wrong-size               scripts/presentation/effects_layer.gd "	_add_ring(sword.ultimate_point, sword.ultimate_area_radius(), 10.0, 0.3, Color(tint, 0.95), 3.0)" "	_add_ring(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, 10.0, 0.3, Color(tint, 0.95), 3.0)"
+mutate maelstrom-burst-sound-lost                   scripts/audio/sfx_bank.gd "		SimCue.Kind.MAELSTROM_BURST:
+			play(\"strike\")" "		SimCue.Kind.MAELSTROM_BURST:
+			pass"
+mutate maelstrom-beat-sound-always                  scripts/audio/sfx_bank.gd "			if cue.amount > 0:
+				play(\"strike\")" "			play(\"strike\")"
+mutate warden-visual-needle                         scripts/presentation/placeholder_sword_visual.gd "	_warden = spec.type_id == SwordDefs.WARDEN" "	_warden = false"
 
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
