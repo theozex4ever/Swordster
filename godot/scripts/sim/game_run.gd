@@ -535,8 +535,8 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 	var d: Vector2 = SimMath.norm(direction, rng)
 	var force: float = knock * enemy.knock_mult * (CRIT_KNOCK_BONUS if crit else 1.0)
 	enemy.launch(d, force)
+	# A normal blow's feedback is the sword type's own (prototype `sword.t["hitstop"]` / `["shake"]`).
 	if not heavy:
-		# The sword type's own feedback (prototype `sword.t["hitstop"]` / `["shake"]`).
 		var stop: float = (sword.hit_stop if sword != null else SwordDefs.FANG_HITSTOP) * (CRIT_HITSTOP_FACTOR if crit else 1.0)
 		hitstop = maxf(hitstop, stop)
 		add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)

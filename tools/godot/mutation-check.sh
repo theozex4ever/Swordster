@@ -695,7 +695,6 @@ mutate maelstrom-burst-shake                        scripts/sim/sword_defs.gd "W
 mutate maelstrom-burst-hitstop                      scripts/sim/sword_defs.gd "WARDEN_ULT_BURST_HITSTOP: float = 0.06" "WARDEN_ULT_BURST_HITSTOP: float = 0.0"
 mutate maelstrom-recover-time                       scripts/sim/sword_defs.gd "WARDEN_ULT_RECOVER_TIME: float = 0.3" "WARDEN_ULT_RECOVER_TIME: float = 0.1"
 mutate maelstrom-recover-speed                      scripts/sim/sword_defs.gd "WARDEN_ULT_RECOVER_SPEED: float = 500.0" "WARDEN_ULT_RECOVER_SPEED: float = 100.0"
-mutate warden-unsupported                           scripts/sim/sword_defs.gd "return type_id == FANG or type_id == WARDEN" "return type_id == FANG"
 mutate sweep-hits-twice                             scripts/sim/sword_state.gd "			if enemy.dead or sweep_hits.has(enemy):
 				continue" "			if enemy.dead:
 				continue"

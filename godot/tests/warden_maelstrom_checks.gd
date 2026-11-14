@@ -332,6 +332,9 @@ func _check_definitions() -> void:
 			_near(sword.damage, float(want["damage"]), 0.0001) and _near(sword.cooldown, float(want["cooldown"]), 0.0001) and _near(sword.attack_range, float(want["range"]), 0.0001)
 			and _near(sword.length, float(want["length"]), 0.0001) and _near(sword.ultimate_cooldown, float(want["ult_max"]), 0.0001) and _near(sword.size_scale, float(want["scale"]), 0.0001)
 			and _near(sword.maelstrom_reach(), 100.0 * float(want["scale"]) + float(want["length"]) * 0.7, 0.0001))
+	var fang_run: GameRun = GameRun.new(RunScenario.warden_encounter())
+	_ok("the area a running ultimate acts in is Maelstrom's blade reach for a Warden (%.1f) and Viper Flurry's 150 px for a Fang" % run.swords[0].ultimate_area_radius(),
+		run.swords.all(func(sword: SwordState) -> bool: return sword.ultimate_area_radius() == sword.maelstrom_reach()) and fang_run.swords[0].ultimate_area_radius() == SwordDefs.FANG_ULT_RADIUS and fang_run.swords[1].ultimate_area_radius() == fang_run.swords[1].maelstrom_reach())
 	_ok("a new run starts with every Warden's ultimate ready", run.swords.all(func(sword: SwordState) -> bool: return sword.ultimate_ready() and sword.ultimate_cooldown_left == 0.0))
 	var radii_ok: bool = true
 	for kind: String in ["husk", "runner", "brute"]:
@@ -352,6 +355,12 @@ func _check_sweep() -> void:
 		_ok("%s: consecutive attacks sweep in opposite directions (sides %s)" % [label, sides], sides.size() == (case["windup_sides"] as Array).size() and sides.size() >= 2 and sides[0] == -sides[1] and sides[0] == int((case["windup_sides"] as Array)[0]))
 		var hits: Array = result["hits"]
 		_ok("%s: every attack hits its target once, for %s" % [label, "17 (x1.3, x1.75 by rarity; doubled on a crit)"], hits.size() == (case["trace"]["hits"] as Array).size() and hits.size() >= 2)
+	var boosted: GameRun = _run_of_setup(_ref["sweep"]["common"]["setup"])
+	var boosted_target: EnemyState = boosted.enemies[0]
+	boosted.swords[0].begin(boosted_target, boosted_target.position, 1.5)
+	var start_hp: float = boosted_target.hp
+	_steps(boosted, 20)
+	_ok("an attack's damage boost (Converge's 1.5x, issue #16) multiplies the sweep's blow: 17 x 1.5 = 25.5 rounds to %.0f" % (start_hp - boosted_target.hp), start_hp - boosted_target.hp == 26.0)
 	var common: Dictionary = _ref["sweep"]["common"]
 	var transitions: Array = common["trace"]["transitions"]
 	_ok("windup 0.16 s (10 ticks), the sweep 0.15 s (9 ticks of motion + the hit's freeze) and recovery 0.3 s: the reference ticks %s" % [transitions.map(func(t: Dictionary) -> String: return "%s@%s" % [t["to"], t["tick"]])], transitions.size() >= 6)
@@ -576,7 +585,7 @@ func _check_recover_and_cooldown() -> void:
 		var good: bool = starts.size() == want_starts.size() and strikes.size() == want_strikes.size()
 		for i: int in mini(starts.size(), want_starts.size()):
 			good = good and absi(starts[i] - int(want_starts[i])) <= TICK_TOL and absi(strikes[i] - int(want_strikes[i])) <= TICK_TOL
-		_ok("rarity %d: attacks begin on ticks %s (cooldown %.3f s) as the prototype's %s" % [rarity, starts, sword.cooldown, want_starts], good and starts.size() >= 2)
+		_ok("rarity %d: attacks begin on ticks %s (cooldown %.3f s) as the prototype's %s, each announced by a strike cue (%d)" % [rarity, starts, sword.cooldown, want_starts, run.cue_count(SimCue.Kind.SWORD_STRIKE)], good and starts.size() >= 2 and run.cue_count(SimCue.Kind.SWORD_STRIKE) == strikes.size())
 
 
 # ------------------------------------------------------------- Maelstrom
@@ -623,6 +632,15 @@ func _check_range_and_start() -> void:
 			break
 	var before_hits: int = sword_s.sweep_hits.size()
 	run_s.apply(GameCommand.ultimate(0, CENTER + Vector2(200.0, 0.0)))
+	var struck: GameRun = _run_of_setup(sweep["setup"])
+	var struck_sword: SwordState = struck.swords[0]
+	for i: int in 30:
+		struck.step()
+		if not struck_sword.sweep_hits.is_empty():
+			break
+	var held: int = struck_sword.sweep_hits.size()
+	struck.apply(GameCommand.ultimate(0, CENTER + Vector2(200.0, 0.0)))
+	_ok("a command right after the sweep struck something clears the hit set (%d -> %d)" % [held, struck_sword.sweep_hits.size()], held == 1 and struck_sword.sweep_hits.is_empty() and struck_sword.phase == SwordState.Phase.ULTIMATE)
 	_ok("a command in the middle of a sweep drops the hit set (%d -> %d) as the prototype does" % [before_hits, sword_s.sweep_hits.size()], before_hits == int(sweep["hit_before"]) and sword_s.sweep_hits.size() == int(sweep["hit_after"]) and sword_s.phase == SwordState.Phase.ULTIMATE)
 
 
@@ -691,11 +709,11 @@ func _check_maelstrom_clocks() -> void:
 	print("warden: pause, the player's death, hitstop and slow motion in the middle of the whirl")
 	var pause: Dictionary = _ref["maelstrom_clocks"]["pause"]
 	var run: GameRun = _run_of_setup(pause["setup"])
+	var husk: EnemyState = run.enemies[0]
 	_steps(run, int(pause["setup"]["warmup_ticks"]))
 	run.apply(GameCommand.ultimate(0, _point(pause["setup"]["point"])))
 	_steps(run, int(pause["setup"]["run_ticks"]))
 	var sword: SwordState = run.swords[0]
-	var husk: EnemyState = run.enemies[0]
 	var snapshot: Callable = func() -> Array: return [sword.position, sword.angle, sword.ultimate_time_left, sword.ultimate_beat, sword.ultimate_spin, sword.ultimate_cooldown_left, husk.position, husk.hp, run.tick]
 	var before: Array = snapshot.call()
 	var before_ref: Dictionary = pause["before"]
@@ -711,11 +729,11 @@ func _check_maelstrom_clocks() -> void:
 	_ok("resumed, the whirl carries on from the same instant (clock %.4f)" % sword.ultimate_time_left, _near(sword.ultimate_time_left, float(pause["resumed_ult_t"]), SCALAR_TOL))
 	var death: Dictionary = _ref["maelstrom_clocks"]["death"]
 	var run_d: GameRun = _run_of_setup(death["setup"])
+	var husk_d: EnemyState = run_d.enemies[0]
 	_steps(run_d, int(death["setup"]["warmup_ticks"]))
 	run_d.apply(GameCommand.ultimate(0, _point(death["setup"]["point"])))
 	_steps(run_d, int(death["setup"]["run_ticks"]))
 	var sword_d: SwordState = run_d.swords[0]
-	var husk_d: EnemyState = run_d.enemies[0]
 	var hp_at_death: float = husk_d.hp
 	var position_at_death: Vector2 = husk_d.position
 	run_d.hurt_player(1000, CENTER + Vector2(50.0, 0.0))
@@ -729,13 +747,14 @@ func _check_maelstrom_clocks() -> void:
 	var stop_case: Dictionary = _ref["maelstrom_clocks"]["hitstop_at_command"]
 	var run_h: GameRun = _start_maelstrom(stop_case)
 	var first_hit: int = -1
-	var h_hp: float = run_h.enemies[0].hp
+	var h_enemy: EnemyState = run_h.enemies[0]
+	var h_hp: float = h_enemy.hp
 	var at_ok: bool = true
 	for step: int in range(1, 60):
 		run_h.step()
-		if run_h.enemies[0].hp < h_hp and first_hit < 0:
+		if h_enemy.hp < h_hp and first_hit < 0:
 			first_hit = step
-		h_hp = run_h.enemies[0].hp
+		h_hp = h_enemy.hp
 		if (stop_case["at"] as Dictionary).has(str(step)):
 			var want: Dictionary = (stop_case["at"] as Dictionary)[str(step)]
 			at_ok = at_ok and _near(run_h.swords[0].ultimate_time_left, float(want["ult_t"]), SCALAR_TOL) and _near(run_h.swords[0].ultimate_beat, float(want["beat"]), SCALAR_TOL) and _near(run_h.swords[0].ultimate_cooldown_left, float(want["ult_cd"]), SCALAR_TOL)
@@ -743,12 +762,13 @@ func _check_maelstrom_clocks() -> void:
 	var slow: Dictionary = _ref["maelstrom_clocks"]["slow_motion"]
 	var run_s: GameRun = _start_maelstrom(slow)
 	var slow_first: int = -1
-	var s_hp: float = run_s.enemies[0].hp
+	var s_enemy: EnemyState = run_s.enemies[0]
+	var s_hp: float = s_enemy.hp
 	for step: int in range(1, 100):
 		run_s.step()
-		if run_s.enemies[0].hp < s_hp and slow_first < 0:
+		if s_enemy.hp < s_hp and slow_first < 0:
 			slow_first = step
-		s_hp = run_s.enemies[0].hp
+		s_hp = s_enemy.hp
 	_ok("slow motion x0.25: first beat on tick %d (prototype %d), clock %.3f and recharge %.3f a quarter as fast" % [slow_first, int(slow["first_hit_tick"]), run_s.swords[0].ultimate_time_left, run_s.swords[0].ultimate_cooldown_left],
 		absi(slow_first - int(slow["first_hit_tick"])) <= TICK_TOL and _near(run_s.swords[0].ultimate_time_left, float(slow["ult_t"]), SCALAR_TOL) and _near(run_s.swords[0].ultimate_cooldown_left, float(slow["ult_cd"]), SCALAR_TOL) and _near(run_s.swords[0].ultimate_beat, float(slow["beat"]), SCALAR_TOL))
 
@@ -795,6 +815,7 @@ func _check_maelstrom_rules() -> void:
 	_ok("once the recharge is over Maelstrom starts again", _phase_name(run_g.swords[0].phase) == String(again["state"]))
 	var others: Dictionary = _ref["maelstrom_rules"]["others_keep_sweeping"]
 	var run_o: GameRun = _run_of_setup(others["setup"])
+	var post: EnemyState = run_o.enemies[0]
 	run_o.apply(GameCommand.ultimate(0, CENTER + Vector2(330.0, -300.0)))
 	var states_at_30: Array[String] = []
 	var swept: bool = false
@@ -804,7 +825,7 @@ func _check_maelstrom_rules() -> void:
 		if step == 30:
 			states_at_30 = states
 		swept = swept or states[1] != "idle" or states[2] != "idle"
-	_ok("while slot one whirls, slots two and three keep sweeping (states at tick 30: %s)" % [states_at_30], _same_strings(states_at_30, others["states_at_30"]) and swept == bool(others["others_swept"]) and (run_o.enemies[0].hp < 100000.0) == bool(others["husk_damaged"]))
+	_ok("while slot one whirls, slots two and three keep sweeping (states at tick 30: %s)" % [states_at_30], _same_strings(states_at_30, others["states_at_30"]) and swept == bool(others["others_swept"]) and (post.hp < 100000.0) == bool(others["husk_damaged"]))
 
 
 func _check_orb_in_the_whirl() -> void:
@@ -915,19 +936,43 @@ func _check_removed_and_corpses() -> void:
 	run3.enemies.erase(gone3)
 	_steps(run3, 120)
 	_ok("an enemy removed from the run in the middle of Maelstrom is not pulled, struck or burst afterwards (hp %.0f stays, moved %.2f px)" % [gone3.hp, gone3.position.distance_to(at_then)], gone3.hp == hp_then and hp_then < PROBE_HP and gone3.position == at_then and run3.kills == 0)
-	# A corpse (killed earlier in the same tick) is not pulled or struck, and its beat causes no shake.
-	var run4: GameRun = _lone_scenario(warden, [{"kind": "husk", "x": CENTER.x + 250.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}])
+	# A corpse (killed earlier in the same tick) is not pulled or struck, and its beat shakes nothing.
+	# The whirl is centred 60 px from the enemy so the pull would move it; it dies just before a beat.
+	var off_centre: Array = [{"kind": "husk", "x": CENTER.x + 310.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}]
+	var run4: GameRun = _lone_scenario(warden, off_centre)
 	run4.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
 	var corpse: EnemyState = run4.enemies[0]
-	_steps(run4, 8)
+	_steps(run4, 9)
 	run4.trauma = 0.0
 	run4.kill(corpse, Vector2.UP)
 	var position_dead: Vector2 = corpse.position
-	run4.step()
+	var hp_dead4: float = corpse.hp
 	run4.step()
 	var beats: Array[SimCue] = run4.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BEAT)
-	_ok("an enemy killed by something else just before a beat is not struck again or pulled, and the beat reports nothing struck and shakes nothing (kills %d, beats %d, struck %d, trauma %.3f)" % [run4.kills, beats.size(), beats[0].amount if not beats.is_empty() else -1, run4.trauma],
-		run4.kills == 1 and corpse.position == position_dead and corpse.hp == PROBE_HP and beats.size() == 1 and beats[0].amount == 0 and run4.trauma < SwordDefs.WARDEN_ULT_TICK_SHAKE and run4.motes.size() == 3)
+	_ok("an enemy killed by something else in the tick of a beat is not struck again or pulled, and the beat reports nothing struck and shakes nothing (kills %d, beats %d, struck %d, trauma %.3f, moved %.2f px)" % [run4.kills, beats.size(), beats[0].amount if not beats.is_empty() else -1, run4.trauma, corpse.position.distance_to(position_dead)],
+		run4.kills == 1 and corpse.position == position_dead and corpse.hp == hp_dead4 and beats.size() == 1 and beats[0].amount == 0 and run4.trauma < SwordDefs.WARDEN_ULT_TICK_SHAKE and run4.motes.size() == 3)
+	var run6: GameRun = _lone_scenario(warden, off_centre)
+	run6.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
+	var corpse6: EnemyState = run6.enemies[0]
+	while run6.swords[1].ultimate_time_left > GameRun.TICK_DT * 0.5:
+		run6.step()
+	var hp_dead: float = 0.0
+	run6.kill(corpse6, Vector2.UP)
+	hp_dead = corpse6.hp
+	run6.take_cues()
+	run6.step()
+	var bursts: Array[SimCue] = run6.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BURST)
+	_ok("an enemy killed by something else in the tick of the finishing burst is not struck by it (burst struck %d, health %.0f unchanged, one kill)" % [bursts[0].amount if not bursts.is_empty() else -1, corpse6.hp],
+		run6.swords[1].phase == SwordState.Phase.RECOVER and bursts.size() == 1 and bursts[0].amount == 0 and corpse6.hp == hp_dead and run6.kills == 1)
+	var two: Dictionary = _ref["deaths"]["two_swords_one_victim"]
+	var run7: GameRun = _run_of_setup(two["setup"])
+	var victim7: EnemyState = run7.enemies[0]
+	for i: int in 60:
+		run7.step()
+		if run7.kills >= 1:
+			break
+	_ok("when one sweep kills an enemy, the other sword's sweep of the same tick does not even enter the corpse in its hit set (first sword %s, second %s)" % [run7.swords[0].sweep_hits.has(victim7), run7.swords[1].sweep_hits.has(victim7)],
+		run7.kills == 1 and run7.swords[0].sweep_hits.has(victim7) and not run7.swords[1].sweep_hits.has(victim7))
 	# The sweep's hit set keeps nobody twice even when the same enemy is inside both sampled arcs.
 	var run5: GameRun = _lone_scenario(warden, [{"kind": "brute", "x": CENTER.x + 120.0, "y": CENTER.y, "hp": 100000.0, "speed_scale": 0.0}])
 	var brute: EnemyState = run5.enemies[0]
@@ -960,13 +1005,14 @@ func _check_pause_and_death_in_a_sweep() -> void:
 		run.step()
 		if sword.phase == SwordState.Phase.STRIKE:
 			break
-	var before: Array = [sword.position, sword.angle, sword.timer, sword.sweep_hits.size(), run.enemies[0].hp, run.tick]
+	var target: EnemyState = run.enemies[0]
+	var before: Array = [sword.position, sword.angle, sword.timer, sword.sweep_hits.size(), target.hp, run.tick]
 	run.apply(GameCommand.pause())
 	_steps(run, 90)
-	var after: Array = [sword.position, sword.angle, sword.timer, sword.sweep_hits.size(), run.enemies[0].hp, run.tick]
+	var after: Array = [sword.position, sword.angle, sword.timer, sword.sweep_hits.size(), target.hp, run.tick]
 	run.apply(GameCommand.resume())
 	_steps(run, 60)
-	_ok("paused in the middle of the sweep: nothing advances, and after resuming it is struck exactly once (hp %.0f)" % run.enemies[0].hp, before == after and run.enemies[0].hp == PROBE_HP - 17.0 and run.cue_count(SimCue.Kind.ENEMY_HIT) == 1)
+	_ok("paused in the middle of the sweep: nothing advances, and after resuming it is struck exactly once (hp %.0f)" % target.hp, before == after and target.hp == PROBE_HP - 17.0 and run.cue_count(SimCue.Kind.ENEMY_HIT) == 1)
 	var dying: GameRun = _lone_scenario(warden, [husk])
 	var sword_d: SwordState = dying.swords[0]
 	for i: int in 14:
@@ -974,9 +1020,10 @@ func _check_pause_and_death_in_a_sweep() -> void:
 		if sword_d.phase == SwordState.Phase.STRIKE:
 			break
 	dying.hurt_player(1000, CENTER + Vector2(50.0, 0.0))
-	var hp_at_death: float = dying.enemies[0].hp
+	var victim: EnemyState = dying.enemies[0]
+	var hp_at_death: float = victim.hp
 	_steps(dying, 80)
-	_ok("the player dies in the middle of the sweep: the sword goes idle and the sweep deals nothing after (health change %.0f, phase %s)" % [hp_at_death - dying.enemies[0].hp, _phase_name(sword_d.phase)], dying.dead and _phase_name(sword_d.phase) == "idle" and dying.enemies[0].hp == hp_at_death)
+	_ok("the player dies in the middle of the sweep: the sword goes idle and the sweep deals nothing after (health change %.0f, phase %s)" % [hp_at_death - victim.hp, _phase_name(sword_d.phase)], dying.dead and _phase_name(sword_d.phase) == "idle" and victim.hp == hp_at_death)
 	var restarted: GameRun = _lone_scenario(warden, [husk])
 	for i: int in 14:
 		restarted.step()
@@ -1074,6 +1121,24 @@ func _check_main_scene() -> void:
 	await _tree.process_frame
 	_ok("the burst is announced as a cue (bursts %d, beats %d) and heard" % [main.run.cue_count(SimCue.Kind.MAELSTROM_BURST), main.run.cue_count(SimCue.Kind.MAELSTROM_BEAT)], main.run.cue_count(SimCue.Kind.MAELSTROM_BURST) == 1 and main.run.cue_count(SimCue.Kind.MAELSTROM_BEAT) >= 8)
 	_ok("after the whirl the card counts the recharge down in whole seconds (%s)" % hud.ultimate_status(1), hud.ultimate_status(1) == "%ds" % SimMath.py_round(sword.ultimate_cooldown_left) and hud.ultimate_bar_fraction(1) > 0.0 and hud.ultimate_bar_fraction(1) < 1.0)
+	var effects: EffectsLayer = main._presenter._effects
+	var rings_before: int = effects._rings.size()
+	var beat: SimCue = SimCue.make(SimCue.Kind.MAELSTROM_BEAT, CENTER, Vector2.ZERO, 3)
+	beat.radius = 138.0
+	beat.element = &"ice"
+	effects.apply_cue(beat)
+	var rings_after_beat: int = effects._rings.size()
+	var burst: SimCue = SimCue.make(SimCue.Kind.MAELSTROM_BURST, CENTER, Vector2.ZERO, 3)
+	burst.radius = 168.0
+	burst.element = &"ice"
+	var sparks_before: int = effects._sparks.size()
+	effects.apply_cue(burst)
+	var started: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, Vector2.RIGHT, 1)
+	started.origin = sword.position
+	effects.apply_cue(started)
+	var area_ring: Dictionary = effects._rings[effects._rings.size() - 1]
+	_ok("a beat draws one ring from 0.6 x the reach out to it, the burst two rings and sparks, and a Maelstrom's start a ring closing from the blades' reach (%.1f)" % float(area_ring["r0"]),
+		rings_after_beat == rings_before + 1 and effects._rings[rings_before]["r1"] == 138.0 and effects._rings.size() >= rings_after_beat + 3 and effects._sparks.size() > sparks_before and _near(float(area_ring["r0"]), sword.ultimate_area_radius(), 0.001) and not _near(float(area_ring["r0"]), SwordDefs.FANG_ULT_RADIUS, 1.0))
 	var texts_before: int = main._presenter._effects._texts.size()
 	main._input(_key(KEY_E))
 	_ok("E while it recharges is refused and says so on screen", main.run.cue_count(SimCue.Kind.ULTIMATE_REFUSED) == 1 and main._presenter._effects._texts.size() == texts_before + 1)
