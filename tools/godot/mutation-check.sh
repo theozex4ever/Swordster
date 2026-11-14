@@ -363,6 +363,102 @@ mutate render-rate-spitters-dependent scripts/sim/game_run.gd "	_update_projecti
 	if tick % 7 == 0:
 		_update_projectiles(dt)
 "
+# --- Viper Flurry and the slot ultimates (slice #12)
+mutate flurry-cooldown-short       scripts/sim/sword_defs.gd "FANG_ULT_COOLDOWN: float = 9.0" "FANG_ULT_COOLDOWN: float = 4.0"
+mutate flurry-range-longer         scripts/sim/sword_defs.gd "FANG_ULT_RANGE: float = 420.0" "FANG_ULT_RANGE: float = 520.0"
+mutate flurry-radius-wider         scripts/sim/sword_defs.gd "FANG_ULT_RADIUS: float = 150.0" "FANG_ULT_RADIUS: float = 200.0"
+mutate flurry-duration             scripts/sim/sword_defs.gd "FANG_ULT_DURATION: float = 1.25" "FANG_ULT_DURATION: float = 2.0"
+mutate flurry-cadence              scripts/sim/sword_defs.gd "FANG_ULT_CADENCE: float = 0.08" "FANG_ULT_CADENCE: float = 0.16"
+mutate flurry-damage-factor        scripts/sim/sword_defs.gd "FANG_ULT_DAMAGE_FACTOR: float = 1.2" "FANG_ULT_DAMAGE_FACTOR: float = 1.0"
+mutate flurry-knockback            scripts/sim/sword_defs.gd "FANG_ULT_KNOCK: float = 120.0" "FANG_ULT_KNOCK: float = 300.0"
+mutate flurry-shake-lost           scripts/sim/sword_defs.gd "FANG_ULT_SHAKE: float = 0.05" "FANG_ULT_SHAKE: float = 0.0"
+mutate flurry-approach-slow        scripts/sim/sword_defs.gd "FANG_ULT_APPROACH_RATE: float = 28.0" "FANG_ULT_APPROACH_RATE: float = 14.0"
+mutate flurry-standoff             scripts/sim/sword_defs.gd "FANG_ULT_STANDOFF: float = 20.0" "FANG_ULT_STANDOFF: float = 0.0"
+mutate flurry-recovery-long        scripts/sim/sword_defs.gd "FANG_ULT_RECOVER_TIME: float = 0.3" "FANG_ULT_RECOVER_TIME: float = 0.6"
+mutate flurry-recovery-speed       scripts/sim/sword_defs.gd "FANG_ULT_RECOVER_SPEED: float = 300.0" "FANG_ULT_RECOVER_SPEED: float = 0.0"
+mutate flurry-wander-too-wide      scripts/sim/sword_defs.gd "FANG_ULT_WANDER_FRACTION: float = 0.7" "FANG_ULT_WANDER_FRACTION: float = 1.4"
+mutate heavy-hit-flash-normal      scripts/sim/sword_defs.gd "HEAVY_HIT_FLASH: float = 0.2" "HEAVY_HIT_FLASH: float = 0.11"
+mutate heavy-hit-causes-hitstop    scripts/sim/game_run.gd "	if not heavy:
+		var stop: float" "	if true:
+		var stop: float"
+mutate flurry-dart-not-heavy       scripts/sim/sword_state.gd "SwordDefs.FANG_ULT_KNOCK, self, true)" "SwordDefs.FANG_ULT_KNOCK, self, false)"
+mutate flurry-no-range-clamp       scripts/sim/game_run.gd "and to_point.length() > SwordDefs.ultimate_range(type_id):" "and to_point.length() > 99999.0:"
+mutate flurry-clamp-from-sword     scripts/sim/game_run.gd "target = position + to_point.normalized() * SwordDefs.ultimate_range(type_id)" "target = sword.position + to_point.normalized() * SwordDefs.ultimate_range(type_id)"
+mutate flurry-recharge-not-armed   scripts/sim/sword_state.gd "	ultimate_cooldown_left = ultimate_cooldown
+	boost = 1.0" "	ultimate_cooldown_left = 0.0
+	boost = 1.0"
+mutate flurry-recharge-pauses      scripts/sim/sword_state.gd "	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)" "	if phase != Phase.ULTIMATE:
+		ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)"
+mutate flurry-recharge-ignores-rarity scripts/sim/sword_state.gd "SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate flurry-starts-on-cooldown   scripts/sim/sword_state.gd "	sword.position = at
+" "	sword.position = at
+	sword.ultimate_cooldown_left = sword.ultimate_cooldown
+"
+mutate flurry-recharge-refusal-lost scripts/sim/game_run.gd "	if sword.ultimate_cooldown_left > 0.0:
+		add_cue" "	if false:
+		add_cue"
+mutate flurry-active-refusal-lost  scripts/sim/game_run.gd "	if sword.phase == SwordState.Phase.ULTIMATE:
+		return UltimateResult.ACTIVE" "	if false:
+		return UltimateResult.ACTIVE"
+mutate flurry-works-when-dead      scripts/sim/game_run.gd "	if paused or dead:
+		return UltimateResult.UNAVAILABLE" "	if paused:
+		return UltimateResult.UNAVAILABLE"
+mutate flurry-works-when-paused    scripts/sim/game_run.gd "	if paused or dead:
+		return UltimateResult.UNAVAILABLE" "	if dead:
+		return UltimateResult.UNAVAILABLE"
+mutate flurry-refusal-seconds      scripts/sim/game_run.gd "Vector2.ZERO, SimMath.py_round(sword.ultimate_cooldown_left)))" "Vector2.ZERO, 0))"
+mutate flurry-wrong-slot           scripts/sim/game_run.gd "	var sword: SwordState = swords[slot]
+	if sword.phase" "	var sword: SwordState = swords[(slot + 1) % swords.size()]
+	if sword.phase"
+mutate flurry-start-cue-lost       scripts/sim/game_run.gd "	cue.origin = origin
+	add_cue(cue)" "	cue.origin = origin"
+mutate flurry-victim-repeats       scripts/sim/sword_state.gd "				if enemy != struck:" "				if true:"
+mutate flurry-strikes-the-dead     scripts/sim/sword_state.gd "		if struck != null and not struck.dead:" "		if struck != null:"
+mutate flurry-targets-the-dead     scripts/sim/sword_state.gd "			if not enemy.dead and (enemy.position - ultimate_point).length() < radius + enemy.radius:" "			if (enemy.position - ultimate_point).length() < radius + enemy.radius:"
+mutate flurry-area-ignores-enemy-size scripts/sim/sword_state.gd "(enemy.position - ultimate_point).length() < radius + enemy.radius:" "(enemy.position - ultimate_point).length() < radius:"
+mutate flurry-no-blink             scripts/sim/sword_state.gd "			position = point
+			ultimate_goal = point" "			ultimate_goal = point"
+mutate flurry-hit-direction        scripts/sim/sword_state.gd "SimMath.norm(struck.position - ultimate_point, run.rng, dir, true)" "SimMath.norm(ultimate_point - struck.position, run.rng, dir, true)"
+mutate flurry-parries-orbs         scripts/sim/sword_state.gd "	velocity = (position - previous) / maxf(dt, 1e-4)
+	if velocity.length_squared() > 400.0:" "	run.parry_projectiles(previous, position, 8.0)
+	velocity = (position - previous) / maxf(dt, 1e-4)
+	if velocity.length_squared() > 400.0:"
+mutate flurry-keeps-target         scripts/sim/sword_state.gd "	boost = 1.0
+	target = null
+	ultimate_victim = null" "	boost = 1.0
+	ultimate_victim = null"
+mutate flurry-survives-death       scripts/sim/sword_state.gd "		phase = Phase.IDLE
+		ultimate_victim = null
+		return" "		ultimate_victim = null
+		return"
+mutate flurry-render-rate-dependent scripts/sim/sword_state.gd "	ultimate_time_left -= dt
+	ultimate_beat -= dt" "	ultimate_time_left -= dt * (1.0 + float(Engine.get_process_frames() % 2))
+	ultimate_beat -= dt"
+mutate flurry-auto-aim-ahead       scripts/sim/game_run.gd "AUTO_AIM_AHEAD: float = 300.0" "AUTO_AIM_AHEAD: float = 100.0"
+mutate flurry-auto-aim-dead        scripts/sim/game_run.gd "		if not enemy.dead and dist_sq < nearest_sq:" "		if dist_sq < nearest_sq:"
+mutate flurry-r-not-ultimate       scripts/input/input_translator.gd "[KEY_Q, KEY_E, KEY_R]" "[KEY_Q, KEY_E]"
+mutate flurry-keys-swapped         scripts/input/input_translator.gd "[KEY_Q, KEY_E, KEY_R]" "[KEY_E, KEY_Q, KEY_R]"
+mutate flurry-restart-before-ultimate scripts/input/input_translator.gd "				if code in ULTIMATE_KEYS:
+					commands.append(GameCommand.ultimate(ULTIMATE_KEYS.find(code), aim_world()))
+				if code in RESTART_KEYS:
+					commands.append(GameCommand.restart_from_key())" "				if code in RESTART_KEYS:
+					commands.append(GameCommand.restart_from_key())
+				if code in ULTIMATE_KEYS:
+					commands.append(GameCommand.ultimate(ULTIMATE_KEYS.find(code), aim_world()))"
+mutate flurry-aim-ignores-camera   scripts/main.gd "	return run.camera + viewport_point - get_viewport().get_visible_rect().size * 0.5" "	return viewport_point - get_viewport().get_visible_rect().size * 0.5"
+mutate flurry-aim-ignores-view-centre scripts/main.gd "	return run.camera + viewport_point - get_viewport().get_visible_rect().size * 0.5" "	return run.camera + viewport_point"
+mutate flurry-mouse-aim-not-tracked scripts/input/input_translator.gd "		pointer = (event as InputEventMouse).position" "		pointer = pointer"
+mutate flurry-hud-card-hidden      scripts/hud.gd "		_ult_cards[slot].visible = shown" "		_ult_cards[slot].visible = false"
+mutate flurry-hud-always-ready     scripts/hud.gd "		elif ready:
+			_ult_status[slot].text = \"READY\"" "		elif true:
+			_ult_status[slot].text = \"READY\""
+mutate flurry-hud-bar-full         scripts/hud.gd "(1.0 if active else sword.ultimate_charge())" "1.0"
+mutate flurry-hud-no-active        scripts/hud.gd "		if active:
+			_ult_status[slot].text = \"ACTIVE\"" "		if false:
+			_ult_status[slot].text = \"ACTIVE\""
+mutate flurry-sound-lost           scripts/audio/sfx_bank.gd "SimCue.Kind.DASH, SimCue.Kind.ULTIMATE_STARTED:" "SimCue.Kind.DASH:"
+mutate flurry-refusal-text-lost    scripts/presentation/effects_layer.gd "\"recharging %ds\" % cue.amount" "\"\""
+mutate flurry-presenter-phase-lost scripts/presentation/run_presenter.gd "visual.apply_pose(sword.position, sword.angle, sword.phase)" "visual.apply_pose(sword.position, sword.angle, SwordState.Phase.IDLE)"
 
 echo
 if ((survived)); then echo "$survived mutation(s) survived"; fi
