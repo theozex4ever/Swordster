@@ -274,16 +274,17 @@ cadence or threshold differs from the prototype.
 
 ## Validation
 
-Counts and ids are in the pull request that closes #11; this table records what was run and
-what it showed.
+What was run on head `c64aaaf` and what it showed. Game code (`godot/scripts`) is identical
+in every later commit of the branch; later commits touch only this document, its frames and
+tooling, which the pull request body states exactly.
 
 | Check | Result |
 |---|---|
-| `./build-godot.sh --checks-only` / full `./build-godot.sh` | see the pull request description (the count, build id and head it ran on) |
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1002` (999 before the last four strengthenings); full build on a clean tree OK: `20261114-220735-c64aaafe4` |
 | Reference captures regenerate | `capture_fang_survival_loop.py`, `capture_crowd_and_walls.py`, `capture_spitters_and_parries.py` and `capture_viper_flurry.py` produce JSON byte-identical to the committed files; `capture_elemental_conditions.py` is deterministic (two runs identical) |
-| Mutation check | see the pull request description |
-| Web export, headless Chromium (software WebGL 2, 1280x720) | `SCENARIO=conditions` of `tools/godot/web-encounter-capture.mjs` against the full build's Web bundle served over HTTP with `?encounter=conditions`: the player walked with browser key events and Q, E and R were pressed; burning, poisoned and frozen foes, pips, the fire-spread ring and the element tags on the cards are visible ([`web-burning-poisoned-pack.png`](elemental-conditions/web-burning-poisoned-pack.png), [`web-fire-spread-ring.png`](elemental-conditions/web-fire-spread-ring.png), [`web-frozen-brute-and-pips.png`](elemental-conditions/web-frozen-brute-and-pips.png)). No console errors. |
-| Windows export under Wine (not a Windows machine) | The full build's Windows ZIP extracted unmodified (`SHA256SUMS` verified before and after), run as `wine Swordster.exe --resolution 1000x563 --write-movie cond.png --fixed-fps 30 --quit-after 720 -- --encounter=conditions` from another directory: engine-side frames of the game's own viewport, no desktop capture, no input injected, nothing added to the game. The shipped game fights the encounter on its own: kills 12, burning / poisoned / frozen counts in the legend, `FROZEN`, a frozen brute in its shell, and `WAVE SURVIVED` ([`wine-shipped-burning-pack.png`](elemental-conditions/wine-shipped-burning-pack.png), [`wine-shipped-frozen-brute.png`](elemental-conditions/wine-shipped-frozen-brute.png), [`wine-shipped-wave-survived.png`](elemental-conditions/wine-shipped-wave-survived.png)). |
+| Mutation check | `tools/godot/mutation-check.sh` in 8 shards (`SHARD=0..7 SHARDS=8`): **344 of 344 caught as behavioural rejections, 0 inconclusive, 0 survived** (259 earlier plus 85 for this slice; the run on head `c64aaaf` with the final checks). An earlier run had two survivors (`spread-ignites-the-dead`: the fixture's dead neighbour had already left the run, so a same-tick corpse case was added; `condition-particles-lost`: a cue's burst masked it, so a cue-free check was added) and a mutation whose edit left the original behaviour in place, replaced by `freeze-label-lost` and made to fail by asserting the label. `SHARD`/`SHARDS` are now validated (positive `SHARDS`, `0 <= SHARD < SHARDS`; anything else exits 2 before any work). |
+| Web export, headless Chromium (software WebGL 2, 1280x720) | `SCENARIO=conditions` of `tools/godot/web-encounter-capture.mjs` against the full build's Web bundle served over HTTP with `?encounter=conditions`: the player walked with browser key events and Q, E and R were pressed; burning, poisoned and frozen foes, pips, the fire-spread ring and the element tags on the cards are visible ([`web-burning-poisoned-pack.png`](elemental-conditions/web-burning-poisoned-pack.png), [`web-fire-spread-ring.png`](elemental-conditions/web-fire-spread-ring.png), [`web-frozen-and-burning.png`](elemental-conditions/web-frozen-and-burning.png)); the fight ends `WAVE SURVIVED`. Build `20261114-220735-c64aaafe4`; no console errors. | |
+| Windows export under Wine (not a Windows machine) | The full build's Windows ZIP extracted unmodified (`SHA256SUMS` verified before and after), run as `wine Swordster.exe --resolution 1000x563 --write-movie cond.png --fixed-fps 30 --quit-after 720 -- --encounter=conditions` from another directory: engine-side frames of the game's own viewport, no desktop capture, no input injected, nothing added to the game. Build `20261114-220735-c64aaafe4`. The shipped game fights the encounter on its own: kills 12, burning / poisoned / frozen counts in the legend, `FROZEN`, a frozen brute in its shell, and `WAVE SURVIVED` ([`wine-shipped-burning-pack.png`](elemental-conditions/wine-shipped-burning-pack.png), [`wine-shipped-frozen-brute.png`](elemental-conditions/wine-shipped-frozen-brute.png), [`wine-shipped-wave-survived.png`](elemental-conditions/wine-shipped-wave-survived.png)). |
 
 ## What was not verified
 
@@ -292,6 +293,7 @@ what it showed.
 - **No input was sent to the Windows build** (no key or mouse event): the player stood still while the
   swords fought. Input-driven play was only exercised in the Web build, with synthetic browser events
   in headless Chromium and a software renderer, which says nothing about frame rate or touch.
+- **Exported play is compared in kind, not tick for tick.** The encounter's seed is random in the shipped game, so the exported runs show the same *kinds* of outcome the checks pin (burning, poisoned and frozen foes, a frozen brute, fire spreading, all twelve foes killed, the wave survived) but not identical numbers; the tick-for-tick comparisons are the headless checks, and the render-rate probe plays the real Main scene at 5, 20, 60 and 240 fps.
 - **No comparison against a played prototype session**: the prototype's outcomes are compared tick for tick
   in the capture's controlled fixtures and as a band over eight seeds of the first wave, not
   against a recorded human session.
