@@ -1,6 +1,7 @@
 name: Build
 
-# Builds every pushed commit with the same ./build-godot.sh used locally and keeps
+# Builds every commit pushed to main and every pull request head (and manual
+# runs) with the same ./build-godot.sh used locally and keeps
 # the complete Windows/Web artifact pair, named by build ID. No publication
 # happens here: this workflow holds no itch.io credentials and uploads only to
 # GitHub Actions artifacts. See "CI" in godot/README.md.
@@ -14,9 +15,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # Superseded pull request pushes are cancelled; main builds always finish so
-  # every commit on main keeps its pair.
+  # Only superseded pull request pushes share a group (and are cancelled). Every
+  # other run (push to main, workflow_dispatch) gets a group of its own via the
+  # run ID: a shared group would let GitHub replace a *pending* run with a newer
+  # one even with cancel-in-progress off, and that main commit would lose its
+  # pair. Main builds may therefore run in parallel, but each one finishes.
+  group: build-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -113,5 +117,8 @@ jobs:
         with:
           name: build-logs-${{ github.run_id }}-${{ github.run_attempt }}
           path: .build-godot/staging.*/logs/
+          # .build-godot is a hidden directory; upload-artifact skips hidden
+          # files by default, which would silently match nothing here.
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7

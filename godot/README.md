@@ -136,6 +136,11 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   cached archive against the SHA-512 values in the lock and re-extracts from it, so
   a bad cache entry fails with exit 12 rather than being trusted. Changing the pin
   changes the key.
+- **Concurrency:** a new push to a pull request cancels that PR's superseded
+  in-progress build. Pushes to `main` and manual runs each get their own
+  concurrency group, so they never queue behind or replace one another and every
+  commit on `main` keeps its pair (parallel runs are possible). Pushes to a
+  branch without a pull request are not built.
 - **Not run in CI:** `tools/godot/test-build-failures.sh` (dozens of sandboxed
   builds, minutes of runtime) and `tools/godot/mutation-check.sh` (tests the
   checks themselves, not the build) are tooling self-tests run by hand when the
