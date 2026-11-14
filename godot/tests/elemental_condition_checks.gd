@@ -753,6 +753,17 @@ func _check_cues() -> void:
 				if cue.element != &"fire":
 					damage_sum = -999999
 	_ok("every burn landing is one cue with its points (%d cues, %d points = the %.0f health the burn took)" % [damage_cues, damage_sum, hp_before - husk.hp], damage_cues >= 4 and float(damage_sum) == hp_before - husk.hp)
+	# restarting replaces every enemy: nothing burns, freezes or poisons across a restart
+	var afflicted: Array[EnemyState] = run.enemies.duplicate()
+	for enemy: EnemyState in afflicted:
+		run.afflict(enemy, &"fire", 7.0)
+		run.afflict(enemy, &"poison", 7.0, 3)
+		run.afflict(enemy, &"ice", 7.0, 4)
+	run.apply(GameCommand.restart())
+	var clean: bool = run.enemies.size() == afflicted.size()
+	for enemy: EnemyState in run.enemies:
+		clean = clean and not enemy.conditions.is_burning() and enemy.conditions.poison_stacks == 0 and not enemy.conditions.is_frozen() and not enemy.conditions.is_chilled() and enemy.conditions.dot == 0.0 and afflicted.find(enemy) < 0
+	_ok("a restart starts every enemy without conditions (and clears the cue counts: %d freezes)" % run.cue_count(SimCue.Kind.ENEMY_FROZEN), clean and run.cue_count(SimCue.Kind.ENEMY_FROZEN) == 0 and run.cue_count(SimCue.Kind.CONDITION_DAMAGE) == 0)
 	# Cosmetic cues never touch the run: applying every cue kind to an effects layer leaves the run as it was
 	var layer: EffectsLayer = EffectsLayer.new()
 	var fresh: GameRun = GameRun.new(_scenario_of((_ref["chain"]["chain"] as Dictionary)["spec"] as Dictionary))
