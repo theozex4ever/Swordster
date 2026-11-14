@@ -31,5 +31,10 @@ _Avoid_: Converge
 **Element**:
 A sword's fire, ice or poison affinity, independent of its sword type and rarity.
 
+**Condition**:
+A lasting effect an element's blows leave on an enemy: burning (fire), poisoned (poison, up to
+six stacks), chilled and frozen (ice, frozen after four stacks).
+_Avoid_: Status effect, debuff
+
 **Rarity**:
 A sword's Common, Rare or Mythic quality, independent of its type and element.

@@ -218,7 +218,10 @@ Each is a scope or correctness decision of slice #12, not a rebalance.
    and `GameRun.auto_aim` (nearest living enemy, else 300 px ahead) are built and tested because
    they are trivial, but no on-screen ultimate buttons exist: those are issue #20.
 4. **No conditions on dart hits.** A dart would also apply the sword's element and the frozen
-   bonus; both are issue #11 (the capture disabled `afflict`).
+   bonus; both are issue #11 (the capture disabled `afflict`). *Superseded by
+   [issue #11](elemental-conditions.md): every dart now applies one dose of its sword's element
+   and gets the frozen bonus; this slice's checks run on condition-free fixtures
+   (`RunScenario.without_conditions()`), as its reference was captured with `afflict` off.*
 5. **Gameplay randomness is its own stream.** The dart's victim, the wander point, the
    recovery direction and the crit roll follow the prototype's distributions, not its random
    sequence; cosmetic randomness never uses it.
