@@ -829,7 +829,7 @@ func _check_input_aliases() -> void:
 	_ok("a held dash key does not repeat", held.handle_event(echo).is_empty())
 	var r_key: InputTranslator = InputTranslator.new()
 	var restart: Array[GameCommand] = r_key.handle_event(_key(KEY_R))
-	_ok("R translates to the delayed keyboard restart, not the button's restart", restart.size() == 1 and restart[0].kind == GameCommand.Kind.RESTART_FROM_KEY)
+	_ok("R translates to the slot-three ultimate and the delayed keyboard restart, not the button's restart", restart.size() == 2 and restart[0].kind == GameCommand.Kind.ULTIMATE and restart[0].slot == 2 and restart[1].kind == GameCommand.Kind.RESTART_FROM_KEY)
 
 
 # --------------------------------------------------- the real Main scene

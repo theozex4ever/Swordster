@@ -5,11 +5,17 @@ extends RefCounted
 ## value; a visual scene only follows `phase`/`angle` and never feeds anything
 ## back (ADR 0003).
 ##
-## Only the Fang sword type is ported here: idle/recover orbit, windup, strike
-## and recovery. Warden, Pike and Colossus attacks, Converge and ultimates land
-## in later slices, so `SwordDefs.is_supported` rejects other types.
+## Only the Fang sword type is ported here: idle/recover orbit, windup, strike,
+## recovery and the Viper Flurry ultimate. Warden, Pike and Colossus attacks,
+## Converge and their ultimates land in later slices, so
+## `SwordDefs.is_supported` rejects other types.
+##
+## Ultimates are per-slot sword state: each sword carries its own recharge and,
+## while it lasts, the ULTIMATE phase. `begin_ultimate` and `_update_ultimate`
+## dispatch on the sword type; the other types' ultimates add a branch each.
 
-enum Phase { IDLE, WINDUP, STRIKE, RECOVER }
+## ULTIMATE is last so the earlier phases keep their numeric values.
+enum Phase { IDLE, WINDUP, STRIKE, RECOVER, ULTIMATE }
 
 var spec: SwordSpec
 var phase: Phase = Phase.IDLE
@@ -27,6 +33,20 @@ var dir: Vector2 = Vector2.RIGHT
 ## Damage multiplier of the current attack (1 for automatic attacks).
 var boost: float = 1.0
 
+## Ultimate recharge: the full time (base times the rarity's cooldown factor) and
+## what is left. The recharge starts the moment the ultimate does and runs on
+## gameplay time in every phase, so it covers the ultimate itself and the recovery.
+var ultimate_cooldown: float = 0.0
+var ultimate_cooldown_left: float = 0.0
+## The (range-clamped) world point the current ultimate was aimed at.
+var ultimate_point: Vector2 = Vector2.ZERO
+## Viper Flurry: where the sword is darting to, who it will strike next, gameplay
+## seconds left, and the seconds until the next dart.
+var ultimate_goal: Vector2 = Vector2.ZERO
+var ultimate_victim: EnemyState = null
+var ultimate_time_left: float = 0.0
+var ultimate_beat: float = 0.0
+
 var damage: float = 0.0
 var cooldown: float = 0.0
 var attack_range: float = 0.0
@@ -42,6 +62,7 @@ static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> 
 	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]
 	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]
 	sword.length = SwordDefs.FANG_LENGTH * SwordDefs.RARITY_SIZE[rarity]
+	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]
 	sword.position = at
 	sword.cooldown_left = start_cooldown
 	return sword
@@ -50,6 +71,15 @@ static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> 
 func _spring(goal: Vector2, k: float, c: float, dt: float) -> void:
 	velocity += ((goal - position) * k - velocity * c) * dt
 	position += velocity * dt
+
+
+## True while `enemy` can still be targeted: alive and still in the run. The
+## prototype checks only `dead`, because an enemy only leaves the run once dead;
+## a reference kept across ticks (the attack target, the flurry's victim) is also
+## dropped if its enemy was removed while alive, so a stale enemy can never be
+## hit, killed or rewarded (docs/reference/viper-flurry.md, exception 10).
+static func _in_play(run: GameRun, enemy: EnemyState) -> bool:
+	return enemy != null and not enemy.dead and run.enemies.has(enemy)
 
 
 ## Nearest enemy within range of the player, or null (prototype `acquire`).
@@ -64,6 +94,36 @@ func acquire(run: GameRun) -> EnemyState:
 	return best
 
 
+## True when the slot's ultimate may be triggered: recharged and not running.
+func ultimate_ready() -> bool:
+	return ultimate_cooldown_left <= 0.0 and phase != Phase.ULTIMATE
+
+
+## 0..1 progress of the recharge (1 = recharged), for the HUD.
+func ultimate_charge() -> float:
+	if ultimate_cooldown <= 0.0:
+		return 1.0
+	return 1.0 - clampf(ultimate_cooldown_left / ultimate_cooldown, 0.0, 1.0)
+
+
+## Starts this sword's ultimate aimed at `point` (already clamped to its range
+## by the run), interrupting whatever it was doing and starting the recharge.
+func begin_ultimate(point: Vector2) -> void:
+	phase = Phase.ULTIMATE
+	ultimate_cooldown_left = ultimate_cooldown
+	boost = 1.0
+	target = null
+	ultimate_victim = null
+	ultimate_point = point
+	match spec.type_id:
+		SwordDefs.FANG:
+			# Blink straight onto the target area.
+			position = point
+			ultimate_goal = point
+			ultimate_time_left = SwordDefs.FANG_ULT_DURATION
+			ultimate_beat = 0.0
+
+
 func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0) -> void:
 	target = new_target
 	aim = new_aim
@@ -76,8 +136,9 @@ func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0) -> 
 ## `index`/`count` place the sword on its orbit around the player.
 func update(run: GameRun, dt: float, index: int, count: int) -> void:
 	cooldown_left -= dt
+	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)
 	if target != null:
-		if target.dead:
+		if not _in_play(run, target):
 			target = null
 		else:
 			aim = target.position
@@ -87,6 +148,7 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 		position += velocity * dt
 		angle = SimMath.ang_lerp(angle, float(index) * 1.3 + 0.4, minf(1.0, dt * 4.0))
 		phase = Phase.IDLE
+		ultimate_victim = null
 		return
 
 	var start_phase: Phase = phase
@@ -118,6 +180,8 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 				_start_strike(run)
 		Phase.STRIKE:
 			_update_strike(run, dt)
+		Phase.ULTIMATE:
+			_update_ultimate(run, dt)
 
 
 func _start_strike(run: GameRun) -> void:
@@ -152,3 +216,55 @@ func _update_strike(run: GameRun, dt: float) -> void:
 	if timer <= 0.0 or (target == null and (aim - position).length() < 12.0):
 		phase = Phase.RECOVER
 		timer = SwordDefs.FANG_RECOVER_AFTER_MISS
+
+
+## One tick of the running ultimate (prototype `Sword.update_ult`).
+func _update_ultimate(run: GameRun, dt: float) -> void:
+	match spec.type_id:
+		SwordDefs.FANG:
+			_update_viper_flurry(run, dt)
+
+
+## Viper Flurry: the sword darts between the enemies inside the area, striking
+## one every FANG_ULT_CADENCE seconds, then recovers. The victim is chosen one
+## beat ahead and struck at the next one, so an enemy that died (or left the
+## run, even alive) in between is simply skipped and replaced. A struck victim is not
+## chosen again while another enemy is in the area. Nothing in the flurry
+## parries projectiles (the prototype's does not either).
+func _update_viper_flurry(run: GameRun, dt: float) -> void:
+	var radius: float = SwordDefs.FANG_ULT_RADIUS
+	ultimate_time_left -= dt
+	ultimate_beat -= dt
+	if ultimate_beat <= 0.0:
+		ultimate_beat = SwordDefs.FANG_ULT_CADENCE
+		var struck: EnemyState = ultimate_victim
+		if struck != null and _in_play(run, struck):
+			var heading: Vector2 = SimMath.norm(struck.position - ultimate_point, run.rng, dir, true)
+			run.hit_enemy(struck, damage * SwordDefs.FANG_ULT_DAMAGE_FACTOR, heading, SwordDefs.FANG_ULT_KNOCK, self, true)
+			run.add_shake(SwordDefs.FANG_ULT_SHAKE)
+		var nearby: Array[EnemyState] = []
+		var fresh: Array[EnemyState] = []
+		for enemy: EnemyState in run.enemies:
+			if not enemy.dead and (enemy.position - ultimate_point).length() < radius + enemy.radius:
+				nearby.append(enemy)
+				if enemy != struck:
+					fresh.append(enemy)
+		var pool: Array[EnemyState] = fresh if not fresh.is_empty() else nearby
+		if not pool.is_empty():
+			ultimate_victim = pool[run.rng.randi_range(0, pool.size() - 1)]
+			var away: Vector2 = SimMath.norm(ultimate_victim.position - position, run.rng)
+			ultimate_goal = ultimate_victim.position + away * (ultimate_victim.radius + SwordDefs.FANG_ULT_STANDOFF)
+		else:
+			ultimate_victim = null
+			ultimate_goal = ultimate_point + SimMath.polar(run.rng.randf_range(0.0, TAU), run.rng.randf_range(SwordDefs.FANG_ULT_WANDER_MIN, radius * SwordDefs.FANG_ULT_WANDER_FRACTION))
+	var previous: Vector2 = position
+	position = position.lerp(ultimate_goal, minf(1.0, dt * SwordDefs.FANG_ULT_APPROACH_RATE))
+	velocity = (position - previous) / maxf(dt, 1e-4)
+	if velocity.length_squared() > 400.0:
+		dir = SimMath.norm(velocity, run.rng)
+		angle = atan2(dir.y, dir.x)
+	if ultimate_time_left <= 0.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.FANG_ULT_RECOVER_TIME
+		velocity = SimMath.polar(run.rng.randf_range(0.0, TAU), SwordDefs.FANG_ULT_RECOVER_SPEED)
+		ultimate_victim = null

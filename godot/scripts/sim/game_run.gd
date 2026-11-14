@@ -7,7 +7,9 @@ extends RefCounted
 ## Ported from game/main.py (`Game.update`, `Player`, `hit_enemy`, `kill`,
 ## `hurt_player`, `separate`, `parry_projectiles`) and stepped at a fixed 60 Hz; the prototype uses a
 ## variable step capped at 1/30. The update order inside `step()` is the
-## prototype's, explicitly. See docs/reference/fang-survival-loop.md and
+## prototype's, explicitly: player, then each sword slot in order (a running ultimate
+## strikes during its sword's update), then enemies, separation, contacts, removal of
+## the dead, projectiles, motes, counters and the wave director. See docs/reference/fang-survival-loop.md and
 ## docs/reference/runners-brutes-crowd.md and docs/reference/spitters-projectiles-parries.md
 ## for the captured reference values and tolerances. Crowd and wall rules (separation, bowling, wall slams) are
 ## explicit circle geometry on the enemies' own positions and velocities, never
@@ -81,11 +83,27 @@ const DEV_SHOVE_SHAKE: float = 0.35
 const PARRY_HITSTOP: float = 0.025
 const MAX_QUEUED_CUES: int = 256
 
+## Touch aiming with no enemy: this far ahead of the player (prototype `auto_aim`).
+const AUTO_AIM_AHEAD: float = 300.0
+
 const CAMERA_LOOKAHEAD: float = 0.12
 const CAMERA_RATE: float = 7.0
 const CAMERA_OVERSCAN: float = 140.0
 
 enum Outcome { RUNNING, SURVIVED, LOST }
+
+## What became of an ultimate command (`try_ultimate`).
+enum UltimateResult {
+	STARTED,
+	## Paused or dead: no ultimate may start.
+	UNAVAILABLE,
+	## The slot holds no sword.
+	NO_SWORD,
+	## That slot's ultimate is already running.
+	ACTIVE,
+	## That slot's ultimate is still recharging.
+	RECHARGING,
+}
 
 var scenario: RunScenario
 ## Gameplay randomness (crits, spawn points, knock directions). Cosmetic
@@ -185,6 +203,8 @@ func apply(command: GameCommand) -> void:
 		GameCommand.Kind.RESTART:
 			restarts += 1
 			_reset_state()
+		GameCommand.Kind.ULTIMATE:
+			try_ultimate(command.slot, auto_aim() if command.at_nearest else command.point)
 		GameCommand.Kind.RESTART_FROM_KEY:
 			if dead and death_time > RESTART_DELAY:
 				restarts += 1
@@ -201,6 +221,52 @@ func restart_with(new_scenario: RunScenario) -> void:
 	scenario = new_scenario
 	restarts += 1
 	_reset_state()
+
+
+## Triggers the ultimate of sword slot `slot` at a world point (prototype
+## `Game.ultimate`). Refused while paused or dead, when the slot has no sword,
+## while its ultimate is running (even if its recharge were zero) and while it
+## recharges (that one also produces a visible refusal cue). A point beyond the
+## type's range is pulled back onto it, measured from the player. The recharge
+## starts at once and the sword blinks/launches the same tick, even during
+## hitstop.
+func try_ultimate(slot: int, point: Vector2) -> UltimateResult:
+	if paused or dead:
+		return UltimateResult.UNAVAILABLE
+	if slot < 0 or slot >= swords.size():
+		return UltimateResult.NO_SWORD
+	var sword: SwordState = swords[slot]
+	if sword.phase == SwordState.Phase.ULTIMATE:
+		return UltimateResult.ACTIVE
+	if sword.ultimate_cooldown_left > 0.0:
+		add_cue(SimCue.make(SimCue.Kind.ULTIMATE_REFUSED, position, Vector2.ZERO, SimMath.py_round(sword.ultimate_cooldown_left)))
+		return UltimateResult.RECHARGING
+	var type_id: StringName = sword.spec.type_id
+	var target: Vector2 = point
+	var to_point: Vector2 = point - position
+	if not SwordDefs.ultimate_is_shot(type_id) and to_point.length() > SwordDefs.ultimate_range(type_id):
+		target = position + to_point.normalized() * SwordDefs.ultimate_range(type_id)
+	var origin: Vector2 = sword.position
+	sword.begin_ultimate(target)
+	var cue: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, SimMath.norm(sword.position - origin, rng, Vector2.RIGHT, true), slot)
+	cue.origin = origin
+	add_cue(cue)
+	return UltimateResult.STARTED
+
+
+## The touch aim point (prototype `Game.auto_aim`): the nearest living enemy, or
+## 300 px ahead of the player.
+func auto_aim() -> Vector2:
+	var nearest: EnemyState = null
+	var nearest_sq: float = INF
+	for enemy: EnemyState in enemies:
+		var dist_sq: float = (enemy.position - position).length_squared()
+		if not enemy.dead and dist_sq < nearest_sq:
+			nearest = enemy
+			nearest_sq = dist_sq
+	if nearest != null:
+		return nearest.position
+	return position + facing * AUTO_AIM_AHEAD
 
 
 func _try_dash() -> void:
@@ -441,7 +507,9 @@ func _bowl(launched: EnemyState, hit: EnemyState, normal: Vector2, sign_value: f
 ## A sword hits an enemy (prototype `hit_enemy`): critical roll, rounding
 ## (Python round-half-even), knockback, stun, hitstop and shake. A dead enemy
 ## ignores further hits so its death and rewards resolve exactly once.
-func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: float, sword: SwordState) -> void:
+## A `heavy` blow (a Fang flurry dart) flashes the enemy longer and, unlike a normal hit,
+## causes no hitstop and no hit shake of its own (the caller adds its own).
+func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: float, sword: SwordState, heavy: bool = false) -> void:
 	if enemy.dead:
 		return
 	var crit: bool = rng.randf() < scenario.crit_chance
@@ -450,14 +518,15 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 		dmg *= CRIT_MULTIPLIER
 	var dealt: int = maxi(1, SimMath.py_round(dmg))
 	enemy.hp -= float(dealt)
-	enemy.flash = 0.11
+	enemy.flash = SwordDefs.HEAVY_HIT_FLASH if heavy else SwordDefs.NORMAL_HIT_FLASH
 	enemy.squash = 1.0
 	var d: Vector2 = SimMath.norm(direction, rng)
 	var force: float = knock * enemy.knock_mult * (CRIT_KNOCK_BONUS if crit else 1.0)
 	enemy.launch(d, force)
-	var stop: float = SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR if crit else 1.0)
-	hitstop = maxf(hitstop, stop)
-	add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
+	if not heavy:
+		var stop: float = SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR if crit else 1.0)
+		hitstop = maxf(hitstop, stop)
+		add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
 	add_cue(SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, d, dealt, crit))
 	if enemy.hp <= 0.0:
 		kill(enemy, d)
@@ -564,9 +633,11 @@ func can_restart_from_key() -> bool:
 func snapshot() -> Dictionary:
 	var sword_positions: Array[Vector2] = []
 	var sword_phases: Array[int] = []
+	var ultimate_cooldowns: Array[float] = []
 	for sword: SwordState in swords:
 		sword_positions.append(sword.position)
 		sword_phases.append(sword.phase)
+		ultimate_cooldowns.append(sword.ultimate_cooldown_left)
 	var enemy_positions: Array[Vector2] = []
 	var enemy_hp: Array[float] = []
 	for enemy: EnemyState in enemies:
@@ -603,6 +674,7 @@ func snapshot() -> Dictionary:
 		"mote_count": motes.size(),
 		"sword_positions": sword_positions,
 		"sword_phases": sword_phases,
+		"ultimate_cooldowns": ultimate_cooldowns,
 	}
 
 

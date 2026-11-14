@@ -110,6 +110,9 @@ stun 0.2 s) even when the hit is refused.
 Restart: R restarts only when dead **and** the death timer (scaled time) is above
 0.8 s (1530); otherwise R is the slot-three ultimate key. Because slow motion
 quarters the timer for the first 1.4 real seconds, the delay is ~1.93 real seconds.
+Since slice #12 R is that slot-three ultimate key while alive
+([Viper Flurry](viper-flurry.md)); the translator sends the ultimate command and then
+the delayed restart, and the run refuses whichever does not apply.
 
 ### Touch buttons (web/mobile.js 54–60; `Hud`)
 
@@ -231,6 +234,10 @@ Each is a scope decision of slice #8, not a rebalance.
 5. **No ultimates, Converge, parry, projectiles, wall-slam sources.** Q/E/R, mouse
    Converge and swapping are later slices. R while alive does nothing for that reason.
    (`wall_slam` and bowling are ported but unreachable with Fang-only knockback.)
+   *Superseded for ultimates by #12:* Q, E and R now trigger the Fang ultimate of
+   sword slots one to three and R while alive is the slot-three ultimate, no longer a
+   no-op (see [viper-flurry.md](viper-flurry.md)); the delayed restart after death is
+   unchanged. Converge and swapping remain later slices.
 6. **Restart un-pauses.** The prototype's keyboard R-after-death (line 1530) resets
    the world but leaves the pause flag, so a restart done while paused begins paused.
    The port restarts un-paused (as the prototype's touch Restart already does).

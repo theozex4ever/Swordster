@@ -5,7 +5,9 @@ extends Node2D
 ## sparks, wall-slam bursts, dash afterimages and parry sparks. A parry reads
 ## differently from a hit on purpose: green sparks and a "PARRY" tag where the
 ## orb died, with no number; a hit on an enemy is a white ring and a damage
-## number, a hit on the player a red ring and "-8". Purely visual: it reads the
+## number, a hit on the player a red ring and "-8". A sword's ultimate announces itself with a
+## ring where the sword left, a ring closing on the area it landed in and its name over the
+## player; while it runs the area is outlined and each dart leaves a streak. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -13,6 +15,9 @@ const MAX_EFFECTS: int = 160
 var _rings: Array[Dictionary] = []
 var _texts: Array[Dictionary] = []
 var _sparks: Array[Dictionary] = []
+## Streaks left by a sword darting during its ultimate, and where each sword was drawn last.
+var _streaks: Array[Dictionary] = []
+var _last_sword_at: Dictionary = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -21,6 +26,8 @@ func clear() -> void:
 	_rings.clear()
 	_texts.clear()
 	_sparks.clear()
+	_streaks.clear()
+	_last_sword_at.clear()
 	queue_redraw()
 
 
@@ -39,12 +46,31 @@ func sync(run: GameRun) -> void:
 			spark["life"] = float(spark["life"]) - dt
 			spark["pos"] = Vector2(spark["pos"]) + Vector2(spark["vel"]) * dt
 			spark["vel"] = Vector2(spark["vel"]) * exp(-dt * 7.0)
+		for streak: Dictionary in _streaks:
+			streak["life"] = float(streak["life"]) - dt
+		_streaks = _streaks.filter(func(st: Dictionary) -> bool: return float(st["life"]) > 0.0)
+		_add_dart_streaks(run)
 		_sparks = _sparks.filter(func(sp: Dictionary) -> bool: return float(sp["life"]) > 0.0)
 		_rings = _rings.filter(func(r: Dictionary) -> bool: return float(r["life"]) > 0.0)
 		_texts = _texts.filter(func(t: Dictionary) -> bool: return float(t["life"]) > 0.0)
 		if run.dash_left > 0.0:
 			_add_ring(run.position, GameRun.PLAYER_RADIUS * 0.6, GameRun.PLAYER_RADIUS * 1.2, 0.22, Color(0.35, 0.65, 0.85, 0.7), 2.0)
 	queue_redraw()
+
+
+## A sword in its ultimate leaves a short bright streak along every move.
+func _add_dart_streaks(run: GameRun) -> void:
+	for sword: SwordState in run.swords:
+		var key: int = sword.get_instance_id()
+		if sword.phase == SwordState.Phase.ULTIMATE and _last_sword_at.has(key):
+			var from: Vector2 = _last_sword_at[key]
+			if from.distance_to(sword.position) > 12.0 and _streaks.size() < MAX_EFFECTS:
+				_streaks.append({"from": from, "to": sword.position, "life": 0.18, "max": 0.18, "color": _sword_color(sword.spec)})
+		_last_sword_at[key] = sword.position
+
+
+static func _sword_color(spec: SwordSpec) -> Color:
+	return PlaceholderSwordVisual.ELEMENT_COLORS.get(spec.element, Color.WHITE)
 
 
 func apply_cue(cue: SimCue) -> void:
@@ -82,8 +108,25 @@ func apply_cue(cue: SimCue) -> void:
 				var heading: float = cue.direction.angle() + _rng.randf_range(-1.1, 1.1)
 				_add_spark(cue.position, SimMath.polar(heading, _rng.randf_range(150.0, 450.0)), _rng.randf_range(0.12, 0.28))
 			_add_text(cue.position + Vector2(0.0, -20.0), "PARRY", PlaceholderEnemyVisual.SPIT_GLOW, 0.55, 20)
+		SimCue.Kind.ULTIMATE_STARTED:
+			_apply_ultimate_started(cue)
+		SimCue.Kind.ULTIMATE_REFUSED:
+			if _run != null:
+				_add_text(cue.position + Vector2(0.0, -46.0), "recharging %ds" % cue.amount, Color(0.62, 0.6, 0.78), 0.5, 22)
 		_:
 			pass
+
+
+## The blink: a small ring where the sword was, a ring closing from the area's edge
+## onto its centre where it landed, the sword's colour and the ultimate's name.
+func _apply_ultimate_started(cue: SimCue) -> void:
+	if _run == null or cue.amount < 0 or cue.amount >= _run.swords.size():
+		return
+	var sword: SwordState = _run.swords[cue.amount]
+	var tint: Color = _sword_color(sword.spec)
+	_add_ring(cue.origin, 4.0, 40.0, 0.25, Color(tint, 0.9), 2.0)
+	_add_ring(cue.position, SwordDefs.FANG_ULT_RADIUS, 10.0, 0.3, Color(tint, 0.95), 3.0)
+	_add_text(_run.position + Vector2(0.0, -56.0), SwordDefs.ultimate_name(sword.spec.type_id).to_upper(), tint.lerp(Color.WHITE, 0.3), 1.0, 32)
 
 
 func _add_ring(at: Vector2, r0: float, r1: float, life: float, color: Color, width: float) -> void:
@@ -116,6 +159,16 @@ func _draw() -> void:
 		draw_circle(mote.position, 3.0, Color(0.75, 1.0, 0.92))
 	for projectile: ProjectileState in _run.projectiles:
 		_draw_projectile(projectile)
+	for sword: SwordState in _run.swords:
+		if sword.phase == SwordState.Phase.ULTIMATE:
+			var tint: Color = _sword_color(sword.spec)
+			draw_arc(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, 0.0, TAU, 48, Color(tint, 0.35), 2.0)
+			draw_circle(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, Color(tint, 0.06))
+			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
+				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
+	for streak: Dictionary in _streaks:
+		var streak_fade: float = clampf(float(streak["life"]) / float(streak["max"]), 0.0, 1.0)
+		draw_line(Vector2(streak["from"]), Vector2(streak["to"]), Color(Color(streak["color"]).lerp(Color.WHITE, 0.5), streak_fade), 3.0)
 	for spark: Dictionary in _sparks:
 		var fade: float = clampf(float(spark["life"]) / float(spark["max"]), 0.0, 1.0)
 		var head: Vector2 = Vector2(spark["pos"])

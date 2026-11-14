@@ -2,16 +2,29 @@
 
 Godot 4 port of Swordster, built slice by slice. Currently playable: a complete
 Fang survival loop (move, dash, three Fang spirit swords attacking on their own, a
-telegraphed wave of eight husks, healing motes, death and restart), a **crowd
+telegraphed wave of eight husks, healing motes, death and restart) with **Viper
+Flurry** on Q / E / R (each sword slot's ultimate, aimed at the cursor), a **crowd
 encounter** with runners and brutes, crowd bowling and wall slams, and a **spitter
 encounter** with ranged foes, enemy orbs and sword parries, on top of the
 delivery-proof arena, exported to Windows and Web from one Linux command. The other
-sword types, ultimates, conditions, drops and further waves arrive in later
+sword types and their ultimates, conditions, drops and further waves arrive in later
 slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
 [runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
-[spitters, projectiles and parries](../docs/reference/spitters-projectiles-parries.md) (#10).
+[spitters, projectiles and parries](../docs/reference/spitters-projectiles-parries.md) (#10) and
+[Viper Flurry](../docs/reference/viper-flurry.md) (#12).
+
+### Viper Flurry (Q / E / R)
+
+Each sword slot has an ultimate triggered by its key: **Q** slot one, **E** slot two,
+**R** slot three (R is also the restart key once the death screen is up). Point the
+mouse and press: the sword blinks to the cursor (at most 420 px from you), darts between
+the enemies inside the 150 px area for 1.25 s (one dart every 0.08 s, 1.2x the sword's
+damage), then recovers. The ultimate recharges for 9 s (shorter for Rare and Mythic
+swords) from the moment it starts; the cards at the bottom left show READY, ACTIVE or
+the seconds left. Three Fang swords are still the fixture loadout, so every slot
+holds Viper Flurry for now; the other sword types' ultimates arrive with their slices.
 
 ### The crowd encounter
 
@@ -240,9 +253,10 @@ Sound effects are baked WAVs; the recipe is `tools/godot/gen_audio.py`.
 
 ## Controls
 
-W A S D or arrow keys move · Space or Shift dash · P or Esc pause/resume · R restarts
-once the death screen is up (it is the slot-three ultimate key while alive, which
-is not ported yet) · touch: drag in the left part of the screen to move, on-screen
+W A S D or arrow keys move · Space or Shift dash · Q / E / R trigger the ultimate of
+sword slot one / two / three at the mouse (Viper Flurry for now) · P or Esc pause/resume ·
+R also restarts once the death screen is up (while alive it is only the slot-three
+ultimate) · touch (no ultimate buttons yet, issue #20): drag in the left part of the screen to move, on-screen
 Dash, Pause and Restart buttons (Restart always works, also after surviving the
 wave). The three spirit swords attack on their own. The first
 click/tap/key unlocks sound (browsers require a gesture). Losing focus or

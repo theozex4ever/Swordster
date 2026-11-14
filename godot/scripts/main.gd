@@ -41,6 +41,8 @@ func _ready() -> void:
 	_camera.global_position = run.camera
 	_camera.reset_smoothing()
 
+	input.pointer = get_viewport().get_mouse_position()
+	input.to_world = _world_at
 	_hud.bind_joystick(input.joystick)
 	_hud.pause_pressed.connect(func() -> void: _submit(GameCommand.toggle_pause()))
 	_hud.restart_pressed.connect(func() -> void: _submit(GameCommand.restart()))
@@ -120,6 +122,12 @@ func _dispatch_cues() -> void:
 	for cue: SimCue in cues:
 		_sfx.play_cue(cue)
 	_presenter.apply_cues(cues)
+
+
+## A viewport point's world position (the prototype's `mouse_world`: the camera's
+## unshaken centre plus the offset from the middle of the view).
+func _world_at(viewport_point: Vector2) -> Vector2:
+	return run.camera + viewport_point - get_viewport().get_visible_rect().size * 0.5
 
 
 func _unlock_audio() -> void:
