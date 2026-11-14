@@ -19,6 +19,15 @@ CACHE_ROOT="${SWORDSTER_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/swordster}"
 GODOT_BIN="$CACHE_ROOT/godot-$GODOT_VERSION/editor/godot"
 [[ -x "$GODOT_BIN" ]] || { echo "pinned Godot missing; run ./build-godot.sh --bootstrap-only" >&2; exit 1; }
 
+# SHARDS must be a positive integer and SHARD an integer in [0, SHARDS): anything else would
+# silently select no mutations and report success, so it is refused before any work starts.
+SHARD="${SHARD:-0}" SHARDS="${SHARDS:-1}"
+if [[ ! "$SHARDS" =~ ^[1-9][0-9]*$ || ! "$SHARD" =~ ^[0-9]+$ ]] || ((10#$SHARD >= 10#$SHARDS)); then
+  echo "invalid shard selection: SHARDS must be a positive integer and SHARD an integer with 0 <= SHARD < SHARDS (got SHARD=$SHARD SHARDS=$SHARDS)" >&2
+  exit 2
+fi
+SHARD=$((10#$SHARD)) SHARDS=$((10#$SHARDS))
+
 SCRATCH="$(mktemp -d)"; trap 'rm -rf "$SCRATCH"' EXIT
 export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config" XDG_CACHE_HOME="$SCRATCH/home/cache"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
@@ -33,7 +42,7 @@ echo "baseline: $(grep '^CHECKS PASSED' <<<"$out")"
 
 # SHARD=i SHARDS=n runs every n-th mutation starting at i (0-based), so n copies of
 # this script can run in parallel over the same list; each prints its own totals.
-SHARD="${SHARD:-0}" SHARDS="${SHARDS:-1}" mutation_index=0
+mutation_index=0
 mutate() { # name file old new
   local name="$1" file="$2" old="$3" new="$4" dir="$SCRATCH/m-$1"
   if (( mutation_index++ % SHARDS != SHARD )); then return 0; fi
@@ -472,6 +481,175 @@ mutate hud-stretch-not-expand      project.godot "window/stretch/aspect=\"expand
 mutate flurry-sound-lost           scripts/audio/sfx_bank.gd "SimCue.Kind.DASH, SimCue.Kind.ULTIMATE_STARTED:" "SimCue.Kind.DASH:"
 mutate flurry-refusal-text-lost    scripts/presentation/effects_layer.gd "\"recharging %ds\" % cue.amount" "\"\""
 mutate flurry-presenter-phase-lost scripts/presentation/run_presenter.gd "visual.apply_pose(sword.position, sword.angle, sword.phase)" "visual.apply_pose(sword.position, sword.angle, SwordState.Phase.IDLE)"
+
+# --- Elemental conditions (slice #11)
+mutate cond-burn-time                     scripts/sim/condition_defs.gd "BURN_TIME: float = 3.0" "BURN_TIME: float = 2.0"
+mutate cond-poison-time                   scripts/sim/condition_defs.gd "POISON_TIME: float = 4.5" "POISON_TIME: float = 6.0"
+mutate cond-chill-time                    scripts/sim/condition_defs.gd "CHILL_TIME: float = 2.5" "CHILL_TIME: float = 4.0"
+mutate cond-freeze-time                   scripts/sim/condition_defs.gd "FREEZE_TIME: float = 1.6" "FREEZE_TIME: float = 2.4"
+mutate cond-poison-cap                    scripts/sim/condition_defs.gd "POISON_MAX: int = 6" "POISON_MAX: int = 8"
+mutate cond-freeze-threshold              scripts/sim/condition_defs.gd "FREEZE_STACKS: int = 4" "FREEZE_STACKS: int = 3"
+mutate cond-chill-slow                    scripts/sim/condition_defs.gd "CHILL_SLOW: float = 0.5" "CHILL_SLOW: float = 0.8"
+mutate cond-shatter-bonus                 scripts/sim/condition_defs.gd "SHATTER: float = 1.3" "SHATTER: float = 1.5"
+mutate cond-freeze-keeps-velocity         scripts/sim/condition_defs.gd "FREEZE_VELOCITY_KEEP: float = 0.2" "FREEZE_VELOCITY_KEEP: float = 1.0"
+mutate cond-burn-dps-base                 scripts/sim/condition_defs.gd "BURN_DPS_BASE: float = 1.5" "BURN_DPS_BASE: float = 2.5"
+mutate cond-burn-dps-power                scripts/sim/condition_defs.gd "BURN_DPS_PER_POWER: float = 0.2" "BURN_DPS_PER_POWER: float = 0.3"
+mutate cond-poison-dps-base               scripts/sim/condition_defs.gd "POISON_DPS_BASE: float = 1.0" "POISON_DPS_BASE: float = 2.0"
+mutate cond-poison-dps-power              scripts/sim/condition_defs.gd "POISON_DPS_PER_POWER: float = 0.06" "POISON_DPS_PER_POWER: float = 0.1"
+mutate cond-dot-period                    scripts/sim/condition_defs.gd "DOT_PERIOD: float = 0.5" "DOT_PERIOD: float = 1.0"
+mutate cond-spread-reach                  scripts/sim/condition_defs.gd "SPREAD_REACH: float = 70.0" "SPREAD_REACH: float = 20.0"
+mutate cond-spread-dps-factor             scripts/sim/condition_defs.gd "SPREAD_DPS_FACTOR: float = 0.6" "SPREAD_DPS_FACTOR: float = 1.0"
+mutate cond-spread-time-factor            scripts/sim/condition_defs.gd "SPREAD_TIME_FACTOR: float = 0.7" "SPREAD_TIME_FACTOR: float = 0.3"
+mutate brute-freezes-fully                scripts/sim/enemy_defs.gd "BRUTE_FREEZE_FACTOR: float = 0.6" "BRUTE_FREEZE_FACTOR: float = 1.0"
+mutate brute-freeze-not-wired             scripts/sim/enemy_state.gd "	enemy.conditions.freeze_factor = def.freeze_factor
+" ""
+mutate fire-dps-replaced-while-burning    scripts/sim/enemy_conditions.gd "burn_dps = maxf(burn_dps, dps) if burn > 0.0 else dps" "burn_dps = dps"
+mutate fire-dps-stale-after-expiry        scripts/sim/enemy_conditions.gd "burn_dps = maxf(burn_dps, dps) if burn > 0.0 else dps" "burn_dps = maxf(burn_dps, dps)"
+mutate fire-timer-not-refreshed           scripts/sim/enemy_conditions.gd "			burn = ConditionDefs.BURN_TIME
+" "			burn = burn if burn > 0.0 else ConditionDefs.BURN_TIME
+"
+mutate fire-stacks-ignored                scripts/sim/enemy_conditions.gd "var dps: float = ConditionDefs.burn_dps(power, stacks)" "var dps: float = ConditionDefs.burn_dps(power, 1)"
+mutate poison-dps-replaced-while-poisoned scripts/sim/enemy_conditions.gd "poison_dps = maxf(poison_dps, dps) if poison > 0.0 else dps" "poison_dps = dps"
+mutate poison-dps-stale-after-expiry      scripts/sim/enemy_conditions.gd "poison_dps = maxf(poison_dps, dps) if poison > 0.0 else dps" "poison_dps = maxf(poison_dps, dps)"
+mutate poison-uncapped                    scripts/sim/enemy_conditions.gd "poison_stacks = mini(ConditionDefs.POISON_MAX, poison_stacks + stacks)" "poison_stacks = poison_stacks + stacks"
+mutate poison-timer-not-refreshed         scripts/sim/enemy_conditions.gd "			poison = ConditionDefs.POISON_TIME
+" "			poison = poison if poison > 0.0 else ConditionDefs.POISON_TIME
+"
+mutate poison-stacks-survive-expiry       scripts/sim/enemy_conditions.gd "		if poison <= 0.0:
+			poison_stacks = 0" "		if false:
+			poison_stacks = 0"
+mutate poison-stacks-not-summed           scripts/sim/enemy_conditions.gd "dps += poison_dps * float(poison_stacks)" "dps += poison_dps"
+mutate chill-timer-not-refreshed          scripts/sim/enemy_conditions.gd "			chill = ConditionDefs.CHILL_TIME
+" "			chill = chill if chill > 0.0 else ConditionDefs.CHILL_TIME
+"
+mutate chill-stacks-survive-expiry        scripts/sim/enemy_conditions.gd "	if chill <= 0.0:
+		chill_stacks = 0" "	if false:
+		chill_stacks = 0"
+mutate frozen-gains-chill-stacks          scripts/sim/enemy_conditions.gd "			if frozen > 0.0:
+				return false" "			if false:
+				return false"
+mutate freeze-keeps-stacks                scripts/sim/enemy_conditions.gd "				chill_stacks = 0
+				frozen =" "				frozen ="
+mutate freeze-not-reported                scripts/sim/enemy_conditions.gd "				return true" "				return false"
+mutate freeze-ignores-kind                scripts/sim/enemy_conditions.gd "frozen = ConditionDefs.FREEZE_TIME * freeze_factor" "frozen = ConditionDefs.FREEZE_TIME"
+mutate ignite-weakens-stronger-burn       scripts/sim/enemy_conditions.gd "burn_dps = maxf(burn_dps if burn > 0.0 else 0.0, source_burn_dps * ConditionDefs.SPREAD_DPS_FACTOR)" "burn_dps = source_burn_dps * ConditionDefs.SPREAD_DPS_FACTOR"
+mutate ignite-shortens-longer-burn        scripts/sim/enemy_conditions.gd "burn = maxf(burn, ConditionDefs.BURN_TIME * ConditionDefs.SPREAD_TIME_FACTOR)" "burn = ConditionDefs.BURN_TIME * ConditionDefs.SPREAD_TIME_FACTOR"
+mutate dot-fraction-lost                  scripts/sim/enemy_conditions.gd "	dot -= float(whole)" "	dot = 0.0"
+mutate dot-rounds-up                      scripts/sim/enemy_conditions.gd "var whole: int = int(dot)" "var whole: int = ceili(dot)"
+mutate dot-timer-not-rearmed              scripts/sim/enemy_conditions.gd "	dot_time = ConditionDefs.DOT_PERIOD
+	var whole" "	var whole"
+mutate dot-accumulator-not-wiped          scripts/sim/enemy_conditions.gd "	if dps <= 0.0:
+		dot = 0.0
+		return 0" "	if dps <= 0.0:
+		return 0"
+mutate burn-last-step-lost                scripts/sim/enemy_conditions.gd "		burn -= dt
+		dps += burn_dps" "		burn -= dt
+		if burn > 0.0:
+			dps += burn_dps"
+mutate frozen-never-thaws                 scripts/sim/enemy_conditions.gd "	frozen = maxf(0.0, frozen - dt)" "	frozen = maxf(0.0, frozen - dt * 0.0)"
+mutate no-frozen-bonus                    scripts/sim/game_run.gd "	var shattered: bool = enemy.conditions.is_frozen()" "	var shattered: bool = false"
+mutate frozen-bonus-before-crit           scripts/sim/game_run.gd "	if crit:
+		dmg *= CRIT_MULTIPLIER
+	var shattered: bool = enemy.conditions.is_frozen()
+	if shattered:
+		dmg *= ConditionDefs.SHATTER" "	var shattered: bool = enemy.conditions.is_frozen()
+	if shattered:
+		dmg *= ConditionDefs.SHATTER
+	if crit:
+		dmg = ceilf(dmg * CRIT_MULTIPLIER)"
+mutate frozen-bonus-ends-freeze           scripts/sim/game_run.gd "	if shattered:
+		dmg *= ConditionDefs.SHATTER" "	if shattered:
+		dmg *= ConditionDefs.SHATTER
+		enemy.conditions.frozen = 0.0"
+mutate hit-stacks-ignored                 scripts/sim/game_run.gd "afflict(enemy, sword.spec.element, sword.damage, stacks)" "afflict(enemy, sword.spec.element, sword.damage, 1)"
+mutate hit-afflicts-with-blow-damage      scripts/sim/game_run.gd "afflict(enemy, sword.spec.element, sword.damage, stacks)" "afflict(enemy, sword.spec.element, raw_damage, stacks)"
+mutate killing-blow-afflicts              scripts/sim/game_run.gd "	if enemy.hp <= 0.0:
+		kill(enemy, d)
+	elif sword != null:
+		afflict(enemy, sword.spec.element, sword.damage, stacks)" "	if sword != null:
+		afflict(enemy, sword.spec.element, sword.damage, stacks)
+	if enemy.hp <= 0.0:
+		kill(enemy, d)"
+mutate afflict-ignores-fixture-flag       scripts/sim/game_run.gd "	if not scenario.conditions_enabled or enemy.dead:" "	if enemy.dead:"
+mutate freeze-cue-lost                    scripts/sim/game_run.gd "		cue.element = ConditionDefs.ICE
+		add_cue(cue)" "		cue.element = ConditionDefs.ICE"
+mutate freeze-keeps-full-velocity         scripts/sim/game_run.gd "		enemy.velocity *= ConditionDefs.FREEZE_VELOCITY_KEEP
+" ""
+mutate conditions-not-ticked              scripts/sim/game_run.gd "	_separate()
+	_update_conditions(dt)
+" "	_separate()
+"
+mutate conditions-tick-before-enemies     scripts/sim/game_run.gd "	for enemy: EnemyState in enemies:
+		enemy.update(self, dt)
+	_separate()
+	_update_conditions(dt)
+" "	_update_conditions(dt)
+	for enemy: EnemyState in enemies:
+		enemy.update(self, dt)
+	_separate()
+"
+mutate conditions-tick-after-contacts     scripts/sim/game_run.gd "	_update_conditions(dt)
+	_resolve_contacts()
+" "	_resolve_contacts()
+	_update_conditions(dt)
+"
+mutate conditions-render-rate-dependent   scripts/sim/game_run.gd "	_update_conditions(dt)
+	_resolve_contacts()
+" "	_update_conditions(dt * (1.0 + float(Engine.get_process_frames() % 2)))
+	_resolve_contacts()
+"
+mutate dot-kill-skips-rewards             scripts/sim/game_run.gd "		if enemy.hp <= 0.0:
+			kill(enemy, Vector2.UP)" "		if enemy.hp <= 0.0:
+			enemy.dead = true"
+mutate dot-ticks-corpses                  scripts/sim/game_run.gd "		if enemy.dead:
+			continue
+		var dealt: int = enemy.conditions.tick(dt)" "		var dealt: int = enemy.conditions.tick(dt)"
+mutate dot-damage-cue-lost                scripts/sim/game_run.gd "		cue.element = enemy.conditions.dominant_element()
+		add_cue(cue)" "		cue.element = enemy.conditions.dominant_element()"
+mutate dot-cue-wrong-element              scripts/sim/game_run.gd "		cue.element = enemy.conditions.dominant_element()" "		cue.element = ConditionDefs.POISON"
+mutate dot-hits-more-than-once            scripts/sim/game_run.gd "		enemy.hp -= float(dealt)
+		var cue: SimCue = SimCue.make(SimCue.Kind.CONDITION_DAMAGE" "		enemy.hp -= float(dealt) * 2.0
+		var cue: SimCue = SimCue.make(SimCue.Kind.CONDITION_DAMAGE"
+mutate burning-death-spreads-nothing      scripts/sim/game_run.gd "	if enemy.conditions.is_burning():
+		_spread_fire(enemy)" "	if false:
+		_spread_fire(enemy)"
+mutate spread-ignites-the-dead            scripts/sim/game_run.gd "	for other: EnemyState in enemies:
+		if other != source and not other.dead and" "	for other: EnemyState in enemies:
+		if other != source and"
+mutate spread-measures-centres            scripts/sim/game_run.gd "source.radius + other.radius + ConditionDefs.SPREAD_REACH" "ConditionDefs.SPREAD_REACH + 30.0"
+mutate spread-cue-lost                    scripts/sim/game_run.gd "	cue.element = ConditionDefs.FIRE
+	add_cue(cue)" "	cue.element = ConditionDefs.FIRE"
+mutate shatter-cue-lost                   scripts/sim/game_run.gd "		add_cue(SimCue.make(SimCue.Kind.ENEMY_SHATTERED, enemy.position))" "		pass"
+mutate frozen-hit-cue-untagged            scripts/sim/game_run.gd "		hit_cue.element = ConditionDefs.ICE" "		hit_cue.element = &\"\""
+mutate frozen-enemies-hurt-by-contact     scripts/sim/game_run.gd "not enemy.dead and not enemy.conditions.is_frozen() and (enemy.position - position).length()" "not enemy.dead and (enemy.position - position).length()"
+mutate frozen-enemy-steers                scripts/sim/enemy_state.gd "	if stun > 0.0 or conditions.frozen > 0.0:" "	if stun > 0.0:"
+mutate frozen-enemy-clock-runs            scripts/sim/enemy_state.gd "	if conditions.frozen <= 0.0:
+		age += dt" "	age += dt"
+mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if conditions.chill > 0.0:
+			want *= ConditionDefs.CHILL_SLOW" "		if false:
+			want *= ConditionDefs.CHILL_SLOW"
+mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
+	return self" "	return self"
+mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
+mutate conditions-encounter-not-in-cycle  scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS]" "ENCOUNTER_SPITTERS]"
+mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
+mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
+			return RunScenario.conditions_encounter()" "		\"conditions\":
+			return null"
+mutate conditions-legend-lost             scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:" "	elif false:"
+mutate presenter-drops-conditions         scripts/presentation/run_presenter.gd "		visual.apply_conditions(enemy.conditions.view())
+" ""
+mutate view-frozen-lost                   scripts/sim/condition_view.gd "	view.frozen = conditions.is_frozen()" "	view.frozen = false"
+mutate view-burning-lost                  scripts/sim/condition_view.gd "	view.burning = conditions.is_burning()" "	view.burning = false"
+mutate view-poison-lost                   scripts/sim/condition_view.gd "	view.poison_stacks = conditions.poison_stacks if conditions.poison > 0.0 else 0" "	view.poison_stacks = 0"
+mutate sword-card-element-lost            scripts/hud.gd "		_ult_elements[slot].text = String(sword.spec.element).to_upper()" "		_ult_elements[slot].text = \"\""
+mutate freeze-sound-lost                  scripts/audio/sfx_bank.gd "SimCue.Kind.PROJECTILE_PARRIED, SimCue.Kind.ENEMY_FROZEN:" "SimCue.Kind.PROJECTILE_PARRIED:"
+mutate condition-particles-lost           scripts/presentation/effects_layer.gd "		_add_condition_particles(run, dt)
+" ""
+mutate freeze-burst-lost                  scripts/presentation/effects_layer.gd "		SimCue.Kind.ENEMY_FROZEN:
+			_add_ring(" "		SimCue.Kind.ENEMY_FROZEN:
+			_add_ring(Vector2(-99999.0, 0.0), 0.0, 0.0, 0.0, Color.WHITE, 0.0)
+			_add_ring("
 
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"

@@ -334,8 +334,9 @@ func _check_fire() -> void:
 	_ok("damage lands in whole points, never more often than every half second (landings at %s)" % [landings], spaced and is_finite(damage_total) and landings.size() >= 4)
 	var burned: float = float(_at(common, 1)["hp"]) - float(_at(common, 200)["hp"])
 	_ok("a three-second burn at 2.9 dps deals 7 points in all (%.0f): the fraction carries over, none is invented" % burned, burned >= 6.0 and burned <= ConditionDefs.burn_dps(7.0, 1) * ConditionDefs.BURN_TIME)
-	_ok("rarer swords burn harder (%.0f < %.0f < %.0f points)" % [float(_at(common, 200)["hp"]), float(_at(rare, 200)["hp"]), float(_at(mythic, 200)["hp"])],
-		float(_at(common, 1)["hp"]) - float(_at(common, 200)["hp"]) < float(_at(rare, 1)["hp"]) - float(_at(rare, 200)["hp"]) or float(_at(rare, 200)["hp"]) > float(_at(mythic, 200)["hp"]))
+	var burned_rare: float = float(_at(rare, 1)["hp"]) - float(_at(rare, 200)["hp"])
+	var burned_mythic: float = float(_at(mythic, 1)["hp"]) - float(_at(mythic, 200)["hp"])
+	_ok("rarer swords burn harder (%.0f, %.0f and %.0f points of damage over time for common, rare and mythic)" % [burned, burned_rare, burned_mythic], burned < burned_rare and burned_rare < burned_mythic)
 	var refresh: Dictionary = _replay("fire", "fire_refresh", "burning refreshed by stronger and weaker blows and renewed after expiry")
 	_ok("a stronger blow raises the dps while it burns (%.2f -> %.2f) and a weaker one does not lower it (%.2f)" % [float(_at(refresh, 60)["burn_dps"]), float(_at(refresh, 61)["burn_dps"]), float(_at(refresh, 100)["burn_dps"])],
 		_near(float(_at(refresh, 60)["burn_dps"]), float(table["0"]["fire"]), 0.0001) and _near(float(_at(refresh, 61)["burn_dps"]), float(table["2"]["fire"]), 0.0001) and _near(float(_at(refresh, 100)["burn_dps"]), float(table["2"]["fire"]), 0.0001))
@@ -362,7 +363,7 @@ func _check_poison() -> void:
 	var expired: int = _first_step(stacks, 83, func(s: Dictionary) -> bool: return int(s["poison_stacks"]) == 0)
 	_ok("all stacks fall away together when the 4.5 s run out, %d ticks after the last blow" % (expired - 81), absi(expired - 81 - _ticks(ConditionDefs.POISON_TIME)) <= 2)
 	var damage_after_cap: float = float(_at(stacks, 83)["hp"]) - float(_at(stacks, 300)["hp"])
-	_ok("six stacks hurt about six times as much as one: %.0f points in the 7 s after the cap (6 x %.2f dps over the remaining %.1f s)" % [damage_after_cap, per_stack, ConditionDefs.POISON_TIME - 0.0], damage_after_cap > 20.0)
+	_ok("six stacks hurt far more than one: %.0f points in the 4.5 s after the cap (6 x %.2f dps)" % [damage_after_cap, per_stack], damage_after_cap > 20.0 and damage_after_cap <= 6.0 * per_stack * ConditionDefs.POISON_TIME)
 	var rarity: Dictionary = _replay("poison", "poison_rarity", "poison from a common then a mythic then a common sword")
 	var table: Dictionary = _ref["table"]["dps_by_rarity"]
 	_ok("a mythic sword's stack raises the per-stack dps (%.3f -> %.3f) and a later common blow does not lower it (%.3f)" % [float(_at(rarity, 29)["poison_dps"]), float(_at(rarity, 30)["poison_dps"]), float(_at(rarity, 60)["poison_dps"])],
@@ -500,7 +501,7 @@ func _check_spread() -> void:
 	_ok("a neighbour already burning harder keeps its own dps (%.2f); one burning weaker is raised to the spread dps (%.2f)" % [float((at.call(5) as Dictionary)["burn_dps"]), float((at.call(6) as Dictionary)["burn_dps"])],
 		_near(float((at.call(5) as Dictionary)["burn_dps"]), ConditionDefs.burn_dps(30.0, 1), 0.0001) and _near(float((at.call(6) as Dictionary)["burn_dps"]), spread_dps, 0.0001))
 	_ok("a neighbour that was already burning keeps the longer of its timer and the spread's (%.2f s)" % float((at.call(5) as Dictionary)["burn"]), float((at.call(5) as Dictionary)["burn"]) > ConditionDefs.BURN_TIME * ConditionDefs.SPREAD_TIME_FACTOR)
-	_ok("the dead neighbour is not ignited and the dead victim's fire is spent: two deaths, six motes (kills %d, motes %d)" % [run.kills, run.motes.size()], run.kills == 2 and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 2 and bool(_at(fire, 33, 7)["dead"]) and float(_at(fire, 33, 7)["burn"]) == 0.0)
+	_ok("the neighbour that was already dead is not ignited, and the two deaths were each rewarded once (kills %d, kill cues %d)" % [run.kills, run.cue_count(SimCue.Kind.ENEMY_KILLED)], run.kills == 2 and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 2 and bool(_at(fire, 33, 7)["dead"]) and float(_at(fire, 33, 7)["burn"]) == 0.0)
 	var poison: Dictionary = _replay("spread", "poison_death_no_spread", "a poisoned and chilled husk killed beside a neighbour")
 	_ok("a death without burning spreads no fire", float(_at(poison, 12, 1)["burn"]) == 0.0 and bool(_at(poison, 12, 0)["dead"]) and (poison["run"] as GameRun).cue_count(SimCue.Kind.FIRE_SPREAD) == 0)
 	var killing: Dictionary = _replay("spread", "killing_blow_no_ignite", "a fire sword's killing blow")
@@ -651,6 +652,23 @@ func _check_afflict_entry_and_fixture_flag() -> void:
 	var burn_before: float = husk.conditions.burn
 	run.afflict(husk, &"fire", 99.0)
 	_ok("an unknown element does nothing, and a dead enemy takes no dose (burn stays %.2f)" % husk.conditions.burn, husk.conditions.burn == burn_before)
+	# a blow that carries several doses (the prototype's Warden, Pike and Colossus pass 2 or 3) applies them all
+	var multi_scenario: RunScenario = RunScenario.new()
+	multi_scenario.waves_enabled = false
+	multi_scenario.crit_chance = 0.0
+	var multi_swords: Array[SwordSpec] = [SwordSpec.make(&"fang", 0, &"poison"), SwordSpec.make(&"fang", 0, &"ice"), SwordSpec.make(&"fang", 0, &"fire")]
+	multi_scenario.loadout = multi_swords
+	var multi_enemy: Array[EnemyPlacement] = [EnemyPlacement.make(EnemyDefs.HUSK, multi_scenario.start_position + Vector2(300.0, 0.0))]
+	multi_enemy[0].speed_scale = 0.0
+	multi_enemy[0].hp = 500.0
+	multi_scenario.initial_enemies = multi_enemy
+	var multi_run: GameRun = GameRun.new(multi_scenario)
+	var target: EnemyState = multi_run.enemies[0]
+	multi_run.hit_enemy(target, 7.0, Vector2.RIGHT, 0.0, multi_run.swords[0], true, 3)
+	multi_run.hit_enemy(target, 7.0, Vector2.RIGHT, 0.0, multi_run.swords[1], true, 2)
+	multi_run.hit_enemy(target, 7.0, Vector2.RIGHT, 0.0, multi_run.swords[2], true, 2)
+	_ok("a blow that carries 3, 2 or 2 doses applies them all: %d poison stacks, %d chill stacks, burning at %.1f dps (the sword's own damage, not the blow's)" % [target.conditions.poison_stacks, target.conditions.chill_stacks, target.conditions.burn_dps],
+		target.conditions.poison_stacks == 3 and target.conditions.chill_stacks == 2 and _near(target.conditions.burn_dps, ConditionDefs.burn_dps(7.0, 2), 0.0001))
 	var fixture: RunScenario = scenario
 	fixture.without_conditions()
 	var plain_run: GameRun = GameRun.new(fixture)
