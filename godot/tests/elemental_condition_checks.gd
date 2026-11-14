@@ -777,7 +777,7 @@ func _check_cues() -> void:
 		cue.element = &"fire"
 		layer.apply_cue(cue)
 	_ok("the effects layer shows frozen, shatter, damage and spread cues (%d rings, %d texts, %d element particles) and the run is untouched" % [layer._rings.size(), layer._texts.size(), layer._embers.size()],
-		layer._rings.size() >= 2 and layer._texts.size() >= 2 and layer._embers.size() >= 14 and fresh.snapshot() == before)
+		layer._rings.size() >= 2 and layer._texts.size() >= 2 and layer._texts.any(func(entry: Dictionary) -> bool: return entry["text"] == "FROZEN") and layer._embers.size() >= 14 and fresh.snapshot() == before)
 	layer.free()
 	# a burning, a poisoned and a chilled enemy shed particles by themselves, with no cue at all
 	var shedding: GameRun = GameRun.new(_scenario_of((_ref["chain"]["chain"] as Dictionary)["spec"] as Dictionary))

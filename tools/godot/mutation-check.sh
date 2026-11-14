@@ -648,10 +648,7 @@ mutate freeze-sound-lost                  scripts/audio/sfx_bank.gd "SimCue.Kind
 			play(\"hit\")"
 mutate condition-particles-lost           scripts/presentation/effects_layer.gd "		_add_condition_particles(run, dt)
 " ""
-mutate freeze-burst-lost                  scripts/presentation/effects_layer.gd "		SimCue.Kind.ENEMY_FROZEN:
-			_add_ring(" "		SimCue.Kind.ENEMY_FROZEN:
-			_add_ring(Vector2(-99999.0, 0.0), 0.0, 0.0, 0.0, Color.WHITE, 0.0)
-			_add_ring("
+mutate freeze-label-lost                  scripts/presentation/effects_layer.gd "\"FROZEN\", element_color(ConditionDefs.ICE)" "\"\", element_color(ConditionDefs.ICE)"
 
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
