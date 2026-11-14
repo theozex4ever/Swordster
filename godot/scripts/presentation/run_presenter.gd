@@ -79,7 +79,7 @@ func _sync_enemies(run: GameRun) -> void:
 			add_child(visual)
 			visual.setup(enemy.kind)
 			_enemy_visuals[key] = visual
-		visual.apply_pose(enemy.position, enemy.facing, enemy.flash, enemy.squash, enemy.hp / enemy.max_hp, enemy.stun > 0.0)
+		visual.apply_pose(enemy.position, enemy.facing, enemy.flash, enemy.squash, enemy.hp / enemy.max_hp, enemy.stun > 0.0, enemy.telegraph())
 		if fresh:
 			visual.snap()
 	_drop_missing(_enemy_visuals, live)

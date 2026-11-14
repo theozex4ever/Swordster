@@ -29,6 +29,9 @@ const FANG_TIP_FRACTION: float = 0.65
 const FANG_HIT_PAD: float = 6.0
 const FANG_RECOVER_AFTER_HIT: float = 0.25
 const FANG_RECOVER_AFTER_MISS: float = 0.2
+## Extra reach of the strike's swept segment when parrying a projectile
+## (`g.parry_projectiles(prev, tip, 8)`); the projectile's own radius adds to it.
+const FANG_PARRY_PAD: float = 8.0
 
 
 static func is_supported(type_id: StringName) -> bool:

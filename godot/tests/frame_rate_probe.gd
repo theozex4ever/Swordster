@@ -4,14 +4,16 @@ extends SceneTree
 ## script in a child Godot process at several `--fixed-fps` values (frames per
 ## second of the engine's clock): at 20 fps the engine runs three 1/60 s ticks
 ## per frame, at 240 fps one tick every four frames, and the digest must not
-## notice. With `--probe=launch` it instead reports which scenario a Main scene
-## picks when it is given none (the launch-option path).
+## notice. `--probe=rate` plays the crowd fight, `--probe=rate-spitters` the
+## orbs-and-parries fight. With `--probe=launch` it instead reports which
+## scenario a Main scene picks when it is given none (the launch-option path).
 ##
 ##   godot --headless --path godot --fixed-fps 20 --script res://tests/frame_rate_probe.gd -- --probe=rate
 
 const FRAME_LIMIT: int = 8000
 
 var _main: Main
+var _script_name: String = RenderRateScenario.CROWD
 var _frames: int = 0
 var _last_issued_tick: int = -1
 
@@ -22,8 +24,10 @@ func _initialize() -> void:
 		if argument.begins_with("--probe="):
 			mode = argument.trim_prefix("--probe=")
 	_main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
-	if mode == "rate":
-		_main.scenario = RenderRateScenario.scenario()
+	if mode == "rate-spitters":
+		_script_name = RenderRateScenario.SPITTERS
+	if mode == "rate" or mode == "rate-spitters":
+		_main.scenario = RenderRateScenario.scenario(_script_name)
 	root.add_child(_main)
 	if mode == "launch":
 		_report_launch.call_deferred()
@@ -39,7 +43,7 @@ func _before_tick() -> void:
 	if run.tick == _last_issued_tick:
 		return
 	_last_issued_tick = run.tick
-	for command: GameCommand in RenderRateScenario.commands_at(run.tick):
+	for command: GameCommand in RenderRateScenario.commands_at(run.tick, _script_name):
 		run.apply(command)
 	if run.tick >= RenderRateScenario.TOTAL_TICKS:
 		_report()
@@ -63,5 +67,5 @@ func _report() -> void:
 
 func _report_launch() -> void:
 	var picked: RunScenario = _main.run.scenario
-	print("PROBE " + JSON.stringify({"dev_shove": picked.dev_shove, "wave_kinds": picked.wave_kinds.size(), "standing": picked.initial_enemies.size()}))
+	print("PROBE " + JSON.stringify({"dev_shove": picked.dev_shove, "encounter": String(picked.encounter), "wave_kinds": picked.wave_kinds.size(), "standing": picked.initial_enemies.size()}))
 	quit(0)

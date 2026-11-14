@@ -3,10 +3,11 @@ extends RefCounted
 ## What the player asked for at launch, read from the platform: command-line
 ## user arguments (after `--`, e.g. `Swordster.exe -- --encounter=crowd`) or,
 ## in a browser, the page address (`index.html?encounter=crowd`). The value is
-## `crowd` (the wave of husks, runners and brutes) or `wall` (a crowd already
-## pinned against the east wall). Anything else, or nothing, starts the normal
-## run. The C key (and Crowd button) switches at any time, so launch options are
-## a convenience, not the only way in.
+## `crowd` (the wave of husks, runners and brutes), `wall` (a crowd already
+## pinned against the east wall) or `spitters` (the wave of spitters and husks).
+## Anything else, or nothing, starts the normal run. The C key and the dev
+## encounter button cycle the encounters at any time, so launch options are a
+## convenience, not the only way in.
 
 const ENCOUNTER_ARGUMENT_PREFIX: String = "--encounter="
 const ENCOUNTER_QUERY: String = "encounter"
@@ -23,6 +24,8 @@ static func scenario_for(encounter: String) -> RunScenario:
 			return RunScenario.crowd_encounter()
 		"wall":
 			return RunScenario.wall_encounter()
+		"spitters":
+			return RunScenario.spitter_encounter()
 		_:
 			return null
 

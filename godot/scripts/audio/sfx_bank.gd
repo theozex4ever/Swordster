@@ -17,6 +17,8 @@ const SOUNDS: Dictionary = {
 	"hurt": preload("res://audio/sfx_hurt.wav"),
 	"dash": preload("res://audio/sfx_dash.wav"),
 	"wave": preload("res://audio/sfx_wave.wav"),
+	"shot": preload("res://audio/sfx_shot.wav"),
+	"parry": preload("res://audio/sfx_parry.wav"),
 }
 
 var unlocked: bool = false
@@ -73,5 +75,9 @@ func play_cue(cue: SimCue) -> void:
 			play("dash")
 		SimCue.Kind.WAVE_STARTED:
 			play("wave")
+		SimCue.Kind.PROJECTILE_FIRED:
+			play("shot")
+		SimCue.Kind.PROJECTILE_PARRIED:
+			play("parry")
 		_:
 			pass

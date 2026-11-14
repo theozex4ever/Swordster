@@ -5,13 +5,15 @@ extends RefCounted
 ## nothing about nodes, rendering, audio or input devices.
 ##
 ## Ported from game/main.py (`Game.update`, `Player`, `hit_enemy`, `kill`,
-## `hurt_player`, `separate`) and stepped at a fixed 60 Hz; the prototype uses a
+## `hurt_player`, `separate`, `parry_projectiles`) and stepped at a fixed 60 Hz; the prototype uses a
 ## variable step capped at 1/30. The update order inside `step()` is the
 ## prototype's, explicitly. See docs/reference/fang-survival-loop.md and
-## docs/reference/runners-brutes-crowd.md for the captured reference values and
-## tolerances. Crowd and wall rules (separation, bowling, wall slams) are
+## docs/reference/runners-brutes-crowd.md and docs/reference/spitters-projectiles-parries.md
+## for the captured reference values and tolerances. Crowd and wall rules (separation, bowling, wall slams) are
 ## explicit circle geometry on the enemies' own positions and velocities, never
-## rigid bodies.
+## rigid bodies. Enemy projectiles are run-owned `ProjectileState`s moved by
+## `_update_projectiles`; any sword's swept attack parries them through the one
+## `parry_projectiles(from, to, pad)` rule.
 ##
 ## Three clocks, as in the prototype:
 ##   * real time (`real_time`, `tick`): advances every unpaused tick, including
@@ -75,6 +77,8 @@ const WALL_SLAM_SHAKE: float = 0.18
 const DEV_SHOVE_KNOCK: float = 650.0
 const DEV_SHOVE_RADIUS: float = 320.0
 const DEV_SHOVE_SHAKE: float = 0.35
+## A parried projectile freezes gameplay briefly (prototype `parry_projectiles`).
+const PARRY_HITSTOP: float = 0.025
 const MAX_QUEUED_CUES: int = 256
 
 const CAMERA_LOOKAHEAD: float = 0.12
@@ -124,6 +128,7 @@ var death_time: float = 0.0
 # --- run-owned entities
 var swords: Array[SwordState] = []
 var enemies: Array[EnemyState] = []
+var projectiles: Array[ProjectileState] = []
 var motes: Array[Mote] = []
 var director: WaveDirector
 
@@ -144,17 +149,19 @@ var _cues: Array[SimCue] = []
 ## drained them. Lets checks count events (kills, slams, bowls) exactly.
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
-## The two scenarios `TOGGLE_ENCOUNTER` alternates between: the one the run
-## was made with (or the plain default if that was already the crowd encounter)
-## and the crowd encounter.
-var _home_scenario: RunScenario
-var _crowd_scenario: RunScenario
+## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
+## order (normal, crowd, spitters): the one the run was made with keeps its own
+## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
+var _encounter_scenarios: Array[RunScenario] = []
 
 
 func _init(scenario_value: RunScenario = null) -> void:
 	scenario = scenario_value if scenario_value != null else RunScenario.new()
-	_home_scenario = RunScenario.new() if scenario.dev_shove else scenario
-	_crowd_scenario = scenario if scenario.dev_shove else RunScenario.crowd_encounter()
+	_encounter_scenarios = [
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.new(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_CROWD else RunScenario.crowd_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_SPITTERS else RunScenario.spitter_encounter(),
+	]
 	if scenario.seed < 0:
 		rng.randomize()
 	_reset_state()
@@ -185,7 +192,7 @@ func apply(command: GameCommand) -> void:
 		GameCommand.Kind.DEV_SHOVE:
 			_dev_shove()
 		GameCommand.Kind.TOGGLE_ENCOUNTER:
-			restart_with(_home_scenario if scenario.dev_shove else _crowd_scenario)
+			restart_with(_encounter_scenarios[RunScenario.ENCOUNTER_CYCLE.find(RunScenario.next_encounter(scenario.encounter))])
 
 
 ## Replaces the starting conditions and restarts the run from them. Like the
@@ -255,6 +262,7 @@ func step() -> void:
 		if not enemy.dead:
 			alive.append(enemy)
 	enemies = alive
+	_update_projectiles(dt)
 	_update_motes(dt)
 
 	combo_left -= dt
@@ -298,6 +306,70 @@ func _resolve_contacts() -> void:
 			hurt_player(enemy.damage, enemy.position)
 			enemy.velocity = SimMath.norm(enemy.position - position, rng) * CONTACT_KNOCKBACK
 			enemy.stun = CONTACT_STUN
+
+
+## Fires an orb (a spitter's shot). The new projectile flies on the same tick,
+## as in the prototype where the projectile loop follows the enemy updates.
+func spawn_projectile(at: Vector2, velocity_value: Vector2) -> ProjectileState:
+	var projectile: ProjectileState = ProjectileState.make(at, velocity_value)
+	projectiles.append(projectile)
+	add_cue(SimCue.make(SimCue.Kind.PROJECTILE_FIRED, at, velocity_value.normalized()))
+	return projectile
+
+
+## Prototype order: every projectile moves, then ends by expiry or by leaving the
+## arena, or else hurts the player. An invulnerable or dead player is passed
+## through (the projectile flies on). A projectile that was already parried or
+## cleared this tick is not moved or counted again: it resolves exactly once.
+func _update_projectiles(dt: float) -> void:
+	for projectile: ProjectileState in projectiles:
+		if projectile.is_resolved():
+			continue
+		projectile.position += projectile.velocity * dt
+		projectile.life -= dt
+		if projectile.life <= 0.0:
+			projectile.resolve(ProjectileState.Fate.EXPIRED)
+		elif not WORLD.has_point(projectile.position):
+			projectile.resolve(ProjectileState.Fate.LEFT_ARENA)
+		elif iframes <= 0.0 and not dead and (projectile.position - position).length() < projectile.radius + PLAYER_RADIUS:
+			projectile.resolve(ProjectileState.Fate.HIT_PLAYER)
+			hurt_player(ProjectileState.DAMAGE, projectile.position)
+	var flying: Array[ProjectileState] = []
+	for projectile: ProjectileState in projectiles:
+		if not projectile.is_resolved():
+			flying.append(projectile)
+	projectiles = flying
+
+
+## The shared parry rule (prototype `parry_projectiles`): every projectile whose
+## centre is within its radius plus `pad` of the segment `from`-`to` is destroyed
+## with a spark cue, and gameplay freezes briefly. Swords pass the segment their
+## attack swept this tick (Fang: previous position to tip; Warden: each sub-arc;
+## Pike: tail to tip). Returns how many were parried. It does not check what the
+## sword hit this tick: the caller decides whether this tick parries.
+func parry_projectiles(from: Vector2, to: Vector2, pad: float) -> int:
+	var parried: int = 0
+	for projectile: ProjectileState in projectiles:
+		if projectile.is_resolved():
+			continue
+		if SimMath.seg_dist(projectile.position, from, to) < projectile.radius + pad:
+			projectile.resolve(ProjectileState.Fate.PARRIED)
+			parried += 1
+			add_cue(SimCue.make(SimCue.Kind.PROJECTILE_PARRIED, projectile.position, SimMath.norm(-projectile.velocity, rng, Vector2.LEFT, true)))
+			hitstop = maxf(hitstop, PARRY_HITSTOP)
+	return parried
+
+
+## Destroys every projectile whose centre is inside the circle, silently (the
+## prototype's Colossus slam: `pr.dead = True` within the blast, no parry
+## feedback of its own). Returns how many were cleared.
+func clear_projectiles_in_circle(center: Vector2, radius: float) -> int:
+	var cleared: int = 0
+	for projectile: ProjectileState in projectiles:
+		if not projectile.is_resolved() and (projectile.position - center).length() < radius:
+			projectile.resolve(ProjectileState.Fate.CLEARED)
+			cleared += 1
+	return cleared
 
 
 func _update_motes(dt: float) -> void:
@@ -500,6 +572,9 @@ func snapshot() -> Dictionary:
 	for enemy: EnemyState in enemies:
 		enemy_positions.append(enemy.position)
 		enemy_hp.append(enemy.hp)
+	var projectile_positions: Array[Vector2] = []
+	for projectile: ProjectileState in projectiles:
+		projectile_positions.append(projectile.position)
 	return {
 		"tick": tick,
 		"real_time": real_time,
@@ -524,6 +599,7 @@ func snapshot() -> Dictionary:
 		"outcome": outcome(),
 		"enemy_positions": enemy_positions,
 		"enemy_hp": enemy_hp,
+		"projectile_positions": projectile_positions,
 		"mote_count": motes.size(),
 		"sword_positions": sword_positions,
 		"sword_phases": sword_phases,
@@ -568,10 +644,15 @@ func _reset_state() -> void:
 		var start_cd: float = scenario.sword_start_cooldowns[i] if i < scenario.sword_start_cooldowns.size() else rng.randf_range(0.2, 0.6)
 		swords.append(SwordState.equip(scenario.loadout[i], position, start_cd))
 	enemies = []
+	projectiles = []
 	for at: Vector2 in scenario.initial_husks:
 		enemies.append(EnemyState.husk(at, 1, scenario.enemy_speed_scale, next_serial()))
 	for placement: EnemyPlacement in scenario.initial_enemies:
-		var enemy: EnemyState = EnemyState.make(placement.kind, placement.position, placement.wave, placement.speed_scale * scenario.enemy_speed_scale, next_serial(), placement.phase)
+		var cooldown: float = placement.shoot_cooldown
+		if cooldown < 0.0 and placement.kind == EnemyDefs.SPITTER:
+			cooldown = rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)
+		var enemy: EnemyState = EnemyState.make(placement.kind, placement.position, placement.wave, placement.speed_scale * scenario.enemy_speed_scale, next_serial(), placement.phase, maxf(cooldown, 0.0))
+		enemy.charge = placement.charge
 		enemy.velocity = placement.velocity
 		enemy.stun = placement.stun
 		if placement.hp >= 0.0:

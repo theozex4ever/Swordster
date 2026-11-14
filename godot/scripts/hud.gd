@@ -2,8 +2,8 @@ class_name Hud
 extends CanvasLayer
 ## Overlay UI: build label, controls hint, health bar, wave/kill counters, dash
 ## cooldown, wave banner, run outcome screens, pause/restart/dash buttons, the
-## crowd-encounter fixture's Crowd/Shove buttons and legend,
-## audio-unlock prompt, pause overlay and the touch joystick indicator. It
+## dev-encounter button, the crowd fixture's Shove button and the encounter
+## legend, audio-unlock prompt, pause overlay and the touch joystick indicator. It
 ## reports button presses by signal and owns no gameplay state: everything it
 ## shows is read from the run each tick.
 
@@ -52,7 +52,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   P / Esc: pause   R: restart after death   C: crowd encounter\nTouch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   P / Esc: pause   R: restart after death   C: next dev encounter (restarts play)\nTouch: drag on the left half to move, Dash button to evade")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -110,7 +110,10 @@ func _ready() -> void:
 	_dash_button.offset_bottom = -24.0
 	_dash_button.button_down.connect(func() -> void: dash_pressed.emit())
 
-	_encounter_button = _make_button(root, "Crowd", Vector2(-256.0, 16.0))
+	# DEVELOPMENT FIXTURE control: cycles the dev encounters and restarts play, so
+	# it says so (the label names the encounter the press leads to).
+	_encounter_button = _make_button(root, "Dev: Crowd (restarts)", Vector2(-392.0, 16.0))
+	_encounter_button.size = Vector2(208.0, 44.0)
 	_encounter_button.button_down.connect(func() -> void: encounter_pressed.emit())
 	_shove_button = _make_button(root, "Shove", Vector2.ZERO)
 	_shove_button.custom_minimum_size = Vector2(104.0, 104.0)
@@ -200,24 +203,29 @@ func show_run(run: GameRun) -> void:
 			_set_outcome_visible(false)
 
 
-## The crowd encounter fixture's controls and legend: the Shove button, the
-## switch label, and how many foes of each type are still to be beaten
-## (standing, telegraphed or queued).
+## The dev encounters' controls and legend: the button naming where a press
+## leads (it restarts play), the crowd's Shove button, and how many foes of each
+## type are still to be beaten (standing, telegraphed or queued).
 func _show_encounter(run: GameRun) -> void:
-	var active: bool = run.scenario.dev_shove
-	_encounter_button.text = "Normal" if active else "Crowd"
-	_shove_button.visible = active
+	var active: bool = run.scenario.encounter != RunScenario.ENCOUNTER_NORMAL
+	_encounter_button.text = "Dev: %s (restarts)" % RunScenario.encounter_title(RunScenario.next_encounter(run.scenario.encounter))
+	_shove_button.visible = run.scenario.dev_shove
 	_encounter_label.visible = active
 	if not active:
 		return
-	var left: Dictionary[StringName, int] = {EnemyDefs.HUSK: 0, EnemyDefs.RUNNER: 0, EnemyDefs.BRUTE: 0}
+	var left: Dictionary[StringName, int] = {EnemyDefs.HUSK: 0, EnemyDefs.RUNNER: 0, EnemyDefs.SPITTER: 0, EnemyDefs.BRUTE: 0}
 	for enemy: EnemyState in run.enemies:
 		left[enemy.kind] += 1
 	for marker: SpawnMarker in run.director.markers:
 		left[marker.kind] += 1
 	for kind: StringName in run.director.queue:
 		left[kind] += 1
-	_encounter_label.text = "CROWD ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute\nF / Shove: launch nearby foes into each other and the wall   C / Normal: back to the husk wave" % [left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE]]
+	var switch_hint: String = "C / dev button: next dev encounter (restarts play)"
+	if run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS:
+		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dodge it (dash is invulnerable) or let a striking Fang sweep through it.   %s" % [
+			left[EnemyDefs.SPITTER], left[EnemyDefs.HUSK], run.cue_count(SimCue.Kind.PROJECTILE_FIRED), run.cue_count(SimCue.Kind.PROJECTILE_PARRIED), switch_hint]
+	else:
+		_encounter_label.text = "CROWD ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute\nF / Shove: launch nearby foes into each other and the wall   %s" % [left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], switch_hint]
 
 
 ## Text of the run outcome currently on screen ("" when none). Checks read it.

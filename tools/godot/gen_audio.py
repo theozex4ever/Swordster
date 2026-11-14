@@ -63,6 +63,10 @@ COMBAT = {
     "sfx_hurt": blend(tone([(240, 70, 0.28, 0.5)]), noise(0.25, 0.4, 0.2, 12, 4)),
     "sfx_dash": noise(0.2, 0.7, 0.25, 12, 5),
     "sfx_wave": blend(tone([(96, 88, 0.7, 0.5)]), noise(0.5, 0.3, 0.04, 5, 6)),
+    # Spitters and parries (slice #10): stand-ins for the prototype's "shot" (a short
+    # falling blip with a breath of noise) and "parry" (a bright, high ring).
+    "sfx_shot": blend(tone([(500, 200, 0.14, 0.35)]), noise(0.12, 0.3, 0.2, 25, 7)),
+    "sfx_parry": blend(tone([(3200, 2400, 0.16, 0.3)]), noise(0.03, 0.5, 0.9, 80, 8)),
 }
 
 

@@ -17,6 +17,11 @@ var wave: int = 1
 var speed_scale: float = 1.0
 ## Starting health; negative means the type's full (wave-scaled) health.
 var hp: float = -1.0
+## Spitter only: seconds until its first shot may start winding up; negative
+## draws it from the run's gameplay stream like a spawned spitter. `charge` is
+## how far into a shot it already is.
+var shoot_cooldown: float = -1.0
+var charge: float = 0.0
 
 
 static func make(kind_value: StringName, at: Vector2) -> EnemyPlacement:

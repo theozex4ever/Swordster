@@ -1,9 +1,9 @@
 class_name EnemyState
 extends RefCounted
-## One enemy in a run (game/main.py `Enemy`). Husks, runners and brutes are
-## ported (they differ only in the `EnemyDefs` numbers and the runner's weave);
-## the spitter lands with issue #10. Holds per-instance state only; the type's
-## constants live in `EnemyDefs`.
+## One enemy in a run (game/main.py `Enemy`). Husks, runners and brutes differ
+## only in the `EnemyDefs` numbers and the runner's weave; the spitter adds a
+## distance-keeping AI and a charged shot. Holds per-instance state only; the
+## type's constants live in `EnemyDefs`.
 
 const HUSK: StringName = EnemyDefs.HUSK
 const HUSK_RADIUS: float = EnemyDefs.HUSK_RADIUS
@@ -32,6 +32,11 @@ var dead: bool = false
 ## The enemy's own clock (prototype `Enemy.t`): starts at a random phase and
 ## runs while it lives. Drives the runner's weave and the post-death drift.
 var age: float = 0.0
+## Spitter only: seconds until it may wind up its next shot (it keeps counting
+## down while out of range, so it can fire the moment the player comes close),
+## and how long it has been charging the current one.
+var shoot_cooldown: float = 0.0
+var charge: float = 0.0
 
 
 static func husk(at: Vector2, wave: int, speed_factor: float, serial_value: int) -> EnemyState:
@@ -40,7 +45,9 @@ static func husk(at: Vector2, wave: int, speed_factor: float, serial_value: int)
 
 ## A freshly spawned enemy of any ported type. `speed_factor` is the prototype's
 ## uniform(0.9, 1.12) draw (times any scenario scale); `phase` its `t` draw.
-static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: float, serial_value: int, phase: float = 0.0) -> EnemyState:
+## `shoot_cooldown_value` is the spitter's starting cooldown (prototype
+## uniform(1.5, 3.0)); other types ignore it.
+static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: float, serial_value: int, phase: float = 0.0, shoot_cooldown_value: float = 0.0) -> EnemyState:
 	var def: EnemyDefs = EnemyDefs.of(kind_value)
 	var enemy: EnemyState = EnemyState.new()
 	enemy.kind = kind_value
@@ -53,7 +60,16 @@ static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: f
 	enemy.damage = def.damage
 	enemy.knock_mult = def.knock
 	enemy.age = phase
+	enemy.shoot_cooldown = shoot_cooldown_value
 	return enemy
+
+
+## 0..1 progress of a spitter's shot telegraph (0 when it is not winding up).
+## Presentation reads it to show the glow; gameplay owns the timing.
+func telegraph() -> float:
+	if kind != EnemyDefs.SPITTER:
+		return 0.0
+	return clampf(charge / EnemyDefs.SPITTER_CHARGE_TIME, 0.0, 1.0)
 
 
 ## Applies a blow's knockback (prototype `hit_enemy`): the old velocity keeps
@@ -65,8 +81,9 @@ func launch(direction: Vector2, force: float) -> void:
 
 
 ## Prototype `Enemy.update`: chase the player (a runner weaves across the line
-## of approach); a stunned enemy only decays its knockback velocity. Once the
-## player is dead every enemy wanders slowly. Walls clamp the enemy; hitting one
+## of approach, a spitter keeps its distance and shoots); a stunned enemy only
+## decays its knockback velocity, and a stun cancels a spitter's charge. Once the
+## player is dead every enemy wanders slowly and nothing shoots. Walls clamp the enemy; hitting one
 ## while stunned and fast is a wall slam.
 func update(run: GameRun, dt: float) -> void:
 	age += dt
@@ -79,10 +96,13 @@ func update(run: GameRun, dt: float) -> void:
 	if stun > 0.0:
 		stun -= dt
 		velocity *= exp(-dt * 5.0)
+		charge = 0.0
 	else:
 		var want: Vector2 = toward * speed
 		if run.dead:
 			want = SimMath.polar(age * 0.3 + float(serial % 7), speed * 0.3)
+		elif kind == EnemyDefs.SPITTER:
+			want = _spitter_want(run, dt, dist, toward, want)
 		elif kind == EnemyDefs.RUNNER:
 			var side: Vector2 = Vector2(-toward.y, toward.x)
 			want = (toward + side * sin(age * RUNNER_WEAVE_RATE) * RUNNER_WEAVE_AMPLITUDE) * speed
@@ -101,3 +121,26 @@ func update(run: GameRun, dt: float) -> void:
 		slammed = true
 	if slammed and stun > 0.0 and speed_before > GameRun.WALL_SLAM_MIN_SPEED:
 		run.wall_slam(self, speed_before)
+
+
+## The spitter's decision for one tick: back away when too close, circle at a
+## middling distance, otherwise approach; once its cooldown is spent and the
+## player is in range it slows to a crawl for CHARGE_TIME and then fires an orb
+## straight at the player (prototype `Enemy.update`, kind == "spitter"). Returns
+## the velocity it wants. A stun resets the charge but does not advance the
+## cooldown (the caller only gets here while it is in control).
+func _spitter_want(run: GameRun, dt: float, dist: float, toward: Vector2, approach: Vector2) -> Vector2:
+	var want: Vector2 = approach
+	if dist < EnemyDefs.SPITTER_RETREAT_RANGE:
+		want = -toward * speed
+	elif dist < EnemyDefs.SPITTER_ORBIT_RANGE:
+		want = Vector2(-toward.y, toward.x) * speed * EnemyDefs.SPITTER_ORBIT_SPEED
+	shoot_cooldown -= dt
+	if shoot_cooldown <= 0.0 and dist < EnemyDefs.SPITTER_FIRE_RANGE:
+		charge += dt
+		want *= EnemyDefs.SPITTER_CHARGE_SLOW
+		if charge >= EnemyDefs.SPITTER_CHARGE_TIME:
+			run.spawn_projectile(position + toward * radius, toward * EnemyDefs.SPITTER_SHOT_SPEED)
+			charge = 0.0
+			shoot_cooldown = run.rng.randf_range(EnemyDefs.SPITTER_COOLDOWN_MIN, EnemyDefs.SPITTER_COOLDOWN_MAX)
+	return want
