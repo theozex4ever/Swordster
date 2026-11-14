@@ -276,4 +276,39 @@ visuals leaves the spitter fight unchanged`.
 
 ## Validation
 
-VALIDATION_PLACEHOLDER
+Run on build `20261114-163133-a4a77eae7` (source commit a4a77ea, clean tree; the commits after
+the behaviour/tests only add documentation), Linux, Godot 4.7.2-stable.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 683` (519 before this slice plus 164 new); full build OK, Windows ZIP and Web bundle produced |
+| `tools/godot/mutation-check.sh` | 197 of 197 deliberate bugs caught, 0 inconclusive (baseline 683 checks pass; 114 from the earlier slices plus 83 for this one: spitter stats, bands, charge and cooldown, projectile flight, expiry and hits, invulnerability, parry geometry and pads, hit-versus-parry, exactly-once, paused/dead, the dev cycle and button, launch option, frame-rate dependence) |
+| Reference regeneration | `capture_spitters_and_parries.py`, `capture_crowd_and_walls.py` and `capture_fang_survival_loop.py` each run twice give byte-identical output equal to the committed JSON; `crowd_and_walls.json`, `fang_survival_loop.json` and `game/` are unchanged against the base commit 7bb0740 |
+| Low/high render rates | The scripted orb fight (35 orbs fired, 10 parried, 7 hurt the player, player alive) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time; every hurt cue cost exactly 8 health |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Served the built bundle over HTTP with `?encounter=spitters`; browser key events (WASD, Space) walked and dashed through five spitters and three husks. Orbs flew, the HUD counted `orbs fired 23, parried 5` by the end of the wave (`WAVE SURVIVED`), a charging spitter showed its glow, ring and dashed aim line, and `C` went to the normal run. No console errors. `tools/godot/web-encounter-capture.mjs` (`SCENARIO=spitters`, `CAST=1` for a screencast of every frame) reproduces it. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The full build's `Swordster.exe`, extracted from the ZIP, run as `Swordster.exe -- --encounter=spitters` with Godot's Movie Maker (`--write-movie`, 30 fps frames of the game's own viewport, 20 s), shows the spitters shooting, the Fang swords parrying (`orbs fired 9, parried 4` at 10 s) and a hit on the player (`-8`). No input was sent, so the player stood still: the dash and the dev button were **not** exercised in the Windows export. |
+
+Screenshots (in `docs/reference/spitters-projectiles-parries/`):
+[`web-spitter-fight.png`](spitters-projectiles-parries/web-spitter-fight.png),
+[`web-spitter-telegraph.png`](spitters-projectiles-parries/web-spitter-telegraph.png),
+[`web-wave-survived.png`](spitters-projectiles-parries/web-wave-survived.png),
+[`wine-spitter-fight.png`](spitters-projectiles-parries/wine-spitter-fight.png).
+
+The first mutation run for this slice found two survivors (a director-spawned spitter with no
+first cooldown; a second sweep over an already-parried orb in the same tick) and one mutant
+that crashed a check instead of failing it (a lost `spitters` launch option). Each now has a
+check that fails on it.
+
+## What was not verified
+
+- **No real Windows machine** and no real Android device: deferred to #6 and #22. The Wine run
+  proves the export launches and fights, not that it behaves on Windows.
+- Web was run in headless Chromium with a software renderer and synthetic browser input, not
+  Firefox, a real GPU or a phone. Frame pacing, audio and touch were not measured. The `Dev:`
+  button was exercised by the headless checks (`button_down`), not by touch.
+- Parry feedback was confirmed in the exports only through the HUD's parried counter; the
+  `PARRY` tag, sparks and sound were not inspected in a captured frame, and the audio was muted.
+- Spitters were not tuned for fun or difficulty; the three-Fang fixture against five spitters
+  is a behaviour demonstration. The prototype's spitters arrive from wave 3, which is #18.
+- Out of scope and untouched: conditions (#11), Viper Flurry (#12), Warden/Pike/Colossus (#13-#15),
+  Converge (#16), drops (#17), later waves (#18).
