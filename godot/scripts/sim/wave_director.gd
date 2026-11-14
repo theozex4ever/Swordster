@@ -1,9 +1,10 @@
 class_name WaveDirector
 extends RefCounted
 ## Wave schedule and spawn telegraphs (game/main.py `start_wave`,
-## `update_waves`, `spawn_point`). This slice plays husk-only waves: composition
-## unlocks, armed enemies and sword drops arrive with the later slices, and the
-## scenario normally asks for exactly one wave.
+## `update_waves`, `spawn_point`). Waves are husk-only unless a scenario names
+## an explicit composition (the crowd encounter fixture); composition unlocks,
+## armed enemies and sword drops arrive with the later slices, and the scenario
+## normally asks for exactly one wave.
 
 const SPAWN_MIN_DISTANCE: float = 420.0
 const SPAWN_MAX_DISTANCE: float = 720.0
@@ -28,6 +29,7 @@ var survived: bool = false
 var _enabled: bool = true
 var _wave_count: int = 1
 var _husk_count: int = -1
+var _wave_kinds: Array[StringName] = []
 var _speed_jitter: bool = true
 
 
@@ -35,6 +37,7 @@ func _init(scenario: RunScenario) -> void:
 	_enabled = scenario.waves_enabled
 	_wave_count = scenario.wave_count
 	_husk_count = scenario.husk_count
+	_wave_kinds = scenario.wave_kinds
 	_speed_jitter = scenario.enemy_speed_jitter
 	break_left = scenario.first_wave_delay
 
@@ -52,7 +55,8 @@ func update(run: GameRun, dt: float) -> void:
 		marker.remaining -= dt
 		if marker.remaining <= 0.0:
 			var factor: float = (run.rng.randf_range(0.9, 1.12) if _speed_jitter else 1.0) * run.scenario.enemy_speed_scale
-			var enemy: EnemyState = EnemyState.husk(marker.position, wave, factor, run.next_serial())
+			var phase: float = run.rng.randf_range(0.0, 10.0)
+			var enemy: EnemyState = EnemyState.make(marker.kind, marker.position, wave, factor, run.next_serial(), phase)
 			run.enemies.append(enemy)
 			run.add_cue(SimCue.make(SimCue.Kind.ENEMY_SPAWNED, marker.position))
 	var waiting: Array[SpawnMarker] = []
@@ -77,10 +81,13 @@ func update(run: GameRun, dt: float) -> void:
 
 func _start_wave(run: GameRun) -> void:
 	wave += 1
-	var count: int = _husk_count if _husk_count >= 0 else 5 + wave * 3
 	queue.clear()
-	for i: int in count:
-		queue.append(EnemyState.HUSK)
+	if not _wave_kinds.is_empty():
+		queue.append_array(_wave_kinds)
+	else:
+		var count: int = _husk_count if _husk_count >= 0 else 5 + wave * 3
+		for i: int in count:
+			queue.append(EnemyDefs.HUSK)
 	spawn_timer = FIRST_SPAWN_DELAY
 	in_wave = true
 	run.set_banner("WAVE %d" % wave, WAVE_BANNER)

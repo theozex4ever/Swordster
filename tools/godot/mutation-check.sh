@@ -145,6 +145,91 @@ mutate slowmo-runs-in-hitstop scripts/sim/game_run.gd "	if hitstop > 0.0:
 mutate visual-not-updated   scripts/main.gd "	visual.apply_pose(run.position, run.facing, moving)" "	pass"
 mutate sound-never-unlocks  scripts/audio/sfx_bank.gd "	unlocked = true
 	play(\"unlock\")" "	play(\"unlock\")"
+# --- runners, brutes, crowds and walls (slice #9)
+mutate runner-no-weave      scripts/sim/enemy_state.gd "RUNNER_WEAVE_AMPLITUDE: float = 0.5" "RUNNER_WEAVE_AMPLITUDE: float = 0.0"
+mutate runner-weave-rate    scripts/sim/enemy_state.gd "RUNNER_WEAVE_RATE: float = 5.0" "RUNNER_WEAVE_RATE: float = 3.0"
+mutate weave-for-everyone   scripts/sim/enemy_state.gd "		elif kind == EnemyDefs.RUNNER:" "		elif kind != EnemyDefs.BRUTE:"
+mutate runner-speed         scripts/sim/enemy_defs.gd "RUNNER_SPEED: float = 178.0" "RUNNER_SPEED: float = 120.0"
+mutate runner-radius        scripts/sim/enemy_defs.gd "RUNNER_RADIUS: float = 11.0" "RUNNER_RADIUS: float = 16.0"
+mutate runner-damage        scripts/sim/enemy_defs.gd "RUNNER_DAMAGE: int = 6" "RUNNER_DAMAGE: int = 10"
+mutate runner-knock         scripts/sim/enemy_defs.gd "RUNNER_KNOCK: float = 1.3" "RUNNER_KNOCK: float = 1.0"
+mutate runner-hp            scripts/sim/enemy_defs.gd "RUNNER_HP: float = 14.0" "RUNNER_HP: float = 30.0"
+mutate brute-hp             scripts/sim/enemy_defs.gd "BRUTE_HP: float = 170.0" "BRUTE_HP: float = 100.0"
+mutate brute-speed          scripts/sim/enemy_defs.gd "BRUTE_SPEED: float = 52.0" "BRUTE_SPEED: float = 92.0"
+mutate brute-damage         scripts/sim/enemy_defs.gd "BRUTE_DAMAGE: int = 20" "BRUTE_DAMAGE: int = 10"
+mutate brute-knock-resist   scripts/sim/enemy_defs.gd "BRUTE_KNOCK: float = 0.35" "BRUTE_KNOCK: float = 1.0"
+mutate brute-radius         scripts/sim/enemy_defs.gd "BRUTE_RADIUS: float = 30.0" "BRUTE_RADIUS: float = 20.0"
+mutate wave-health-scaling  scripts/sim/enemy_defs.gd "HP_PER_WAVE: float = 0.1" "HP_PER_WAVE: float = 0.2"
+mutate hit-ignores-resistance scripts/sim/game_run.gd "var force: float = knock * enemy.knock_mult * (CRIT_KNOCK_BONUS" "var force: float = knock * (CRIT_KNOCK_BONUS"
+mutate launch-forgets-velocity scripts/sim/enemy_state.gd "	velocity = velocity * 0.3 + direction * force" "	velocity = direction * force"
+mutate launch-stun-flat     scripts/sim/enemy_state.gd "	stun = maxf(stun, 0.08 + force / 1500.0)" "	stun = maxf(stun, 0.08)"
+mutate separation-equal-split scripts/sim/game_run.gd "a.position -= normal * overlap * mass_b / (mass_a + mass_b)" "a.position -= normal * overlap * 0.5"
+mutate separation-masses-swapped scripts/sim/game_run.gd "b.position += normal * overlap * mass_a / (mass_a + mass_b)" "b.position += normal * overlap * mass_b / (mass_a + mass_b)"
+mutate separation-radius-padding scripts/sim/game_run.gd "if dist >= reach or dist == 0.0:" "if dist >= reach + 3.0 or dist == 0.0:"
+mutate separation-box-too-tight scripts/sim/game_run.gd "if absf(d.x) > reach or absf(d.y) > reach:" "if absf(d.x) > reach * 0.5 or absf(d.y) > reach * 0.5:"
+mutate bowl-min-speed       scripts/sim/game_run.gd "BOWL_MIN_SPEED: float = 340.0" "BOWL_MIN_SPEED: float = 200.0"
+mutate bowl-needs-no-stun   scripts/sim/game_run.gd "if launched.stun > 0.0 and launched.velocity.length() > BOWL_MIN_SPEED" "if launched.velocity.length() > BOWL_MIN_SPEED"
+mutate bowl-ignores-direction scripts/sim/game_run.gd " and launched.velocity.dot(normal * sign_value) > 0.0:" ":"
+mutate bowl-damage          scripts/sim/game_run.gd "BOWL_DAMAGE: float = 3.0" "BOWL_DAMAGE: float = 1.0"
+mutate bowl-impulse         scripts/sim/game_run.gd "BOWL_IMPULSE: float = 0.55" "BOWL_IMPULSE: float = 0.3"
+mutate bowl-size-ratio      scripts/sim/game_run.gd "launched.velocity * BOWL_IMPULSE * launched.radius / hit.radius * 0.6" "launched.velocity * BOWL_IMPULSE * 0.6"
+mutate bowl-launcher-drag   scripts/sim/game_run.gd "BOWL_SELF_DRAG: float = 0.6" "BOWL_SELF_DRAG: float = 1.0"
+mutate bowl-stun            scripts/sim/game_run.gd "BOWL_STUN: float = 0.25" "BOWL_STUN: float = 0.1"
+mutate bowl-never-kills     scripts/sim/game_run.gd "		if hit.hp <= 0.0 and not hit.dead:
+			kill(hit, SimMath.norm(launched.velocity, rng))" "		if false:
+			kill(hit, SimMath.norm(launched.velocity, rng))"
+mutate bowl-not-reported    scripts/sim/game_run.gd "		add_cue(SimCue.make(SimCue.Kind.BOWLED, (launched.position + hit.position) * 0.5, SimMath.norm(launched.velocity, rng, Vector2.RIGHT, true), int(BOWL_DAMAGE)))" "		pass"
+mutate wall-threshold       scripts/sim/game_run.gd "WALL_SLAM_MIN_SPEED: float = 380.0" "WALL_SLAM_MIN_SPEED: float = 300.0"
+mutate wall-base-damage     scripts/sim/game_run.gd "WALL_SLAM_BASE_DAMAGE: float = 6.0" "WALL_SLAM_BASE_DAMAGE: float = 4.0"
+mutate wall-speed-damage    scripts/sim/game_run.gd "WALL_SLAM_DAMAGE_PER_SPEED: float = 0.04" "WALL_SLAM_DAMAGE_PER_SPEED: float = 0.02"
+mutate wall-stun-cap        scripts/sim/game_run.gd "WALL_SLAM_STUN_CAP: float = 0.15" "WALL_SLAM_STUN_CAP: float = 0.3"
+mutate wall-hitstop         scripts/sim/game_run.gd "WALL_SLAM_HITSTOP: float = 0.04" "WALL_SLAM_HITSTOP: float = 0.0"
+mutate wall-shake           scripts/sim/game_run.gd "WALL_SLAM_SHAKE: float = 0.18" "WALL_SLAM_SHAKE: float = 0.0"
+mutate wall-slam-never-kills scripts/sim/game_run.gd "	if enemy.hp <= 0.0 and not enemy.dead:
+		kill(enemy, SimMath.norm(-enemy.velocity, rng))" "	if false:
+		kill(enemy, SimMath.norm(-enemy.velocity, rng))"
+mutate wall-slam-unstunned  scripts/sim/enemy_state.gd "	if slammed and stun > 0.0 and speed_before" "	if slammed and speed_before"
+mutate wall-bounce-x        scripts/sim/enemy_state.gd "velocity.x *= -0.35" "velocity.x *= -0.6"
+mutate wall-bounce-y        scripts/sim/enemy_state.gd "velocity.y *= -0.35" "velocity.y *= 0.0"
+mutate wall-slam-not-reported scripts/sim/game_run.gd "	add_cue(SimCue.make(SimCue.Kind.WALL_SLAM, enemy.position, Vector2.ZERO, dealt))" "	add_cue(SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, Vector2.ZERO, dealt))"
+mutate shove-without-fixture scripts/sim/game_run.gd "	if not scenario.dev_shove or paused or dead:" "	if paused or dead:"
+mutate shove-while-paused   scripts/sim/game_run.gd "	if not scenario.dev_shove or paused or dead:" "	if not scenario.dev_shove or dead:"
+mutate shove-radius         scripts/sim/game_run.gd "DEV_SHOVE_RADIUS: float = 320.0" "DEV_SHOVE_RADIUS: float = 200.0"
+mutate shove-knock          scripts/sim/game_run.gd "DEV_SHOVE_KNOCK: float = 650.0" "DEV_SHOVE_KNOCK: float = 300.0"
+mutate shove-ignores-resistance scripts/sim/game_run.gd "DEV_SHOVE_KNOCK * enemy.knock_mult" "DEV_SHOVE_KNOCK"
+mutate shove-wakes-the-dead scripts/sim/game_run.gd "		if enemy.dead or offset.length() > DEV_SHOVE_RADIUS:" "		if offset.length() > DEV_SHOVE_RADIUS:"
+mutate shove-key-lost       scripts/input/input_translator.gd "SHOVE_KEYS: Array[Key] = [KEY_F]" "SHOVE_KEYS: Array[Key] = [KEY_G]"
+mutate encounter-toggle-lost scripts/sim/game_run.gd "			restart_with(_home_scenario if scenario.dev_shove else _crowd_scenario)" "			pass"
+mutate restart-with-keeps-scenario scripts/sim/game_run.gd "	scenario = new_scenario
+	restarts += 1" "	restarts += 1"
+mutate restart-keeps-cue-counts scripts/sim/game_run.gd "	_cue_counts = {}
+" "	_cue_counts = _cue_counts
+"
+mutate placement-position-dropped scripts/sim/game_run.gd "EnemyState.make(placement.kind, placement.position," "EnemyState.make(placement.kind, placement.position + Vector2(40.0, 0.0),"
+mutate placement-velocity-dropped scripts/sim/game_run.gd "		enemy.velocity = placement.velocity" "		enemy.velocity = Vector2.ZERO"
+mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.0:
+			enemy.hp = placement.hp" "		if false:
+			enemy.hp = placement.hp"
+mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_wave_kinds)" "		queue.append_array([])"
+mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
+mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
+mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run)))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run)))"
+mutate stun-flag-dropped    scripts/presentation/run_presenter.gd "enemy.hp / enemy.max_hp, enemy.stun > 0.0)" "enemy.hp / enemy.max_hp, false)"
+mutate brute-drawn-small    scripts/presentation/placeholder_enemy_visual.gd "			return 30.0" "			return 16.0"
+mutate runner-same-colour   scripts/presentation/placeholder_enemy_visual.gd "const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)" "const RUNNER_COLOR: Color = Color(0.84, 0.28, 0.34)"
+mutate shove-button-on-release scripts/hud.gd "_shove_button.button_down.connect" "_shove_button.pressed.connect"
+mutate shove-button-unwired scripts/main.gd "	_hud.shove_pressed.connect(func() -> void: _submit(GameCommand.dev_shove()))" "	_hud.shove_pressed.connect(func() -> void: pass)"
+mutate crowd-button-unwired scripts/main.gd "	_hud.encounter_pressed.connect(func() -> void: _submit(GameCommand.toggle_encounter()))" "	_hud.encounter_pressed.connect(func() -> void: pass)"
+mutate launch-option-lost   scripts/launch_options.gd 'ENCOUNTER_ARGUMENT_PREFIX: String = "--encounter="' 'ENCOUNTER_ARGUMENT_PREFIX: String = "--enc="'
+mutate wall-crowd-moved     scripts/sim/run_scenario.gd "Vector2(2420.0, 900.0)," "Vector2(2420.0, 930.0),"
+mutate wall-encounter-wave-on scripts/sim/run_scenario.gd "	scenario.waves_enabled = false
+	scenario.start_position = WALL_PLAYER" "	scenario.start_position = WALL_PLAYER"
+mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: float) -> void:" "func _process(_delta: float) -> void:
+	run.step()
+
+
+func _physics_process(_delta: float) -> void:"
+mutate wall-slam-sound-lost scripts/audio/sfx_bank.gd "		SimCue.Kind.ENEMY_HIT, SimCue.Kind.WALL_SLAM:" "		SimCue.Kind.ENEMY_HIT:"
 
 echo
 if ((survived)); then echo "$survived mutation(s) survived"; fi

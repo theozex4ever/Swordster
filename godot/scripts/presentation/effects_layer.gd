@@ -1,7 +1,8 @@
 class_name EffectsLayer
 extends Node2D
-## Cosmetic world effects: spawn telegraphs, healing motes, hit rings, damage
-## numbers and dash afterimages. Purely visual: it reads the run's state and
+## Cosmetic world effects: spawn telegraphs (tinted and sized by enemy type),
+## healing motes, hit rings, damage numbers, crowd-collision sparks, wall-slam
+## bursts and dash afterimages. Purely visual: it reads the run's state and
 ## cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -54,6 +55,14 @@ func apply_cue(cue: SimCue) -> void:
 			_add_ring(cue.position, 10.0, 220.0, 0.8, Color(0.47, 0.86, 1.0, 0.9), 4.0)
 		SimCue.Kind.DASH:
 			_add_ring(cue.position, 10.0, 46.0, 0.25, Color(0.35, 0.65, 0.85, 0.8), 2.0)
+		SimCue.Kind.BOWLED:
+			_add_ring(cue.position, 6.0, 28.0, 0.16, Color(1.0, 0.86, 0.78, 0.9), 3.0)
+			_add_text(cue.position + Vector2(_rng.randf_range(-8.0, 8.0), -18.0), "-%d" % cue.amount, Color(1.0, 0.86, 0.78), 0.5, 18)
+		SimCue.Kind.WALL_SLAM:
+			_add_ring(cue.position, 12.0, 70.0, 0.3, Color(1.0, 0.55, 0.38, 0.95), 4.0)
+			_add_text(cue.position + Vector2(0.0, -30.0), "SLAM %d" % cue.amount, Color(1.0, 0.59, 0.47), 0.8, 26)
+		SimCue.Kind.SHOVE:
+			_add_ring(cue.position, 20.0, GameRun.DEV_SHOVE_RADIUS, 0.35, Color(0.75, 0.85, 1.0, 0.7), 3.0)
 		_:
 			pass
 
@@ -74,8 +83,10 @@ func _draw() -> void:
 	for marker: SpawnMarker in _run.director.markers:
 		var u: float = 1.0 - clampf(marker.remaining / SpawnMarker.TELEGRAPH, 0.0, 1.0)
 		var pulse: float = 0.5 + 0.5 * sin(u * 24.0)
-		draw_arc(marker.position, 38.0 - 22.0 * u, 0.0, TAU, 32, Color(0.85, 0.3, 0.45, 0.35 + 0.5 * u), 2.0 + pulse)
-		draw_circle(marker.position, 5.0 + 6.0 * u, Color(0.85, 0.3, 0.45, 0.25 + 0.4 * u))
+		var tint: Color = PlaceholderEnemyVisual.color_of(marker.kind)
+		var scale: float = PlaceholderEnemyVisual.visual_radius_of(marker.kind) / 16.0
+		draw_arc(marker.position, (38.0 - 22.0 * u) * scale, 0.0, TAU, 32, Color(tint.r, tint.g, tint.b, 0.35 + 0.5 * u), 2.0 + pulse)
+		draw_circle(marker.position, (5.0 + 6.0 * u) * scale, Color(tint.r, tint.g, tint.b, 0.25 + 0.4 * u))
 	for mote: Mote in _run.motes:
 		draw_circle(mote.position, 6.0, Color(0.4, 1.0, 0.8, 0.25))
 		draw_circle(mote.position, 3.0, Color(0.75, 1.0, 0.92))

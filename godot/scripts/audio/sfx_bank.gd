@@ -61,7 +61,7 @@ func play(sound: String) -> void:
 ## Maps simulation cues to sounds.
 func play_cue(cue: SimCue) -> void:
 	match cue.kind:
-		SimCue.Kind.ENEMY_HIT:
+		SimCue.Kind.ENEMY_HIT, SimCue.Kind.WALL_SLAM:
 			play("hit")
 		SimCue.Kind.SWORD_STRIKE:
 			play("strike")

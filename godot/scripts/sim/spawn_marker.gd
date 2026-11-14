@@ -4,7 +4,7 @@ extends RefCounted
 
 const TELEGRAPH: float = 0.7
 
-var kind: StringName = EnemyState.HUSK
+var kind: StringName = EnemyDefs.HUSK
 var position: Vector2 = Vector2.ZERO
 var remaining: float = TELEGRAPH
 

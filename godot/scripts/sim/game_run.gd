@@ -7,8 +7,11 @@ extends RefCounted
 ## Ported from game/main.py (`Game.update`, `Player`, `hit_enemy`, `kill`,
 ## `hurt_player`, `separate`) and stepped at a fixed 60 Hz; the prototype uses a
 ## variable step capped at 1/30. The update order inside `step()` is the
-## prototype's, explicitly. See docs/reference/fang-survival-loop.md for the
-## captured reference values and tolerances.
+## prototype's, explicitly. See docs/reference/fang-survival-loop.md and
+## docs/reference/runners-brutes-crowd.md for the captured reference values and
+## tolerances. Crowd and wall rules (separation, bowling, wall slams) are
+## explicit circle geometry on the enemies' own positions and velocities, never
+## rigid bodies.
 ##
 ## Three clocks, as in the prototype:
 ##   * real time (`real_time`, `tick`): advances every unpaused tick, including
@@ -50,6 +53,28 @@ const CRIT_KNOCK_BONUS: float = 1.3
 const CRIT_HITSTOP_FACTOR: float = 1.5
 const CRIT_SHAKE_BONUS: float = 0.1
 const COMBO_WINDOW: float = 2.6
+## Crowd and wall rules (prototype `Game.separate` and `Game.wall_slam`).
+## A launched enemy (stunned, faster than BOWL_MIN_SPEED, moving toward its
+## neighbour) knocks into that neighbour; a stunned enemy hitting an arena wall
+## faster than WALL_SLAM_MIN_SPEED takes damage.
+const BOWL_MIN_SPEED: float = 340.0
+const BOWL_IMPULSE: float = 0.55
+const BOWL_DAMAGE: float = 3.0
+const BOWL_SELF_DRAG: float = 0.6
+const BOWL_STUN: float = 0.25
+const BOWL_FLASH: float = 0.08
+const BOWL_SHAKE: float = 0.06
+const WALL_SLAM_MIN_SPEED: float = 380.0
+const WALL_SLAM_BASE_DAMAGE: float = 6.0
+const WALL_SLAM_DAMAGE_PER_SPEED: float = 0.04
+const WALL_SLAM_STUN_CAP: float = 0.15
+const WALL_SLAM_HITSTOP: float = 0.04
+const WALL_SLAM_SHAKE: float = 0.18
+## DEVELOPMENT FIXTURE: the dev shove imparts a Colossus-sized knock (SWORD_TYPES
+## "colossus" knock 650) to every enemy within this radius of the player.
+const DEV_SHOVE_KNOCK: float = 650.0
+const DEV_SHOVE_RADIUS: float = 320.0
+const DEV_SHOVE_SHAKE: float = 0.35
 const MAX_QUEUED_CUES: int = 256
 
 const CAMERA_LOOKAHEAD: float = 0.12
@@ -115,11 +140,21 @@ var camera: Vector2 = Vector2.ZERO
 
 var _move_input: Vector2 = Vector2.ZERO
 var _cues: Array[SimCue] = []
+## How many cues of each kind this run produced, whether or not presentation
+## drained them. Lets checks count events (kills, slams, bowls) exactly.
+var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
+## The two scenarios `TOGGLE_ENCOUNTER` alternates between: the one the run
+## was made with (or the plain default if that was already the crowd encounter)
+## and the crowd encounter.
+var _home_scenario: RunScenario
+var _crowd_scenario: RunScenario
 
 
 func _init(scenario_value: RunScenario = null) -> void:
 	scenario = scenario_value if scenario_value != null else RunScenario.new()
+	_home_scenario = RunScenario.new() if scenario.dev_shove else scenario
+	_crowd_scenario = scenario if scenario.dev_shove else RunScenario.crowd_encounter()
 	if scenario.seed < 0:
 		rng.randomize()
 	_reset_state()
@@ -147,6 +182,18 @@ func apply(command: GameCommand) -> void:
 			if dead and death_time > RESTART_DELAY:
 				restarts += 1
 				_reset_state()
+		GameCommand.Kind.DEV_SHOVE:
+			_dev_shove()
+		GameCommand.Kind.TOGGLE_ENCOUNTER:
+			restart_with(_home_scenario if scenario.dev_shove else _crowd_scenario)
+
+
+## Replaces the starting conditions and restarts the run from them. Like the
+## Restart button it un-pauses.
+func restart_with(new_scenario: RunScenario) -> void:
+	scenario = new_scenario
+	restarts += 1
+	_reset_state()
 
 
 func _try_dash() -> void:
@@ -158,6 +205,21 @@ func _try_dash() -> void:
 	dash_cooldown_left = DASH_COOLDOWN
 	iframes = maxf(iframes, DASH_IFRAMES)
 	add_cue(SimCue.make(SimCue.Kind.DASH, position, heading.normalized()))
+
+
+## DEVELOPMENT FIXTURE (scenario `dev_shove`): launches every living enemy
+## within reach of the player away from it, with the knockback of a heavy
+## Colossus blow and no damage, through the same impulse a sword hit uses.
+func _dev_shove() -> void:
+	if not scenario.dev_shove or paused or dead:
+		return
+	for enemy: EnemyState in enemies:
+		var offset: Vector2 = enemy.position - position
+		if enemy.dead or offset.length() > DEV_SHOVE_RADIUS:
+			continue
+		enemy.launch(SimMath.norm(offset, rng), DEV_SHOVE_KNOCK * enemy.knock_mult)
+	add_shake(DEV_SHOVE_SHAKE)
+	add_cue(SimCue.make(SimCue.Kind.SHOVE, position))
 
 
 # --------------------------------------------------------------------- step
@@ -286,14 +348,19 @@ func _separate() -> void:
 			_bowl(b, a, normal, -1.0)
 
 
+## One direction of a crowd collision: `launched` is a stunned, fast enemy moving
+## toward `hit` (`sign_value` orients the shared normal). It hands over momentum
+## scaled by relative size, stuns and damages `hit`, and slows itself. Bowling
+## damage can kill `hit` here; `kill` keeps that to exactly once.
 func _bowl(launched: EnemyState, hit: EnemyState, normal: Vector2, sign_value: float) -> void:
-	if launched.stun > 0.0 and launched.velocity.length() > 340.0 and launched.velocity.dot(normal * sign_value) > 0.0:
-		hit.velocity += launched.velocity * 0.55 * launched.radius / hit.radius * 0.6
-		hit.stun = maxf(hit.stun, 0.25)
-		hit.flash = 0.08
-		hit.hp -= 3.0
-		launched.velocity *= 0.6
-		add_shake(0.06)
+	if launched.stun > 0.0 and launched.velocity.length() > BOWL_MIN_SPEED and launched.velocity.dot(normal * sign_value) > 0.0:
+		hit.velocity += launched.velocity * BOWL_IMPULSE * launched.radius / hit.radius * 0.6
+		hit.stun = maxf(hit.stun, BOWL_STUN)
+		hit.flash = BOWL_FLASH
+		hit.hp -= BOWL_DAMAGE
+		launched.velocity *= BOWL_SELF_DRAG
+		add_shake(BOWL_SHAKE)
+		add_cue(SimCue.make(SimCue.Kind.BOWLED, (launched.position + hit.position) * 0.5, SimMath.norm(launched.velocity, rng, Vector2.RIGHT, true), int(BOWL_DAMAGE)))
 		if hit.hp <= 0.0 and not hit.dead:
 			kill(hit, SimMath.norm(launched.velocity, rng))
 
@@ -315,8 +382,7 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 	enemy.squash = 1.0
 	var d: Vector2 = SimMath.norm(direction, rng)
 	var force: float = knock * enemy.knock_mult * (CRIT_KNOCK_BONUS if crit else 1.0)
-	enemy.velocity = enemy.velocity * 0.3 + d * force
-	enemy.stun = maxf(enemy.stun, 0.08 + force / 1500.0)
+	enemy.launch(d, force)
 	var stop: float = SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR if crit else 1.0)
 	hitstop = maxf(hitstop, stop)
 	add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
@@ -339,15 +405,16 @@ func kill(enemy: EnemyState, direction: Vector2) -> void:
 	add_cue(SimCue.make(SimCue.Kind.ENEMY_KILLED, enemy.position, direction))
 
 
-## An enemy launched into the arena wall (prototype `wall_slam`).
+## An enemy launched into the arena wall (prototype `wall_slam`). `speed` is
+## its speed on arrival; damage grows with how far it exceeds the threshold.
 func wall_slam(enemy: EnemyState, speed: float) -> void:
-	enemy.stun = minf(enemy.stun, 0.15)
-	var dealt: int = SimMath.py_round(6.0 + (speed - 380.0) * 0.04)
+	enemy.stun = minf(enemy.stun, WALL_SLAM_STUN_CAP)
+	var dealt: int = SimMath.py_round(WALL_SLAM_BASE_DAMAGE + (speed - WALL_SLAM_MIN_SPEED) * WALL_SLAM_DAMAGE_PER_SPEED)
 	enemy.hp -= float(dealt)
 	enemy.flash = 0.12
-	add_shake(0.18)
-	hitstop = maxf(hitstop, 0.04)
-	add_cue(SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, Vector2.ZERO, dealt, false))
+	add_shake(WALL_SLAM_SHAKE)
+	hitstop = maxf(hitstop, WALL_SLAM_HITSTOP)
+	add_cue(SimCue.make(SimCue.Kind.WALL_SLAM, enemy.position, Vector2.ZERO, dealt))
 	if enemy.hp <= 0.0 and not enemy.dead:
 		kill(enemy, SimMath.norm(-enemy.velocity, rng))
 
@@ -391,8 +458,14 @@ func next_serial() -> int:
 
 
 func add_cue(cue: SimCue) -> void:
+	_cue_counts[cue.kind] = _cue_counts.get(cue.kind, 0) + 1
 	if _cues.size() < MAX_QUEUED_CUES:
 		_cues.append(cue)
+
+
+## Total cues of `kind` produced since the run (re)started, drained or not.
+func cue_count(kind: SimCue.Kind) -> int:
+	return _cue_counts.get(kind, 0)
 
 
 ## Drains the cues produced since the last call (presentation/audio only).
@@ -488,6 +561,7 @@ func _reset_state() -> void:
 	camera = position
 	_move_input = Vector2.ZERO
 	_cues = []
+	_cue_counts = {}
 	_next_serial = 0
 	swords = []
 	for i: int in scenario.loadout.size():
@@ -496,6 +570,13 @@ func _reset_state() -> void:
 	enemies = []
 	for at: Vector2 in scenario.initial_husks:
 		enemies.append(EnemyState.husk(at, 1, scenario.enemy_speed_scale, next_serial()))
+	for placement: EnemyPlacement in scenario.initial_enemies:
+		var enemy: EnemyState = EnemyState.make(placement.kind, placement.position, placement.wave, placement.speed_scale * scenario.enemy_speed_scale, next_serial(), placement.phase)
+		enemy.velocity = placement.velocity
+		enemy.stun = placement.stun
+		if placement.hp >= 0.0:
+			enemy.hp = placement.hp
+		enemies.append(enemy)
 	motes = []
 	for at: Vector2 in scenario.initial_motes:
 		motes.append(Mote.scatter(at, rng))

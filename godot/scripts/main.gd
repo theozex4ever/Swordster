@@ -27,6 +27,8 @@ var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	if scenario == null:
+		scenario = LaunchOptions.requested_scenario()
 	run = GameRun.new(scenario)
 	_fx_rng.randomize()
 	visual = actor_visual.instantiate() as ActorVisual
@@ -43,6 +45,8 @@ func _ready() -> void:
 	_hud.pause_pressed.connect(func() -> void: _submit(GameCommand.toggle_pause()))
 	_hud.restart_pressed.connect(func() -> void: _submit(GameCommand.restart()))
 	_hud.dash_pressed.connect(func() -> void: _submit(GameCommand.dash()))
+	_hud.encounter_pressed.connect(func() -> void: _submit(GameCommand.toggle_encounter()))
+	_hud.shove_pressed.connect(func() -> void: _submit(GameCommand.dev_shove()))
 	get_viewport().size_changed.connect(_update_touch_zone)
 	_update_touch_zone.call_deferred()
 	_hud.show_state(run.paused, _sfx.unlocked)

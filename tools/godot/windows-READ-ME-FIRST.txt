@@ -4,9 +4,11 @@ SWORDSTER - Thanks for playtesting!
 Build: @BUILD_ID@
 Source commit: @SOURCE_COMMIT@
 
-This is an early test of the new Swordster. For now it is only a small
-empty arena: you can walk around, pause, restart and hear a few sounds. The
-sword fighting comes in later builds.
+This is an early test of the new Swordster. Three spirit swords fight on
+their own while you move and dash. You can fight one wave of husks, or try
+the CROWD ENCOUNTER (runners, brutes and a way to fling them into each other
+and the wall). Other sword types, special attacks and later waves come in
+later builds.
 
 Nothing to install. It takes about a minute to get started.
 
@@ -35,11 +37,18 @@ To quit, just close the game window.
 CONTROLS
 --------
   Move around ................ W A S D keys (or the arrow keys)
+  Dash ....................... Space or Shift
   Pause / resume ............. P or Esc
-  Start over ................. R
+  Start over after dying ..... R
+  Crowd encounter on / off ... C (or the Crowd / Normal button, top right)
+  Fling nearby foes .......... F (crowd encounter only; or the Shove button)
 
-On a touch screen: drag on the left side to move; use the Pause and
-Restart buttons at the top right.
+In the crowd encounter, foes are colour-coded: red husks, small orange
+spiky runners and big purple brutes. A white dashed ring means a foe is
+knocked back. Fling foes into each other or into the arena wall to hurt them.
+
+On a touch screen: drag on the left side to move; use the Dash button at
+the bottom right, and the Pause, Restart and Crowd buttons at the top right.
 
 
 IF SOMETHING GOES WRONG
@@ -62,7 +71,9 @@ When you report anything, please include the BUILD line from the top of
 this file (it is also shown in the top-left corner of the game). Some ideas:
 
 - Was it easy to get the game running?
-- Did the movement feel good? Did pausing and restarting work?
+- Did the movement and dash feel good? Did pausing and restarting work?
+- In the crowd encounter, could you tell the three kinds of foe apart?
+  Was it clear when something was flung into a wall or another foe?
 - Did you hear the sounds?
 - Did anything strange happen (freezing, glitches, crashes)?
   What were you doing when it happened?
