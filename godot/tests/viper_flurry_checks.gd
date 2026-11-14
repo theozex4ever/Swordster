@@ -46,6 +46,7 @@ func run_all() -> void:
 	_check_range_clamp()
 	_check_area_and_empty()
 	_check_target_replacement()
+	_check_removed_while_alive()
 	_check_recharge()
 	_check_rejections()
 	_check_keys_and_r()
@@ -429,6 +430,69 @@ func _check_target_replacement() -> void:
 	_steps(run_removed, 12)
 	var survivor: EnemyState = bystander_b if gone == bystander else bystander
 	_ok("and the remaining enemy takes the rest of the darts (%.0f)" % _hits(survivor, 500.0), _hits(survivor, 500.0) >= 1.0)
+
+
+# ------------------------------------------- removed while alive (hardening)
+## Deliberate deviation (docs/reference/viper-flurry.md, exception 10): the prototype
+## only asks `dead`, because an enemy leaves the run only once dead, so this state is
+## unreachable in play. A reference an enemy-holding sword keeps across ticks is
+## dropped when its enemy is no longer in the run even though it is alive.
+func _check_removed_while_alive() -> void:
+	print("flurry: an enemy removed from the run while alive is never struck, killed or rewarded")
+	var aim: Vector2 = CENTER + Vector2(260.0, 0.0)
+	var husk_setup: Array = [_ref["target_replacement"]["target_dies"]["setup"][0]]  # one stationary 5 hp husk
+	var run: GameRun = _run_of(husk_setup)
+	var sword: SwordState = run.swords[0]
+	var victim: EnemyState = run.enemies[0]
+	run.apply(GameCommand.ultimate(0, aim))
+	run.step()
+	var chosen: bool = sword.ultimate_victim == victim
+	run.enemies.erase(victim)
+	_steps(run, 5)
+	_ok("flurry victim removed while alive: no damage (hp %.0f), no kill (%d), no motes (%d), no hit cue (%d)" % [victim.hp, run.kills, run.motes.size(), run.cue_count(SimCue.Kind.ENEMY_HIT)],
+		chosen and victim.hp == 5.0 and not victim.dead and run.kills == 0 and run.motes.is_empty() and run.cue_count(SimCue.Kind.ENEMY_HIT) == 0 and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 0)
+	_ok("and with nobody left the flurry drops its victim and goes on wandering", sword.ultimate_victim == null and sword.phase == SwordState.Phase.ULTIMATE)
+	_steps(run, 120)
+	_ok("and it still ends and idles normally, with nothing struck", sword.phase == SwordState.Phase.IDLE and victim.hp == 5.0 and run.cue_count(SimCue.Kind.ENEMY_HIT) == 0)
+
+	var other: Dictionary = _ref["target_replacement"]["killed_by_something_else"]
+	var run_two: GameRun = _run_of(other["setup"])
+	var sword_two: SwordState = run_two.swords[0]
+	run_two.apply(GameCommand.ultimate(0, aim))
+	run_two.step()
+	var gone: EnemyState = sword_two.ultimate_victim
+	if gone == null:
+		_ok("the flurry chose a victim to remove (two enemies)", false)
+		return
+	var stays: EnemyState = run_two.enemies[1] if run_two.enemies[0] == gone else run_two.enemies[0]
+	run_two.enemies.erase(gone)
+	_steps(run_two, 4)
+	var untouched: bool = gone.hp == 500.0 and not gone.dead and run_two.kills == 0 and run_two.cue_count(SimCue.Kind.ENEMY_HIT) == 0
+	run_two.step()  # the dart's tick: nothing to strike, the other enemy is chosen
+	var replaced: bool = sword_two.ultimate_victim == stays
+	_steps(run_two, 5)
+	_ok("removed while alive among two: untouched, the other is chosen on the due beat (%s) and struck one beat later (hp %.0f)" % [replaced, stays.hp],
+		untouched and replaced and stays.hp == 492.0 and gone.hp == 500.0 and run_two.cue_count(SimCue.Kind.ENEMY_HIT) == 1 and run_two.kills == 0)
+
+	# The Fang's automatic attack keeps its target across ticks the same way.
+	var scenario: RunScenario = _arena([{"x": CENTER.x + 100.0, "y": CENTER.y, "hp": 500.0, "speed_scale": 0.0}])
+	var cooldowns: Array[float] = [0.0, PARKED, PARKED]
+	scenario.sword_start_cooldowns = cooldowns
+	var run_auto: GameRun = GameRun.new(scenario)
+	var fang: SwordState = run_auto.swords[0]
+	var husk: EnemyState = run_auto.enemies[0]
+	var guard: int = 0
+	while fang.phase != SwordState.Phase.WINDUP and guard < 10:
+		run_auto.step()
+		guard += 1
+	var acquired: bool = fang.target == husk
+	var aim_before: Vector2 = fang.aim
+	run_auto.enemies.erase(husk)
+	husk.position += Vector2(0.0, -50.0)  # a stale enemy, no longer simulated
+	run_auto.step()
+	_ok("an automatic attack's target removed while alive is dropped and its aim stops following it", acquired and fang.target == null and fang.aim == aim_before)
+	_steps(run_auto, 30)
+	_ok("and the attack ends without ever damaging it", husk.hp == 500.0 and run_auto.cue_count(SimCue.Kind.ENEMY_HIT) == 0 and fang.phase != SwordState.Phase.STRIKE)
 
 
 # -------------------------------------------------------------- recharge

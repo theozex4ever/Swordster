@@ -73,6 +73,15 @@ func _spring(goal: Vector2, k: float, c: float, dt: float) -> void:
 	position += velocity * dt
 
 
+## True while `enemy` can still be targeted: alive and still in the run. The
+## prototype checks only `dead`, because an enemy only leaves the run once dead;
+## a reference kept across ticks (the attack target, the flurry's victim) is also
+## dropped if its enemy was removed while alive, so a stale enemy can never be
+## hit, killed or rewarded (docs/reference/viper-flurry.md, exception 10).
+static func _in_play(run: GameRun, enemy: EnemyState) -> bool:
+	return enemy != null and not enemy.dead and run.enemies.has(enemy)
+
+
 ## Nearest enemy within range of the player, or null (prototype `acquire`).
 func acquire(run: GameRun) -> EnemyState:
 	var best: EnemyState = null
@@ -129,7 +138,7 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 	cooldown_left -= dt
 	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)
 	if target != null:
-		if target.dead:
+		if not _in_play(run, target):
 			target = null
 		else:
 			aim = target.position
@@ -219,7 +228,7 @@ func _update_ultimate(run: GameRun, dt: float) -> void:
 ## Viper Flurry: the sword darts between the enemies inside the area, striking
 ## one every FANG_ULT_CADENCE seconds, then recovers. The victim is chosen one
 ## beat ahead and struck at the next one, so an enemy that died (or left the
-## run) in between is simply skipped and replaced. A struck victim is not
+## run, even alive) in between is simply skipped and replaced. A struck victim is not
 ## chosen again while another enemy is in the area. Nothing in the flurry
 ## parries projectiles (the prototype's does not either).
 func _update_viper_flurry(run: GameRun, dt: float) -> void:
@@ -229,7 +238,7 @@ func _update_viper_flurry(run: GameRun, dt: float) -> void:
 	if ultimate_beat <= 0.0:
 		ultimate_beat = SwordDefs.FANG_ULT_CADENCE
 		var struck: EnemyState = ultimate_victim
-		if struck != null and not struck.dead:
+		if struck != null and _in_play(run, struck):
 			var heading: Vector2 = SimMath.norm(struck.position - ultimate_point, run.rng, dir, true)
 			run.hit_enemy(struck, damage * SwordDefs.FANG_ULT_DAMAGE_FACTOR, heading, SwordDefs.FANG_ULT_KNOCK, self, true)
 			run.add_shake(SwordDefs.FANG_ULT_SHAKE)

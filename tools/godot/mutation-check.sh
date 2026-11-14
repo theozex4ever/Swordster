@@ -414,6 +414,10 @@ mutate flurry-start-cue-lost       scripts/sim/game_run.gd "	cue.origin = origin
 	add_cue(cue)" "	cue.origin = origin"
 mutate flurry-victim-repeats       scripts/sim/sword_state.gd "				if enemy != struck:" "				if true:"
 mutate flurry-strikes-the-dead     scripts/sim/sword_state.gd "		if struck != null and not struck.dead:" "		if struck != null:"
+mutate flurry-strikes-the-removed  scripts/sim/sword_state.gd "		if struck != null and _in_play(run, struck):" "		if struck != null and not struck.dead:"
+mutate attack-keeps-removed-target scripts/sim/sword_state.gd "		if not _in_play(run, target):" "		if target.dead:"
+mutate in-play-ignores-dead        scripts/sim/sword_state.gd "	return enemy != null and not enemy.dead and run.enemies.has(enemy)" "	return enemy != null and run.enemies.has(enemy)"
+mutate in-play-ignores-removal     scripts/sim/sword_state.gd "	return enemy != null and not enemy.dead and run.enemies.has(enemy)" "	return enemy != null and not enemy.dead"
 mutate flurry-targets-the-dead     scripts/sim/sword_state.gd "			if not enemy.dead and (enemy.position - ultimate_point).length() < radius + enemy.radius:" "			if (enemy.position - ultimate_point).length() < radius + enemy.radius:"
 mutate flurry-area-ignores-enemy-size scripts/sim/sword_state.gd "(enemy.position - ultimate_point).length() < radius + enemy.radius:" "(enemy.position - ultimate_point).length() < radius:"
 mutate flurry-no-blink             scripts/sim/sword_state.gd "			position = point
