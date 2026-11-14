@@ -76,8 +76,16 @@ await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, dev
 const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | normal
 const query = scenario === "normal" ? "" : `?encounter=${scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
-await sleep(5000);
-await click(640, 360); // focus the canvas and unlock audio
+if (scenario === "wall") {
+  // The pinned crowd starts fighting the moment the engine runs, so react to the
+  // engine's first console line instead of a fixed delay: focus, then shove.
+  for (let i = 0; i < 600 && !consoleLines.some((l) => l.includes("Build configuration")); i++) await sleep(20);
+  await click(640, 360);
+  await key("KeyF", "f", 70);
+  console.log("shove F right after engine start");
+}
+await sleep(scenario === "wall" ? 500 : 5000);
+if (scenario !== "wall") await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
 
@@ -95,13 +103,10 @@ if (scenario === "crowd") {
   await key("KeyC", "c", 67); // and into the encounter again
   await sleep(1500); await shot("crowd-06-encounter-again");
 } else if (scenario === "wall") {
-  await shot("wall-01-pinned");
+  for (let i = 1; i <= 4; i++) { await shot(`wall-01-shoved-${i}`); await sleep(150); }
+  await sleep(2000); await shot("wall-02-aftermath");
   await key("KeyF", "f", 70);
-  console.log(`shove F at ${stamp()}s`);
-  for (const wait of [100, 150, 200, 300]) { await sleep(wait); await shot(`wall-02-shoved-${wait}`); }
-  await sleep(1500); await shot("wall-03-aftermath");
-  await key("KeyF", "f", 70);
-  for (const wait of [150, 300]) { await sleep(wait); await shot(`wall-04-second-shove-${wait}`); }
+  for (const wait of [150, 300]) { await sleep(wait); await shot(`wall-03-second-shove-${wait}`); }
 } else {
   await sleep(2500); await shot("normal-01");
 }

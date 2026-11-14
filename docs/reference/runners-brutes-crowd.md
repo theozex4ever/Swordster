@@ -173,8 +173,8 @@ walls and the corner slam; a slam kills an enemy once (kills 1, motes 3).
 ### The shoved crowd (composite, `crowd: a shoved crowd pinned against the wall`)
 
 Fourteen enemies (two brutes, five husks, seven runners) around a player 350 px from the
-east wall, shoved at tick 0 and then left alone for 240 ticks: three wall slams plus one
-more at tick 12, two deaths (ticks 4 and 12), identical positions, velocities, health and
+east wall, shoved at tick 0 and then left alone for 240 ticks: four wall slams (ticks 4, 8,
+12, 12), two deaths (ticks 4 and 12), identical positions, velocities, health and
 stun for every enemy at ticks 10, 30, 60, 120 and 240 within 0.5 px, and the player's
 health (88 at tick 240).
 
@@ -184,7 +184,9 @@ health (88 at tick 240).
   five runners and two brutes (telegraphed per type, in a fixed interleaved order), the
   three-Fang fixture loadout, and the dev shove. Open it with the Crowd button, the `C`
   key, `--encounter=crowd` (Windows/Linux, after `--`) or `index.html?encounter=crowd`
-  (browser).
+  (browser). `--encounter=wall` / `?encounter=wall` starts the same fixture with the
+  composite's fourteen foes already pinned between the player and the east wall and no
+  further wave (`RunScenario.wall_encounter()`, asserted equal to this reference's crowd).
 - **The dev shove** (`F` / Shove button, `GameCommand.dev_shove`): launches every enemy
   within 320 px of the player away from it with the knockback of a heavy Colossus blow
   (650, scaled by each type's resistance) and no damage, through the same `launch` impulse
@@ -237,4 +239,40 @@ unchanged, as asserted by `crowd: swapping enemy visuals leaves the crowd fight 
 
 ## Validation
 
-VALIDATION_PLACEHOLDER
+Run on build `20261114-105847-25a30ea24` (source commit 25a30ea, clean tree; later commits
+change documentation, the evidence capture script and the mutation list only), Linux,
+Godot 4.7.2-stable.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 519` (289 from #8 plus 230 new); full build OK, Windows ZIP and Web bundle produced |
+| `tools/godot/mutation-check.sh` | 116 of 116 deliberate bugs caught, 0 inconclusive (baseline 519 checks pass; 46 from #8 plus 70 for this slice: stats, weave, resistance, separation, bowling, wall slams, shove, wave composition, silhouettes, buttons, launch option, frame-rate dependence) |
+| Reference regeneration | `capture_crowd_and_walls.py` run twice gives byte-identical output, equal to the committed JSON; `capture_fang_survival_loop.py` still reproduces the #8 JSON |
+| Low/high render rates | The scripted 900-tick fight played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps (75 / 300 / 900 / 3603 frames) ends with an identical digest every time, equal to a bare `GameRun.step()` loop: 12 kills, 12 kill cues, 4 wall slams, 8 bowls, 7 shoves, same survivors to three decimals |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280×720)** | Served the built bundle over HTTP: `?encounter=crowd` shows the telegraphed wave and the three enemy types, the legend and the Shove/Normal buttons; a real keyboard `F` (browser key event) launches nearby foes (white dashed stun rings, shove ring); the Shove button shoves; `C` switches to the normal husk wave and back. `?encounter=wall` with an immediate `F` slams the pinned crowd into the east wall (`SLAM 7` text, wall-side foes ringed) and shows bowling `-3`/`7` numbers. No console errors. `tools/godot/web-encounter-capture.mjs` reproduces it. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The full build's `Swordster.exe`, extracted from the ZIP, run as `Swordster.exe -- --encounter=crowd` with Godot's Movie Maker (`--write-movie`, 30 fps frames of the game's own viewport), shows husks, spiky runners and brutes arriving and being fought by the three Fang swords for 15 s. No input was sent (no X11 test events: they trigger a desktop permission prompt), so shove, wall slam and bowling were **not** exercised in the Windows export. |
+
+Screenshots (in `docs/reference/runners-brutes-crowd/`): [`web-wall-slam.png`](runners-brutes-crowd/web-wall-slam.png),
+[`web-wall-bowling.png`](runners-brutes-crowd/web-wall-bowling.png),
+[`web-crowd-shove.png`](runners-brutes-crowd/web-crowd-shove.png),
+[`web-normal-wave.png`](runners-brutes-crowd/web-normal-wave.png),
+[`wine-crowd-fight.png`](runners-brutes-crowd/wine-crowd-fight.png),
+[`wine-crowd-brutes.png`](runners-brutes-crowd/wine-crowd-brutes.png) (the Wine frames are the
+game viewport as written by Movie Maker; the top of the HUD is cropped in them).
+
+## What was not verified
+
+- **No real Windows machine** and no real Android device: deferred to #6 and #22 by the
+  maintainer's decision. The Wine run proves the export launches and fights, not that it
+  behaves on Windows, and it did not exercise shove, slam or bowling.
+- Web was run in headless Chromium with a software renderer and synthetic browser input, not
+  in Firefox, on a real GPU or on a phone. Frame pacing, audio and real multi-touch were not
+  measured. The Shove/Crowd buttons were driven by a mouse click, not by touch; the headless
+  checks drive them with `button_down` like the #8 buttons.
+- Only the launch options were verified by parsing in a headless child process
+  (`--encounter=crowd|wall`); the browser query string `?encounter=...` worked in the
+  Chromium run, but the Windows `--` argument path was only exercised under Wine
+  (`--encounter=crowd`).
+- Runners and brutes were not tuned for fun or difficulty: the three-Fang fixture against
+  the crowd encounter is a behaviour demonstration, not a balance pass.
+- Spitters, projectiles, conditions, drops and later waves are out of scope (#10, #11, #17, #18).
