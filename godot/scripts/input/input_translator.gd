@@ -3,15 +3,18 @@ extends RefCounted
 ## Turns keyboard and touch input into GameCommands. Key state is tracked from
 ## events (not polled) so `release_all` can reliably clear it on focus loss.
 ##
-## Aliases preserved from the prototype: WASD or arrow keys move, P or Escape
-## pause. R restarts here because the arena has no ultimates yet (the
-## prototype's R-after-death restart arrives with combat).
+## Aliases preserved from the prototype (`Game.handle`): WASD or arrow keys
+## move, P or Escape pause, Space or either Shift dash. R only restarts once
+## the death screen is up (the run decides); it is the slot-three ultimate key
+## while alive, which arrives with the ultimates.
 
 const MOVE_LEFT: Array[Key] = [KEY_A, KEY_LEFT]
 const MOVE_RIGHT: Array[Key] = [KEY_D, KEY_RIGHT]
 const MOVE_UP: Array[Key] = [KEY_W, KEY_UP]
 const MOVE_DOWN: Array[Key] = [KEY_S, KEY_DOWN]
 const PAUSE_KEYS: Array[Key] = [KEY_P, KEY_ESCAPE]
+## Godot reports left and right Shift as the same key.
+const DASH_KEYS: Array[Key] = [KEY_SPACE, KEY_SHIFT]
 const RESTART_KEYS: Array[Key] = [KEY_R]
 
 var joystick: TouchJoystick = TouchJoystick.new()
@@ -30,8 +33,10 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 			_held[code] = true
 			if code in PAUSE_KEYS:
 				commands.append(GameCommand.toggle_pause())
+			elif code in DASH_KEYS:
+				commands.append(GameCommand.dash())
 			elif code in RESTART_KEYS:
-				commands.append(GameCommand.restart())
+				commands.append(GameCommand.restart_from_key())
 		else:
 			_held.erase(code)
 	else:
