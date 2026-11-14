@@ -406,11 +406,11 @@ func _check_target_replacement() -> void:
 	var run_lone: GameRun = _run_of(lone["setup"])
 	var sword_lone: SwordState = run_lone.swords[0]
 	run_lone.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
-	run_lone.step()
+	_steps(run_lone, 5)
 	if sword_lone.ultimate_victim != null:
 		run_lone.kill(sword_lone.ultimate_victim, Vector2.RIGHT)
-	_steps(run_lone, 5)
-	_ok("when the only enemy in the area is killed by something else nobody is chosen next (the corpse is not a candidate) and the sword wanders on", sword_lone.ultimate_victim == null and bool(lone["victim_none"]) and run_lone.kills == int(lone["kills"]) and _phase_name(sword_lone.phase) == String(lone["state"]) and run_lone.trauma <= float(lone["shake_after"]) + SCALAR_TOL)
+	_steps(run_lone, 1)
+	_ok("when the only enemy in the area is killed by something else on the tick its dart is due nobody is chosen next (the corpse is not a candidate) and the sword wanders on", sword_lone.ultimate_victim == null and bool(lone["victim_none"]) and run_lone.kills == int(lone["kills"]) and _phase_name(sword_lone.phase) == String(lone["state"]) and run_lone.trauma <= float(lone["shake_after"]) + SCALAR_TOL)
 	_ok("the dart's turn passes without a hit and the other enemy becomes the victim and is struck one beat later", replaced == bool(other["replaced_by_the_other"]) and hit_on_due_tick == bool(other["other_hit_on_due_tick"]) and _hits(replacement, 500.0) == float(other["other_hits_after_replacement"]))
 	# A victim that left the run (dead and removed at the end of its tick) between darts.
 	var run_removed: GameRun = _run_of(other["setup"])

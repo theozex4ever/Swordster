@@ -312,9 +312,9 @@ def case_target_replacement():
         a = foe(g, (point[0] - 40.0, point[1]))
         sw = g.swords[0]
         key(g, pygame.K_q, mouse=point)
-        tick(g)
-        g.kill(sw.victim, V(1, 0), False)
-        tick(g, 5)
+        tick(g, 5)  # the victim was chosen on tick 1 and is due its dart on tick 6
+        g.kill(sw.victim, V(1, 0), False)  # killed on the very tick it would be re-chosen: the corpse is still in the list
+        tick(g, 1)
         out["killed_only_enemy"] = dict(setup=[a.setup], kills=g.kills, victim_none=sw.victim is None, state=sw.state,
                                         shake_after=r(g.trauma))
     return out
