@@ -1,39 +1,48 @@
 class_name Main
 extends Node2D
 ## Arena scene root. Wires input -> commands -> GameRun, steps the run once per
-## 60 Hz physics tick, and hands the resulting logical pose to the replaceable
-## actor visual. The run never looks at the visual.
+## 60 Hz physics tick, and hands the resulting logical state to the replaceable
+## visuals, HUD and audio. The run never looks at any of them.
 
-## Replaceable actor presentation (root must extend ActorVisual).
+## Replaceable presentation scenes (roots must extend ActorVisual, SwordVisual
+## and EnemyVisual respectively).
 @export var actor_visual: PackedScene
+@export var sword_visual: PackedScene
+@export var enemy_visual: PackedScene
 
+## Starting conditions of the run. Checks set it before adding the scene to the
+## tree; the game leaves it null for the prototype defaults.
+var scenario: RunScenario
 var run: GameRun
 var input: InputTranslator = InputTranslator.new()
 var visual: ActorVisual
 
+## Shake offsets are cosmetic randomness: a stream of their own, never the run's.
+var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
 @onready var _camera: Camera2D = $Camera2D
 @onready var _sfx: SfxBank = $Sfx
 @onready var _hud: Hud = $Hud
+@onready var _presenter: RunPresenter = $Presenter
 
 
 func _ready() -> void:
-	run = GameRun.new()
+	run = GameRun.new(scenario)
+	_fx_rng.randomize()
 	visual = actor_visual.instantiate() as ActorVisual
 	add_child(visual)
-	visual.apply_pose(run.position, run.facing, false)
+	move_child(visual, _presenter.get_index())
+	_presenter.configure(sword_visual, enemy_visual)
+	_present()
 	visual.snap()
 
-	var world: Rect2 = GameRun.WORLD
-	_camera.limit_left = int(world.position.x)
-	_camera.limit_top = int(world.position.y)
-	_camera.limit_right = int(world.end.x)
-	_camera.limit_bottom = int(world.end.y)
-	_camera.global_position = run.position
+	_camera.global_position = run.camera
 	_camera.reset_smoothing()
 
 	_hud.bind_joystick(input.joystick)
 	_hud.pause_pressed.connect(func() -> void: _submit(GameCommand.toggle_pause()))
 	_hud.restart_pressed.connect(func() -> void: _submit(GameCommand.restart()))
+	_hud.dash_pressed.connect(func() -> void: _submit(GameCommand.dash()))
 	get_viewport().size_changed.connect(_update_touch_zone)
 	_update_touch_zone.call_deferred()
 	_hud.show_state(run.paused, _sfx.unlocked)
@@ -77,6 +86,7 @@ func _submit(command: GameCommand) -> void:
 	run.apply(command)
 	if run.restarts != restarts_before:
 		input.release_all()
+		_presenter.reset()
 		_present()
 		visual.snap()
 		_camera.reset_smoothing()
@@ -84,13 +94,28 @@ func _submit(command: GameCommand) -> void:
 		_sfx.play("restart")
 	elif run.paused != was_paused:
 		_sfx.play("pause" if run.paused else "resume")
+	_dispatch_cues()
 	_hud.show_state(run.paused, _sfx.unlocked)
+	_hud.show_run(run)
 
 
 func _present() -> void:
 	var moving: bool = run.velocity.length_squared() > 25.0
 	visual.apply_pose(run.position, run.facing, moving)
-	_camera.global_position = run.position
+	visual.apply_state(run.iframes > 0.0, run.dead)
+	_presenter.sync(run)
+	_dispatch_cues()
+	var trauma_squared: float = run.trauma * run.trauma
+	var shake: Vector2 = Vector2(_fx_rng.randf_range(-1.0, 1.0), _fx_rng.randf_range(-1.0, 1.0)) * trauma_squared * 26.0
+	_camera.global_position = run.camera + shake + run.kick
+	_hud.show_run(run)
+
+
+func _dispatch_cues() -> void:
+	var cues: Array[SimCue] = run.take_cues()
+	for cue: SimCue in cues:
+		_sfx.play_cue(cue)
+	_presenter.apply_cues(cues)
 
 
 func _unlock_audio() -> void:

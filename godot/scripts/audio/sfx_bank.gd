@@ -2,25 +2,37 @@ class_name SfxBank
 extends Node
 ## Plays the baked sound effects. Browsers keep audio locked until the first
 ## click/tap/key; `unlock()` is called on that gesture and everything before it
-## is intentionally silent.
+## is intentionally silent. Like the prototype, the same sound is not restarted
+## within `MIN_GAP_MS` of itself so a crowd of hits cannot machine-gun.
 
-const UNLOCK: AudioStream = preload("res://audio/sfx_unlock.wav")
-const PAUSE: AudioStream = preload("res://audio/sfx_pause.wav")
-const RESUME: AudioStream = preload("res://audio/sfx_resume.wav")
-const RESTART: AudioStream = preload("res://audio/sfx_restart.wav")
+const MIN_GAP_MS: int = 40
+const SOUNDS: Dictionary = {
+	"unlock": preload("res://audio/sfx_unlock.wav"),
+	"pause": preload("res://audio/sfx_pause.wav"),
+	"resume": preload("res://audio/sfx_resume.wav"),
+	"restart": preload("res://audio/sfx_restart.wav"),
+	"hit": preload("res://audio/sfx_hit.wav"),
+	"strike": preload("res://audio/sfx_strike.wav"),
+	"kill": preload("res://audio/sfx_kill.wav"),
+	"hurt": preload("res://audio/sfx_hurt.wav"),
+	"dash": preload("res://audio/sfx_dash.wav"),
+	"wave": preload("res://audio/sfx_wave.wav"),
+}
 
 var unlocked: bool = false
-## Count of sounds actually started; lets headless checks observe playback.
+## Sounds actually started; lets headless checks observe playback.
 var played: Array[String] = []
 
 var _players: Dictionary = {}
+var _last_ms: Dictionary = {}
 
 
 func _ready() -> void:
-	_players["unlock"] = _make_player(UNLOCK)
-	_players["pause"] = _make_player(PAUSE)
-	_players["resume"] = _make_player(RESUME)
-	_players["restart"] = _make_player(RESTART)
+	for sound: String in SOUNDS:
+		var player: AudioStreamPlayer = AudioStreamPlayer.new()
+		player.stream = SOUNDS[sound]
+		add_child(player)
+		_players[sound] = player
 
 
 func unlock() -> void:
@@ -36,12 +48,30 @@ func play(sound: String) -> void:
 	var player: AudioStreamPlayer = _players.get(sound)
 	if player == null:
 		return
+	var now: int = Time.get_ticks_msec()
+	if now - int(_last_ms.get(sound, -1000)) <= MIN_GAP_MS:
+		return
+	_last_ms[sound] = now
 	played.append(sound)
+	if played.size() > 512:
+		played = played.slice(256)
 	player.play()
 
 
-func _make_player(stream: AudioStream) -> AudioStreamPlayer:
-	var player: AudioStreamPlayer = AudioStreamPlayer.new()
-	player.stream = stream
-	add_child(player)
-	return player
+## Maps simulation cues to sounds.
+func play_cue(cue: SimCue) -> void:
+	match cue.kind:
+		SimCue.Kind.ENEMY_HIT:
+			play("hit")
+		SimCue.Kind.SWORD_STRIKE:
+			play("strike")
+		SimCue.Kind.ENEMY_KILLED:
+			play("kill")
+		SimCue.Kind.PLAYER_HURT:
+			play("hurt")
+		SimCue.Kind.DASH:
+			play("dash")
+		SimCue.Kind.WAVE_STARTED:
+			play("wave")
+		_:
+			pass
