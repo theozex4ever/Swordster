@@ -26,6 +26,13 @@ enum Kind {
 	## = back along its flight). Distinct from a hit: the player takes no damage
 	## and PLAYER_HURT is not produced.
 	PROJECTILE_PARRIED,
+	## A sword slot's ultimate started (`position` = where the sword landed, `origin` =
+	## where it was, `direction` = origin toward position, `amount` = the slot index).
+	ULTIMATE_STARTED,
+	## An ultimate command was refused because its sword slot is still recharging
+	## (`position` = the player, `amount` = whole seconds left, `critical` unused).
+	## Refusals for any other reason (paused, dead, already active) are silent.
+	ULTIMATE_REFUSED,
 }
 
 var kind: Kind = Kind.DASH
@@ -34,6 +41,8 @@ var direction: Vector2 = Vector2.ZERO
 ## Damage dealt/taken, where meaningful.
 var amount: int = 0
 var critical: bool = false
+## Where a moving thing came from, when that matters (an ultimate's blink).
+var origin: Vector2 = Vector2.ZERO
 
 
 static func make(kind_value: Kind, at: Vector2, direction_value: Vector2 = Vector2.ZERO, amount_value: int = 0, critical_value: bool = false) -> SimCue:

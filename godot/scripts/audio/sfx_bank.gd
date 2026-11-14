@@ -71,7 +71,7 @@ func play_cue(cue: SimCue) -> void:
 			play("kill")
 		SimCue.Kind.PLAYER_HURT:
 			play("hurt")
-		SimCue.Kind.DASH:
+		SimCue.Kind.DASH, SimCue.Kind.ULTIMATE_STARTED:
 			play("dash")
 		SimCue.Kind.WAVE_STARTED:
 			play("wave")

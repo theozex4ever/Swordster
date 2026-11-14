@@ -238,7 +238,7 @@ func _check_keyboard_translation() -> void:
 	_check("P toggles pause", _kinds(pause_keys.handle_event(_key(KEY_P, true))) == [GameCommand.Kind.TOGGLE_PAUSE])
 	_check("Escape toggles pause", _kinds(pause_keys.handle_event(_key(KEY_ESCAPE, true))) == [GameCommand.Kind.TOGGLE_PAUSE])
 	_check("held pause key does not repeat", pause_keys.handle_event(_key(KEY_P, true, true)).is_empty())
-	_check("R asks for the delayed keyboard restart", _kinds(pause_keys.handle_event(_key(KEY_R, true))) == [GameCommand.Kind.RESTART_FROM_KEY])
+	_check("R is the slot-three ultimate first and then asks for the delayed keyboard restart", _kinds(pause_keys.handle_event(_key(KEY_R, true))) == [GameCommand.Kind.ULTIMATE, GameCommand.Kind.RESTART_FROM_KEY])
 	_check("key release emits no command", pause_keys.handle_event(_key(KEY_P, false)).is_empty())
 
 	var stuck: InputTranslator = InputTranslator.new()
