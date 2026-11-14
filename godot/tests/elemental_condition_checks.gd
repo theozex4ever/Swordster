@@ -517,6 +517,9 @@ func _check_spread() -> void:
 	_ok("the neighbour that was already dead is not ignited, and the two deaths were each rewarded once (kills %d, kill cues %d)" % [run.kills, run.cue_count(SimCue.Kind.ENEMY_KILLED)], run.kills == 2 and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 2 and bool(_at(fire, 33, 7)["dead"]) and float(_at(fire, 33, 7)["burn"]) == 0.0)
 	var poison: Dictionary = _replay("spread", "poison_death_no_spread", "a poisoned and chilled husk killed beside a neighbour")
 	_ok("a death without burning spreads no fire", float(_at(poison, 12, 1)["burn"]) == 0.0 and bool(_at(poison, 12, 0)["dead"]) and (poison["run"] as GameRun).cue_count(SimCue.Kind.FIRE_SPREAD) == 0)
+	var corpse: Dictionary = _replay("spread", "corpse_neighbour", "two burning-chain deaths on one tick")
+	_ok("a neighbour killed on the same tick (still in the run, dead) is not ignited, a living one is (burn %.2f s on the corpse, %.2f s on the living)" % [float(_at(corpse, 5, 1)["burn"]), float(_at(corpse, 5, 2)["burn"])],
+		bool(_at(corpse, 5, 1)["dead"]) and float(_at(corpse, 5, 1)["burn"]) == 0.0 and float(_at(corpse, 5, 2)["burn"]) > 0.0 and (corpse["run"] as GameRun).kills == 2)
 	var killing: Dictionary = _replay("spread", "killing_blow_no_ignite", "a fire sword's killing blow")
 	_ok("a blow that kills afflicts nothing: no burn on the victim, no spread to the neighbour", float(_at(killing, 2, 0)["burn"]) == 0.0 and float(_at(killing, 2, 1)["burn"]) == 0.0 and (killing["run"] as GameRun).cue_count(SimCue.Kind.FIRE_SPREAD) == 0)
 	var blow: Dictionary = _replay("spread", "fire_blow_then_death", "a fire blow that leaves the victim alive, then its death")
@@ -776,6 +779,18 @@ func _check_cues() -> void:
 	_ok("the effects layer shows frozen, shatter, damage and spread cues (%d rings, %d texts, %d element particles) and the run is untouched" % [layer._rings.size(), layer._texts.size(), layer._embers.size()],
 		layer._rings.size() >= 2 and layer._texts.size() >= 2 and layer._embers.size() >= 14 and fresh.snapshot() == before)
 	layer.free()
+	# a burning, a poisoned and a chilled enemy shed particles by themselves, with no cue at all
+	var shedding: GameRun = GameRun.new(_scenario_of((_ref["chain"]["chain"] as Dictionary)["spec"] as Dictionary))
+	shedding.afflict(shedding.enemies[0], &"fire", 7.0)
+	var shedding_layer: EffectsLayer = EffectsLayer.new()
+	var most_particles: int = 0
+	for i: int in 120:
+		shedding.step()
+		shedding.take_cues()
+		shedding_layer.sync(shedding)
+		most_particles = maxi(most_particles, shedding_layer._embers.size())
+	_ok("a burning enemy sheds embers from its state alone, without any cue (up to %d particles at once)" % most_particles, most_particles >= 3)
+	shedding_layer.free()
 
 
 func _check_conditions_encounter() -> void:

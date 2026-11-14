@@ -1314,6 +1314,27 @@
     {"step":1,"enemy":0,"dealt":50.0}
    ]
   },
+  "corpse_neighbour": {
+   "spec": {
+    "swords": [[0,"fire"]],
+    "enemies": [{"kind":"husk","x":1750.0,"y":900.0,"hp":500.0,"speed_scale":0.0},{"kind":"husk","x":1851.0,"y":900.0,"hp":3.0,"speed_scale":0.0},{"kind":"husk","x":1650.0,"y":900.0,"hp":500.0,"speed_scale":0.0}],
+    "events": [{"type":"afflict","step":1,"enemy":0,"element":"fire","power":7.0},{"type":"hit","step":5,"enemy":1,"sword":0,"damage":50.0},{"type":"hit","step":5,"enemy":0,"sword":0,"damage":9999.0}],
+    "steps": 40,
+    "watch": [1,4,5,6,10,40]
+   },
+   "trace": {
+    "1": {"enemies":[{"hp":500.0,"dead":false,"burn":2.9833,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0483,"dot_t":0.4833,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0167},{"hp":3.0,"dead":false,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0167},{"hp":500.0,"dead":false,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0167}],"player_hp":100.0,"kills":0,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]},
+    "4": {"enemies":[{"hp":500.0,"dead":false,"burn":2.9333,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.1933,"dot_t":0.4333,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0667},{"hp":3.0,"dead":false,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0667},{"hp":500.0,"dead":false,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0667}],"player_hp":100.0,"kills":0,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]},
+    "5": {"enemies":[{"hp":-9499.0,"dead":true,"burn":2.9333,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.1933,"dot_t":0.4333,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":-47.0,"dead":true,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":500.0,"dead":false,"burn":2.0833,"burn_dps":1.74,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.029,"dot_t":0.4833,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.0833}],"player_hp":100.0,"kills":2,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]},
+    "6": {"enemies":[{"hp":-9499.0,"dead":true,"burn":2.9333,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.1933,"dot_t":0.4333,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":-47.0,"dead":true,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":500.0,"dead":false,"burn":2.0667,"burn_dps":1.74,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.058,"dot_t":0.4667,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.1}],"player_hp":100.0,"kills":2,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]},
+    "10": {"enemies":[{"hp":-9499.0,"dead":true,"burn":2.9333,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.1933,"dot_t":0.4333,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":-47.0,"dead":true,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":500.0,"dead":false,"burn":2.0,"burn_dps":1.74,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.174,"dot_t":0.4,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.1667}],"player_hp":100.0,"kills":2,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]},
+    "40": {"enemies":[{"hp":-9499.0,"dead":true,"burn":2.9333,"burn_dps":2.9,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.1933,"dot_t":0.4333,"x":1750.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":-47.0,"dead":true,"burn":0.0,"burn_dps":0.0,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":0.0,"dot_t":0.5,"x":1851.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0633,"t":0.0833},{"hp":500.0,"dead":false,"burn":1.5,"burn_dps":1.74,"poison":0.0,"poison_dps":0.0,"poison_stacks":0,"chill":0.0,"chill_stacks":0,"frozen":0.0,"dot":1.044,"dot_t":0.4167,"x":1650.0,"y":900.0,"vx":0.0,"vy":0.0,"stun":0.0,"t":0.6667}],"player_hp":100.0,"kills":2,"projectiles":0,"hitstop":0.0,"swords":[{"state":"idle","ult_cd":0.0}]}
+   },
+   "dealt": [
+    {"step":5,"enemy":1,"dealt":50.0},
+    {"step":5,"enemy":0,"dealt":9999.0}
+   ]
+  },
   "fire_blow_then_death": {
    "spec": {
     "swords": [[0,"fire"]],
@@ -1882,7 +1903,7 @@
   ]
  },
  "fixture_scope": {
-  "enemies_created": 123,
+  "enemies_created": 126,
   "armed_enemies": 0,
   "kinds": [
    "brute",

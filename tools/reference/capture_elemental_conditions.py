@@ -371,6 +371,12 @@ def case_spread():
     out["killing_blow_no_ignite"] = case(dict(
         swords=[[0, "fire"]], enemies=[husk(x=cx, y=cy, hp=5.0), husk(x=ax, y=ay, hp=500.0)],
         events=[hit(1, enemy=0, damage=50.0)], steps=120, watch=[1, 2, 60, 120]))
+    # two die on the same tick: a neighbour struck dead just before the burning one is still in the list
+    # (corpses leave at the end of the tick) and is not ignited, a living one is
+    out["corpse_neighbour"] = case(dict(
+        swords=[[0, "fire"]], enemies=[husk(x=cx, y=cy, hp=500.0), husk(x=ax, y=ay, hp=3.0), husk(x=fx, y=fy, hp=500.0)],
+        events=[dict(type="afflict", step=1, enemy=0, element="fire", power=7.0), hit(5, enemy=1, damage=50.0), hit(5, enemy=0, damage=9999.0)],
+        steps=40, watch=[1, 4, 5, 6, 10, 40]))
     # a blow that leaves the victim alive ignites it, and its later death then spreads
     out["fire_blow_then_death"] = case(dict(
         swords=[[0, "fire"]], enemies=[husk(x=cx, y=cy, hp=500.0), husk(x=ax, y=ay, hp=500.0)],

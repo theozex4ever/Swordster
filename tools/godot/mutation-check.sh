@@ -643,7 +643,9 @@ mutate view-frozen-lost                   scripts/sim/condition_view.gd "	view.f
 mutate view-burning-lost                  scripts/sim/condition_view.gd "	view.burning = conditions.is_burning()" "	view.burning = false"
 mutate view-poison-lost                   scripts/sim/condition_view.gd "	view.poison_stacks = conditions.poison_stacks if conditions.poison > 0.0 else 0" "	view.poison_stacks = 0"
 mutate sword-card-element-lost            scripts/hud.gd "		_ult_elements[slot].text = String(sword.spec.element).to_upper()" "		_ult_elements[slot].text = \"\""
-mutate freeze-sound-lost                  scripts/audio/sfx_bank.gd "SimCue.Kind.PROJECTILE_PARRIED, SimCue.Kind.ENEMY_FROZEN:" "SimCue.Kind.PROJECTILE_PARRIED:"
+mutate freeze-sound-lost                  scripts/audio/sfx_bank.gd "SimCue.Kind.ENEMY_FROZEN:
+			play(\"parry\")" "SimCue.Kind.ENEMY_FROZEN:
+			play(\"hit\")"
 mutate condition-particles-lost           scripts/presentation/effects_layer.gd "		_add_condition_particles(run, dt)
 " ""
 mutate freeze-burst-lost                  scripts/presentation/effects_layer.gd "		SimCue.Kind.ENEMY_FROZEN:
