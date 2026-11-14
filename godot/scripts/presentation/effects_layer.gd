@@ -1,14 +1,18 @@
 class_name EffectsLayer
 extends Node2D
 ## Cosmetic world effects: spawn telegraphs (tinted and sized by enemy type),
-## healing motes, hit rings, damage numbers, crowd-collision sparks, wall-slam
-## bursts and dash afterimages. Purely visual: it reads the run's state and
-## cues, owns its own random stream and never influences gameplay.
+## healing motes, enemy projectiles, hit rings, damage numbers, crowd-collision
+## sparks, wall-slam bursts, dash afterimages and parry sparks. A parry reads
+## differently from a hit on purpose: green sparks and a "PARRY" tag where the
+## orb died, with no number; a hit on an enemy is a white ring and a damage
+## number, a hit on the player a red ring and "-8". Purely visual: it reads the
+## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
 
 var _rings: Array[Dictionary] = []
 var _texts: Array[Dictionary] = []
+var _sparks: Array[Dictionary] = []
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -16,6 +20,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 func clear() -> void:
 	_rings.clear()
 	_texts.clear()
+	_sparks.clear()
 	queue_redraw()
 
 
@@ -30,6 +35,11 @@ func sync(run: GameRun) -> void:
 			text["life"] = float(text["life"]) - dt
 			text["pos"] = Vector2(text["pos"]) + Vector2(text["vel"]) * dt
 			text["vel"] = Vector2(text["vel"]) * exp(-dt * 4.0)
+		for spark: Dictionary in _sparks:
+			spark["life"] = float(spark["life"]) - dt
+			spark["pos"] = Vector2(spark["pos"]) + Vector2(spark["vel"]) * dt
+			spark["vel"] = Vector2(spark["vel"]) * exp(-dt * 7.0)
+		_sparks = _sparks.filter(func(sp: Dictionary) -> bool: return float(sp["life"]) > 0.0)
 		_rings = _rings.filter(func(r: Dictionary) -> bool: return float(r["life"]) > 0.0)
 		_texts = _texts.filter(func(t: Dictionary) -> bool: return float(t["life"]) > 0.0)
 		if run.dash_left > 0.0:
@@ -63,6 +73,15 @@ func apply_cue(cue: SimCue) -> void:
 			_add_text(cue.position + Vector2(0.0, -30.0), "SLAM %d" % cue.amount, Color(1.0, 0.59, 0.47), 0.8, 26)
 		SimCue.Kind.SHOVE:
 			_add_ring(cue.position, 20.0, GameRun.DEV_SHOVE_RADIUS, 0.35, Color(0.75, 0.85, 1.0, 0.7), 3.0)
+		SimCue.Kind.PROJECTILE_FIRED:
+			_add_ring(cue.position, 3.0, 20.0, 0.14, Color(PlaceholderEnemyVisual.SPIT_GLOW, 0.8), 2.0)
+		SimCue.Kind.PROJECTILE_PARRIED:
+			_add_ring(cue.position, 4.0, 30.0, 0.2, Color(PlaceholderEnemyVisual.SPIT_GLOW, 0.95), 2.0)
+			_add_ring(cue.position, 2.0, 16.0, 0.12, Color(1.0, 1.0, 0.92, 0.95), 3.0)
+			for i: int in 10:
+				var heading: float = cue.direction.angle() + _rng.randf_range(-1.1, 1.1)
+				_add_spark(cue.position, SimMath.polar(heading, _rng.randf_range(150.0, 450.0)), _rng.randf_range(0.12, 0.28))
+			_add_text(cue.position + Vector2(0.0, -20.0), "PARRY", PlaceholderEnemyVisual.SPIT_GLOW, 0.55, 20)
 		_:
 			pass
 
@@ -70,6 +89,11 @@ func apply_cue(cue: SimCue) -> void:
 func _add_ring(at: Vector2, r0: float, r1: float, life: float, color: Color, width: float) -> void:
 	if _rings.size() < MAX_EFFECTS:
 		_rings.append({"pos": at, "r0": r0, "r1": r1, "life": life, "max": life, "color": color, "width": width})
+
+
+func _add_spark(at: Vector2, velocity: Vector2, life: float) -> void:
+	if _sparks.size() < MAX_EFFECTS:
+		_sparks.append({"pos": at, "vel": velocity, "life": life, "max": life})
 
 
 func _add_text(at: Vector2, text: String, color: Color, life: float, size: int) -> void:
@@ -90,6 +114,13 @@ func _draw() -> void:
 	for mote: Mote in _run.motes:
 		draw_circle(mote.position, 6.0, Color(0.4, 1.0, 0.8, 0.25))
 		draw_circle(mote.position, 3.0, Color(0.75, 1.0, 0.92))
+	for projectile: ProjectileState in _run.projectiles:
+		_draw_projectile(projectile)
+	for spark: Dictionary in _sparks:
+		var fade: float = clampf(float(spark["life"]) / float(spark["max"]), 0.0, 1.0)
+		var head: Vector2 = Vector2(spark["pos"])
+		var tail: Vector2 = head - Vector2(spark["vel"]) * 0.025
+		draw_line(tail, head, Color(0.85, 1.0, 0.65, fade), 2.0)
 	for ring: Dictionary in _rings:
 		var t: float = 1.0 - float(ring["life"]) / float(ring["max"])
 		var color: Color = ring["color"]
@@ -103,3 +134,15 @@ func _draw() -> void:
 		var at: Vector2 = Vector2(text["pos"])
 		draw_string(font, at + Vector2(2.0, 2.0), String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), Color(0.0, 0.0, 0.0, a))
 		draw_string(font, at, String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), color)
+
+
+## An orb: a green glow, a body and a bright core, with a short streak behind it
+## along its flight. Drawn size is the visual's own (collision uses
+## `ProjectileState.radius`).
+func _draw_projectile(projectile: ProjectileState) -> void:
+	var glow: Color = PlaceholderEnemyVisual.SPIT_GLOW
+	var back: Vector2 = -projectile.velocity.normalized() * 14.0
+	draw_line(projectile.position, projectile.position + back, Color(glow, 0.35), 5.0)
+	draw_circle(projectile.position, 14.0, Color(glow, 0.18))
+	draw_circle(projectile.position, ProjectileState.RADIUS, Color(0.67, 0.94, 0.47))
+	draw_circle(projectile.position, ProjectileState.RADIUS * 0.5, Color(0.94, 1.0, 0.86))

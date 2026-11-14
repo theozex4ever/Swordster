@@ -111,7 +111,9 @@ mutate fang-range           scripts/sim/sword_defs.gd "FANG_RANGE: float = 175.0
 mutate fang-windup          scripts/sim/sword_defs.gd "FANG_WINDUP: float = 0.06" "FANG_WINDUP: float = 0.2"
 mutate fang-knockback       scripts/sim/sword_defs.gd "FANG_KNOCK: float = 170.0" "FANG_KNOCK: float = 400.0"
 mutate restart-keeps-enemies scripts/sim/game_run.gd "	enemies = []
-	for at: Vector2 in scenario.initial_husks:" "	for at: Vector2 in scenario.initial_husks:"
+	projectiles = []
+	for at: Vector2 in scenario.initial_husks:" "	projectiles = []
+	for at: Vector2 in scenario.initial_husks:"
 mutate camera-no-lookahead  scripts/sim/game_run.gd  "CAMERA_LOOKAHEAD: float = 0.12" "CAMERA_LOOKAHEAD: float = 0.0"
 mutate telegraph-shortened  scripts/sim/spawn_marker.gd "TELEGRAPH: float = 0.7" "TELEGRAPH: float = 0.1"
 mutate wave-never-clears    scripts/sim/wave_director.gd "		if wave >= _wave_count:
@@ -199,7 +201,7 @@ mutate shove-knock          scripts/sim/game_run.gd "DEV_SHOVE_KNOCK: float = 65
 mutate shove-ignores-resistance scripts/sim/game_run.gd "DEV_SHOVE_KNOCK * enemy.knock_mult" "DEV_SHOVE_KNOCK"
 mutate shove-wakes-the-dead scripts/sim/game_run.gd "		if enemy.dead or offset.length() > DEV_SHOVE_RADIUS:" "		if offset.length() > DEV_SHOVE_RADIUS:"
 mutate shove-key-lost       scripts/input/input_translator.gd "SHOVE_KEYS: Array[Key] = [KEY_F]" "SHOVE_KEYS: Array[Key] = [KEY_G]"
-mutate encounter-toggle-lost scripts/sim/game_run.gd "			restart_with(_home_scenario if scenario.dev_shove else _crowd_scenario)" "			pass"
+mutate encounter-toggle-lost scripts/sim/game_run.gd "			restart_with(_encounter_scenarios[RunScenario.ENCOUNTER_CYCLE.find(RunScenario.next_encounter(scenario.encounter))])" "			pass"
 mutate restart-with-keeps-scenario scripts/sim/game_run.gd "	scenario = new_scenario
 	restarts += 1" "	restarts += 1"
 mutate restart-keeps-cue-counts scripts/sim/game_run.gd "	_cue_counts = {}
@@ -214,7 +216,7 @@ mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_
 mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
 mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
 mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run)))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run)))"
-mutate stun-flag-dropped    scripts/presentation/run_presenter.gd "enemy.hp / enemy.max_hp, enemy.stun > 0.0)" "enemy.hp / enemy.max_hp, false)"
+mutate stun-flag-dropped    scripts/presentation/run_presenter.gd "enemy.hp / enemy.max_hp, enemy.stun > 0.0, enemy.telegraph())" "enemy.hp / enemy.max_hp, false, enemy.telegraph())"
 mutate brute-drawn-small    scripts/presentation/placeholder_enemy_visual.gd "			return 30.0" "			return 16.0"
 mutate runner-same-colour   scripts/presentation/placeholder_enemy_visual.gd "const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)" "const RUNNER_COLOR: Color = Color(0.84, 0.28, 0.34)"
 mutate shove-button-on-release scripts/hud.gd "_shove_button.button_down.connect" "_shove_button.pressed.connect"
@@ -230,6 +232,137 @@ mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: floa
 
 func _physics_process(_delta: float) -> void:"
 mutate wall-slam-sound-lost scripts/audio/sfx_bank.gd "		SimCue.Kind.ENEMY_HIT, SimCue.Kind.WALL_SLAM:" "		SimCue.Kind.ENEMY_HIT:"
+
+# --- spitters, projectiles and parries (slice #10)
+mutate spitter-radius              scripts/sim/enemy_defs.gd "SPITTER_RADIUS: float = 15.0" "SPITTER_RADIUS: float = 12.0"
+mutate spitter-hp                  scripts/sim/enemy_defs.gd "SPITTER_HP: float = 24.0" "SPITTER_HP: float = 30.0"
+mutate spitter-speed               scripts/sim/enemy_defs.gd "SPITTER_SPEED: float = 85.0" "SPITTER_SPEED: float = 100.0"
+mutate spitter-damage              scripts/sim/enemy_defs.gd "SPITTER_DAMAGE: int = 8" "SPITTER_DAMAGE: int = 10"
+mutate spitter-knock               scripts/sim/enemy_defs.gd "SPITTER_KNOCK: float = 1.1" "SPITTER_KNOCK: float = 1.0"
+mutate spitter-retreat-range       scripts/sim/enemy_defs.gd "SPITTER_RETREAT_RANGE: float = 260.0" "SPITTER_RETREAT_RANGE: float = 200.0"
+mutate spitter-orbit-range         scripts/sim/enemy_defs.gd "SPITTER_ORBIT_RANGE: float = 380.0" "SPITTER_ORBIT_RANGE: float = 450.0"
+mutate spitter-orbit-speed         scripts/sim/enemy_defs.gd "SPITTER_ORBIT_SPEED: float = 0.6" "SPITTER_ORBIT_SPEED: float = 1.0"
+mutate spitter-fire-range          scripts/sim/enemy_defs.gd "SPITTER_FIRE_RANGE: float = 620.0" "SPITTER_FIRE_RANGE: float = 500.0"
+mutate spitter-charge-slow         scripts/sim/enemy_defs.gd "SPITTER_CHARGE_SLOW: float = 0.15" "SPITTER_CHARGE_SLOW: float = 0.5"
+mutate spitter-charge-time         scripts/sim/enemy_defs.gd "SPITTER_CHARGE_TIME: float = 0.5" "SPITTER_CHARGE_TIME: float = 0.3"
+mutate spitter-cooldown-min        scripts/sim/enemy_defs.gd "SPITTER_COOLDOWN_MIN: float = 2.0" "SPITTER_COOLDOWN_MIN: float = 1.0"
+mutate spitter-cooldown-max        scripts/sim/enemy_defs.gd "SPITTER_COOLDOWN_MAX: float = 2.9" "SPITTER_COOLDOWN_MAX: float = 4.0"
+mutate spitter-first-cooldown-max  scripts/sim/enemy_defs.gd "SPITTER_FIRST_COOLDOWN_MAX: float = 3.0" "SPITTER_FIRST_COOLDOWN_MAX: float = 5.0"
+mutate spitter-first-cooldown-min  scripts/sim/enemy_defs.gd "SPITTER_FIRST_COOLDOWN_MIN: float = 1.5" "SPITTER_FIRST_COOLDOWN_MIN: float = 0.5"
+mutate spitter-shot-speed          scripts/sim/enemy_defs.gd "SPITTER_SHOT_SPEED: float = 270.0" "SPITTER_SHOT_SPEED: float = 200.0"
+mutate projectile-radius           scripts/sim/projectile_state.gd "const RADIUS: float = 7.0" "const RADIUS: float = 10.0"
+mutate projectile-lifetime         scripts/sim/projectile_state.gd "const LIFETIME: float = 4.0" "const LIFETIME: float = 3.0"
+mutate projectile-damage           scripts/sim/projectile_state.gd "const DAMAGE: int = 8" "const DAMAGE: int = 10"
+mutate spitter-never-retreats      scripts/sim/enemy_state.gd "if dist < EnemyDefs.SPITTER_RETREAT_RANGE:" "if false:"
+mutate spitter-orbit-direction     scripts/sim/enemy_state.gd "want = Vector2(-toward.y, toward.x) * speed * EnemyDefs.SPITTER_ORBIT_SPEED" "want = Vector2(toward.y, -toward.x) * speed * EnemyDefs.SPITTER_ORBIT_SPEED"
+mutate spitter-never-orbits        scripts/sim/enemy_state.gd "elif dist < EnemyDefs.SPITTER_ORBIT_RANGE:" "elif false:"
+mutate spitter-ignores-cooldown    scripts/sim/enemy_state.gd "if shoot_cooldown <= 0.0 and dist < EnemyDefs.SPITTER_FIRE_RANGE:" "if dist < EnemyDefs.SPITTER_FIRE_RANGE:"
+mutate spitter-shoots-out-of-range scripts/sim/enemy_state.gd "if shoot_cooldown <= 0.0 and dist < EnemyDefs.SPITTER_FIRE_RANGE:" "if shoot_cooldown <= 0.0:"
+mutate spitter-no-charge-slow      scripts/sim/enemy_state.gd "want *= EnemyDefs.SPITTER_CHARGE_SLOW" "want *= 1.0"
+mutate spitter-stun-keeps-charge   scripts/sim/enemy_state.gd "		velocity *= exp(-dt * 5.0)
+		charge = 0.0
+" "		velocity *= exp(-dt * 5.0)
+"
+mutate spitter-fires-wrong-way     scripts/sim/enemy_state.gd "toward * EnemyDefs.SPITTER_SHOT_SPEED)" "Vector2.RIGHT * EnemyDefs.SPITTER_SHOT_SPEED)"
+mutate spitter-muzzle-at-centre    scripts/sim/enemy_state.gd "run.spawn_projectile(position + toward * radius," "run.spawn_projectile(position,"
+mutate spitter-no-cooldown         scripts/sim/enemy_state.gd "shoot_cooldown = run.rng.randf_range(EnemyDefs.SPITTER_COOLDOWN_MIN, EnemyDefs.SPITTER_COOLDOWN_MAX)" "shoot_cooldown = 0.0"
+mutate spitter-fixed-cooldown      scripts/sim/enemy_state.gd "shoot_cooldown = run.rng.randf_range(EnemyDefs.SPITTER_COOLDOWN_MIN, EnemyDefs.SPITTER_COOLDOWN_MAX)" "shoot_cooldown = 2.45"
+mutate spitter-charge-not-reset    scripts/sim/enemy_state.gd "			charge = 0.0
+			shoot_cooldown = run.rng" "			shoot_cooldown = run.rng"
+mutate spitter-shoots-over-the-dead scripts/sim/enemy_state.gd "		if run.dead:
+			want = SimMath.polar(age * 0.3 + float(serial % 7), speed * 0.3)
+		elif kind == EnemyDefs.SPITTER:" "		if run.dead and kind != EnemyDefs.SPITTER:
+			want = SimMath.polar(age * 0.3 + float(serial % 7), speed * 0.3)
+		elif kind == EnemyDefs.SPITTER:"
+mutate spitter-telegraph-lost      scripts/sim/enemy_state.gd "return clampf(charge / EnemyDefs.SPITTER_CHARGE_TIME, 0.0, 1.0)" "return 0.0"
+mutate spawned-spitter-no-cooldown scripts/sim/wave_director.gd "cooldown = run.rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
+mutate placed-spitter-no-cooldown-draw scripts/sim/game_run.gd "cooldown = rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
+mutate placement-cooldown-dropped  scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0))" "placement.phase, 0.0)"
+mutate placement-charge-dropped    scripts/sim/game_run.gd "		enemy.charge = placement.charge
+" ""
+mutate projectile-never-moves      scripts/sim/game_run.gd "projectile.position += projectile.velocity * dt" "projectile.position += Vector2.ZERO"
+mutate projectile-ignores-slow-motion scripts/sim/game_run.gd "projectile.position += projectile.velocity * dt" "projectile.position += projectile.velocity * TICK_DT"
+mutate projectile-never-expires    scripts/sim/game_run.gd "projectile.life -= dt" "projectile.life -= 0.0"
+mutate projectile-immortal-in-arena scripts/sim/game_run.gd "elif not WORLD.has_point(projectile.position):" "elif false:"
+mutate projectile-ignores-invulnerability scripts/sim/game_run.gd "elif iframes <= 0.0 and not dead and (projectile.position - position)" "elif not dead and (projectile.position - position)"
+mutate projectile-hits-the-dead    scripts/sim/game_run.gd "elif iframes <= 0.0 and not dead and (projectile.position - position)" "elif iframes <= 0.0 and (projectile.position - position)"
+mutate projectile-hit-radius       scripts/sim/game_run.gd "< projectile.radius + PLAYER_RADIUS:" "< projectile.radius:"
+mutate projectile-knock-source     scripts/sim/game_run.gd "hurt_player(ProjectileState.DAMAGE, projectile.position)" "hurt_player(ProjectileState.DAMAGE, position + Vector2.RIGHT * 1000.0)"
+mutate projectile-damage-from-shooter scripts/sim/game_run.gd "hurt_player(ProjectileState.DAMAGE, projectile.position)" "hurt_player(3, projectile.position)"
+mutate resolved-projectile-still-hits scripts/sim/game_run.gd "		if projectile.is_resolved():
+			continue
+		projectile.position += " "		projectile.position += "
+mutate projectile-update-dropped   scripts/sim/game_run.gd "	_update_projectiles(dt)
+" ""
+mutate projectile-not-cleared-on-restart scripts/sim/game_run.gd "	enemies = []
+	projectiles = []
+" "	enemies = []
+"
+mutate firing-not-reported         scripts/sim/game_run.gd "	add_cue(SimCue.make(SimCue.Kind.PROJECTILE_FIRED, at, velocity_value.normalized()))
+" ""
+mutate parry-ignores-radius        scripts/sim/game_run.gd "< projectile.radius + pad:" "< pad:"
+mutate parry-point-test            scripts/sim/game_run.gd "SimMath.seg_dist(projectile.position, from, to) <" "(projectile.position - to).length() <"
+mutate parry-twice                 scripts/sim/game_run.gd "		if projectile.is_resolved():
+			continue
+		if SimMath.seg_dist" "		if SimMath.seg_dist"
+mutate parry-no-hitstop            scripts/sim/game_run.gd "			hitstop = maxf(hitstop, PARRY_HITSTOP)
+" ""
+mutate parry-hitstop-value         scripts/sim/game_run.gd "PARRY_HITSTOP: float = 0.025" "PARRY_HITSTOP: float = 0.1"
+mutate parry-hitstop-overwrites    scripts/sim/game_run.gd "hitstop = maxf(hitstop, PARRY_HITSTOP)" "hitstop = PARRY_HITSTOP"
+mutate parry-not-reported         scripts/sim/game_run.gd "			add_cue(SimCue.make(SimCue.Kind.PROJECTILE_PARRIED, projectile.position, SimMath.norm(-projectile.velocity, rng, Vector2.LEFT, true)))
+" ""
+mutate parry-cue-direction         scripts/sim/game_run.gd "SimMath.norm(-projectile.velocity, rng, Vector2.LEFT, true)" "SimMath.norm(projectile.velocity, rng, Vector2.LEFT, true)"
+mutate parry-count-lost            scripts/sim/game_run.gd "			parried += 1
+" ""
+mutate slam-clear-radius           scripts/sim/game_run.gd "(projectile.position - center).length() < radius:" "(projectile.position - center).length() < radius * 2.0:"
+mutate slam-clear-reported-as-parry scripts/sim/game_run.gd "			projectile.resolve(ProjectileState.Fate.CLEARED)
+" "			projectile.resolve(ProjectileState.Fate.PARRIED)
+"
+mutate resolve-last-wins           scripts/sim/projectile_state.gd "	if fate != Fate.FLYING:
+		return false
+	fate = how" "	fate = how"
+mutate fang-parry-removed          scripts/sim/sword_state.gd "	run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD)
+" ""
+mutate fang-parry-tip-only         scripts/sim/sword_state.gd "run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD)" "run.parry_projectiles(tip, tip, SwordDefs.FANG_PARRY_PAD)"
+mutate fang-parry-on-hit           scripts/sim/sword_state.gd "			run.hit_enemy(enemy, damage * boost, dir, SwordDefs.FANG_KNOCK, self)
+" "			run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD)
+			run.hit_enemy(enemy, damage * boost, dir, SwordDefs.FANG_KNOCK, self)
+"
+mutate fang-parry-pad-small        scripts/sim/sword_defs.gd "FANG_PARRY_PAD: float = 8.0" "FANG_PARRY_PAD: float = 4.0"
+mutate fang-parry-pad-large        scripts/sim/sword_defs.gd "FANG_PARRY_PAD: float = 8.0" "FANG_PARRY_PAD: float = 20.0"
+mutate fang-parry-ends-strike      scripts/sim/sword_state.gd "	run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD)
+" "	if run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD) > 0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.FANG_RECOVER_AFTER_MISS
+"
+mutate cycle-skips-spitters        scripts/sim/game_run.gd "restart_with(_encounter_scenarios[RunScenario.ENCOUNTER_CYCLE.find(RunScenario.next_encounter(scenario.encounter))])" "restart_with(_encounter_scenarios[0 if scenario.encounter != RunScenario.ENCOUNTER_NORMAL else 1])"
+mutate cycle-too-short             scripts/sim/run_scenario.gd "% ENCOUNTER_CYCLE.size()]" "% 2]"
+mutate spitter-wave-short          scripts/sim/run_scenario.gd "&\"spitter\", &\"husk\", &\"spitter\", &\"spitter\", &\"husk\", &\"spitter\", &\"husk\", &\"spitter\"," "&\"spitter\", &\"husk\", &\"spitter\", &\"husk\","
+mutate spitter-encounter-with-shove scripts/sim/run_scenario.gd "	scenario.encounter = ENCOUNTER_SPITTERS
+" "	scenario.encounter = ENCOUNTER_SPITTERS
+	scenario.dev_shove = true
+"
+mutate spitter-launch-option-lost  scripts/launch_options.gd "\"spitters\":" "\"spitterz\":"
+mutate dev-button-label-lost       scripts/hud.gd "\"Dev: %s (restarts)\" % RunScenario" "\"%s\" % RunScenario"
+mutate spitter-legend-lost         scripts/hud.gd "SPITTER ENCOUNTER (dev fixture)" "ENCOUNTER"
+mutate parry-sound-lost            scripts/audio/sfx_bank.gd "SimCue.Kind.PROJECTILE_PARRIED:
+			play(\"parry\")" "SimCue.Kind.PROJECTILE_PARRIED:
+			play(\"hit\")"
+mutate shot-sound-lost             scripts/audio/sfx_bank.gd "SimCue.Kind.PROJECTILE_FIRED:
+			play(\"shot\")" "SimCue.Kind.PROJECTILE_FIRED:
+			pass"
+mutate telegraph-not-passed        scripts/presentation/run_presenter.gd "enemy.stun > 0.0, enemy.telegraph())" "enemy.stun > 0.0, 0.0)"
+mutate spitter-same-colour-as-husk scripts/presentation/placeholder_enemy_visual.gd "const SPITTER_COLOR: Color = Color(0.51, 0.82, 0.35)" "const SPITTER_COLOR: Color = Color(0.84, 0.28, 0.34)"
+mutate spitter-drawn-small         scripts/presentation/placeholder_enemy_visual.gd "		EnemyDefs.SPITTER:
+			return 15.0" "		EnemyDefs.SPITTER:
+			return 10.0"
+mutate render-rate-spitters-dependent scripts/sim/game_run.gd "	_update_projectiles(dt)
+	_update_motes(dt)
+" "	_update_projectiles(dt)
+	_update_motes(dt)
+	if tick % 7 == 0:
+		_update_projectiles(dt)
+"
 
 echo
 if ((survived)); then echo "$survived mutation(s) survived"; fi

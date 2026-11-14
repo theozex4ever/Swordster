@@ -20,6 +20,12 @@ enum Kind {
 	WALL_SLAM,
 	## The dev shove went off around the player.
 	SHOVE,
+	## A spitter fired an orb (`position` = the muzzle, `direction` = its heading).
+	PROJECTILE_FIRED,
+	## A sword parried an orb (`position` = where it was destroyed, `direction`
+	## = back along its flight). Distinct from a hit: the player takes no damage
+	## and PLAYER_HURT is not produced.
+	PROJECTILE_PARRIED,
 }
 
 var kind: Kind = Kind.DASH

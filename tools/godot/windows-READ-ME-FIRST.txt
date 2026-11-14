@@ -6,9 +6,10 @@ Source commit: @SOURCE_COMMIT@
 
 This is an early test of the new Swordster. Three spirit swords fight on
 their own while you move and dash. You can fight one wave of husks, or try
-the CROWD ENCOUNTER (runners, brutes and a way to fling them into each other
-and the wall). Other sword types, special attacks and later waves come in
-later builds.
+the two DEV ENCOUNTERS: the CROWD (runners, brutes and a way to fling them into
+each other and the wall) and the SPITTERS (green foes that keep their distance
+and shoot glowing orbs; your swords can sweep the orbs away). Other sword
+types, special attacks and later waves come in later builds.
 
 Nothing to install. It takes about a minute to get started.
 
@@ -40,15 +41,23 @@ CONTROLS
   Dash ....................... Space or Shift
   Pause / resume ............. P or Esc
   Start over after dying ..... R
-  Crowd encounter on / off ... C (or the Crowd / Normal button, top right)
+  Next dev encounter ......... C (or the "Dev: ..." button, top right under
+                               Pause). It goes normal -> crowd -> spitters ->
+                               normal and RESTARTS the run each time.
   Fling nearby foes .......... F (crowd encounter only; or the Shove button)
 
-In the crowd encounter, foes are colour-coded: red husks, small orange
-spiky runners and big purple brutes. A white dashed ring means a foe is
-knocked back. Fling foes into each other or into the arena wall to hurt them.
+Foes are colour-coded: red husks, small orange spiky runners, big purple
+brutes and green spitters. A white dashed ring means a foe is knocked back.
+In the crowd encounter, fling foes into each other or into the arena wall to
+hurt them.
+
+A spitter turns toward you, glows at its snout for half a second (a dashed
+line shows where it will fire) and then spits a slow green orb. An orb hurts
+(8 health) unless you are dashing or just got hurt. A striking sword that
+sweeps through an orb destroys it with a green flash and a PARRY tag.
 
 On a touch screen: drag on the left side to move; use the Dash button at
-the bottom right, and the Pause, Restart and Crowd buttons at the top right.
+the bottom right, and the Pause, Restart and Dev buttons at the top right.
 
 
 IF SOMETHING GOES WRONG
@@ -72,8 +81,10 @@ this file (it is also shown in the top-left corner of the game). Some ideas:
 
 - Was it easy to get the game running?
 - Did the movement and dash feel good? Did pausing and restarting work?
-- In the crowd encounter, could you tell the three kinds of foe apart?
-  Was it clear when something was flung into a wall or another foe?
+- Could you tell the four kinds of foe apart? Was it clear when something
+  was flung into a wall or another foe?
+- In the spitter encounter, could you see a shot coming (the glow and the
+  dashed line)? Could you tell a parried orb from one that hit you?
 - Did you hear the sounds?
 - Did anything strange happen (freezing, glitches, crashes)?
   What were you doing when it happened?

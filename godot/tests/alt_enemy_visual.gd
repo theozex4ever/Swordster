@@ -5,6 +5,7 @@ extends EnemyVisual
 
 var last_hp_fraction: float = -1.0
 var last_stunned: bool = false
+var last_telegraph: float = 0.0
 var pose_calls: int = 0
 
 
@@ -13,7 +14,8 @@ func _init() -> void:
 	rotation = -0.6
 
 
-func _on_pose(_facing: Vector2, _flash: float, _squash: float, hp_fraction: float, stunned: bool) -> void:
+func _on_pose(_facing: Vector2, _flash: float, _squash: float, hp_fraction: float, stunned: bool, telegraph: float) -> void:
 	last_hp_fraction = hp_fraction
 	last_stunned = stunned
+	last_telegraph = telegraph
 	pose_calls += 1

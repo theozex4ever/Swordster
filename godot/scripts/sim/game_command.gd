@@ -51,9 +51,8 @@ static func dev_shove() -> GameCommand:
 	return _of(Kind.DEV_SHOVE)
 
 
-## DEVELOPMENT FIXTURE: switches between the normal wave and the crowd
-## encounter. The run does not interpret it; the scene that owns the scenarios
-## does, by restarting the run with the other one.
+## DEVELOPMENT FIXTURE: cycles to the next dev encounter (normal -> crowd ->
+## spitters -> normal) and restarts play in it.
 static func toggle_encounter() -> GameCommand:
 	return _of(Kind.TOGGLE_ENCOUNTER)
 

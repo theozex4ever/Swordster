@@ -1,0 +1,1835 @@
+{
+  "table": {
+    "spitter": {
+      "r": 15,
+      "hp": 24,
+      "speed": 85,
+      "dmg": 8,
+      "knock": 1.1
+    },
+    "wave_health": {
+      "1": 24.0,
+      "2": 26.4,
+      "3": 28.8,
+      "5": 33.6
+    },
+    "projectile": {
+      "r": 7,
+      "life": 4.0
+    },
+    "initial_shoot_cd_range": [
+      1.5,
+      3.0
+    ],
+    "shot_speed": 270.0
+  },
+  "movement": {
+    "retreat_150": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1150.0,
+          "y": 940.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "trace": {
+        "0.25": {
+          "x": -160.749,
+          "y": 42.867,
+          "vx": -65.22,
+          "vy": 17.392,
+          "fx": 0.9662,
+          "fy": -0.2577,
+          "shot": 0
+        },
+        "0.5": {
+          "x": -179.268,
+          "y": 47.805,
+          "vx": -78.648,
+          "vy": 20.973,
+          "fx": 0.9662,
+          "fy": -0.2577,
+          "shot": 0
+        },
+        "1.0": {
+          "x": -219.833,
+          "y": 58.622,
+          "vx": -81.982,
+          "vy": 21.862,
+          "fx": 0.9662,
+          "fy": -0.2577,
+          "shot": 0
+        },
+        "2.0": {
+          "x": -256.555,
+          "y": 93.191,
+          "vx": 14.123,
+          "vy": 47.838,
+          "fx": 0.9409,
+          "fy": -0.3386,
+          "shot": 0
+        }
+      }
+    },
+    "orbit_300": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1000.0,
+          "y": 940.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "trace": {
+        "0.25": {
+          "x": -299.084,
+          "y": 46.612,
+          "vx": 5.778,
+          "vy": 40.084,
+          "fx": 0.9884,
+          "fy": -0.1518,
+          "shot": 0
+        },
+        "0.5": {
+          "x": -297.283,
+          "y": 57.968,
+          "vx": 8.305,
+          "vy": 48.121,
+          "fx": 0.982,
+          "fy": -0.1888,
+          "shot": 0
+        },
+        "1.0": {
+          "x": -292.039,
+          "y": 82.593,
+          "vx": 12.501,
+          "vy": 49.333,
+          "fx": 0.963,
+          "fy": -0.2695,
+          "shot": 0
+        },
+        "2.0": {
+          "x": -275.398,
+          "y": 130.706,
+          "vx": 20.567,
+          "vy": 46.649,
+          "fx": 0.9046,
+          "fy": -0.4262,
+          "shot": 0
+        }
+      }
+    },
+    "approach_450": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 850.0,
+          "y": 940.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "trace": {
+        "0.25": {
+          "x": -438.919,
+          "y": 39.015,
+          "vx": 67.234,
+          "vy": -5.976,
+          "fx": 0.9961,
+          "fy": -0.0885,
+          "shot": 0
+        },
+        "0.5": {
+          "x": -419.828,
+          "y": 37.318,
+          "vx": 81.077,
+          "vy": -7.207,
+          "fx": 0.9961,
+          "fy": -0.0885,
+          "shot": 0
+        },
+        "1.0": {
+          "x": -378.011,
+          "y": 33.601,
+          "vx": 84.514,
+          "vy": -7.512,
+          "fx": 0.9961,
+          "fy": -0.0885,
+          "shot": 0
+        },
+        "2.0": {
+          "x": -359.665,
+          "y": 75.442,
+          "vx": 9.468,
+          "vy": 50.024,
+          "fx": 0.9792,
+          "fy": -0.203,
+          "shot": 0
+        }
+      }
+    },
+    "far_800": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 500.0,
+          "y": 940.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "trace": {
+        "0.25": {
+          "x": -788.889,
+          "y": 39.444,
+          "vx": 67.415,
+          "vy": -3.371,
+          "fx": 0.9988,
+          "fy": -0.0499,
+          "shot": 0
+        },
+        "0.5": {
+          "x": -769.747,
+          "y": 38.487,
+          "vx": 81.295,
+          "vy": -4.065,
+          "fx": 0.9988,
+          "fy": -0.0499,
+          "shot": 0
+        },
+        "1.0": {
+          "x": -727.817,
+          "y": 36.391,
+          "vx": 84.741,
+          "vy": -4.237,
+          "fx": 0.9988,
+          "fy": -0.0499,
+          "shot": 0
+        },
+        "2.0": {
+          "x": -642.946,
+          "y": 32.147,
+          "vx": 84.894,
+          "vy": -4.245,
+          "fx": 0.9988,
+          "fy": -0.0499,
+          "shot": 0
+        }
+      }
+    },
+    "band_edges": {
+      "259.0": {
+        "setup": {
+          "kind": "spitter",
+          "x": 1041.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": -8.5,
+        "vy": 0.0
+      },
+      "259.9": {
+        "setup": {
+          "kind": "spitter",
+          "x": 1040.1,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": -8.5,
+        "vy": 0.0
+      },
+      "260.1": {
+        "setup": {
+          "kind": "spitter",
+          "x": 1039.9,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 0.0,
+        "vy": 5.1
+      },
+      "261.0": {
+        "setup": {
+          "kind": "spitter",
+          "x": 1039.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 0.0,
+        "vy": 5.1
+      },
+      "379.0": {
+        "setup": {
+          "kind": "spitter",
+          "x": 921.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 0.0,
+        "vy": 5.1
+      },
+      "379.9": {
+        "setup": {
+          "kind": "spitter",
+          "x": 920.1,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 0.0,
+        "vy": 5.1
+      },
+      "380.1": {
+        "setup": {
+          "kind": "spitter",
+          "x": 919.9,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 8.5,
+        "vy": 0.0
+      },
+      "381.0": {
+        "setup": {
+          "kind": "spitter",
+          "x": 919.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "vx": 8.5,
+        "vy": 0.0
+      }
+    },
+    "orbit_from_east": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1600.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "vx": -0.161,
+      "vy": -33.217
+    }
+  },
+  "shooting": {
+    "first_shot": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1750.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 1.0,
+          "charge": 0.0
+        }
+      ],
+      "tick": 90,
+      "x": -19.445,
+      "y": 0.267,
+      "vx": -269.993,
+      "vy": 2.006,
+      "spitter_x": 1666.896,
+      "spitter_y": 897.151,
+      "charge_after": 0.0,
+      "cooldown_after_range": [
+        2.0,
+        2.9
+      ],
+      "shoot_cd_after": 2.575,
+      "charge_trace": {
+        "50": {
+          "charge": 0.0,
+          "shoot_cd": 0.167,
+          "vx": -84.562,
+          "vy": 0.0
+        },
+        "60": {
+          "charge": 0.017,
+          "shoot_cd": -0.0,
+          "vx": -76.347,
+          "vy": -0.765
+        },
+        "61": {
+          "charge": 0.033,
+          "shoot_cd": -0.017,
+          "vx": -68.713,
+          "vy": -1.453
+        },
+        "62": {
+          "charge": 0.05,
+          "shoot_cd": -0.033,
+          "vx": -61.841,
+          "vy": -2.073
+        },
+        "70": {
+          "charge": 0.183,
+          "shoot_cd": -0.167,
+          "vx": -26.624,
+          "vy": -5.249
+        },
+        "80": {
+          "charge": 0.35,
+          "shoot_cd": -0.333,
+          "vx": -9.299,
+          "vy": -6.813
+        },
+        "90": {
+          "charge": 0.0,
+          "shoot_cd": 2.575,
+          "vx": -3.273,
+          "vy": -7.358
+        }
+      }
+    },
+    "shot_intervals": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1630.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 0.6,
+          "charge": 0.0
+        }
+      ],
+      "fire_ticks": [
+        66,
+        220,
+        398,
+        553,
+        745,
+        917,
+        1089,
+        1282,
+        1471,
+        1655
+      ],
+      "intervals_ticks": [
+        154,
+        178,
+        155,
+        192,
+        172,
+        172,
+        193,
+        189,
+        184
+      ],
+      "min_interval_s": 2.567,
+      "max_interval_s": 3.217,
+      "expected_range_s": [
+        2.5,
+        3.4
+      ]
+    },
+    "out_of_range": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1950.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 0.0,
+          "charge": 0.2
+        }
+      ],
+      "projectiles": 0,
+      "charge": 0.2,
+      "shoot_cd": -2.0
+    },
+    "just_in_range": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1919.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 0.0,
+          "charge": 0.0
+        }
+      ],
+      "charge": 0.167
+    },
+    "just_out_of_range": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1921.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 0.0,
+          "charge": 0.0
+        }
+      ],
+      "charge": 0.0
+    },
+    "charge_slows_first_tick": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1750.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 0.0,
+          "charge": 0.0
+        }
+      ],
+      "vx": -1.275,
+      "vy": 0.0,
+      "charge": 0.017
+    },
+    "charge_slows_tick_10": {
+      "vx": -8.304,
+      "vy": 0.0,
+      "charge": 0.167
+    },
+    "stun_cancels_charge": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1750.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 0.0,
+          "charge": 0.3
+        }
+      ],
+      "charge": 0.0,
+      "shoot_cd": 0.0,
+      "stun": 0.4,
+      "projectiles": 0
+    },
+    "stun_freezes_cooldown": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1750.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.5,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 0.4,
+          "charge": 0.0
+        }
+      ],
+      "shoot_cd": 0.4
+    },
+    "player_dead_no_shot": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1700.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 0.0,
+          "charge": 0.0
+        }
+      ],
+      "projectiles": 0,
+      "charge": 0.0
+    }
+  },
+  "projectile_flight": {
+    "expiry_in_the_open": {
+      "setup": {
+        "x": 1300.0,
+        "y": 1000.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "removed_tick": 241,
+      "trace": {
+        "1": {
+          "x": 1304.5,
+          "y": 1000.0,
+          "life": 3.983
+        },
+        "2": {
+          "x": 1309.0,
+          "y": 1000.0,
+          "life": 3.967
+        },
+        "30": {
+          "x": 1435.0,
+          "y": 1000.0,
+          "life": 3.5
+        },
+        "60": {
+          "x": 1570.0,
+          "y": 1000.0,
+          "life": 3.0
+        }
+      },
+      "final_x": 2384.5,
+      "final_y": 1000.0,
+      "life": -0.017
+    },
+    "leaves_east": {
+      "setup": {
+        "x": 2000.0,
+        "y": 1500.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "removed_tick": 134,
+      "x": 2603.0,
+      "y": 1500.0,
+      "life": 1.767
+    },
+    "leaves_west": {
+      "setup": {
+        "x": 600.0,
+        "y": 1500.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "removed_tick": 134,
+      "x": -3.0,
+      "y": 1500.0,
+      "life": 1.767
+    },
+    "leaves_south": {
+      "setup": {
+        "x": 400.0,
+        "y": 1300.0,
+        "vx": 0.0,
+        "vy": 270.0,
+        "life": 4.0
+      },
+      "removed_tick": 112,
+      "x": 400.0,
+      "y": 1804.0,
+      "life": 2.133
+    },
+    "leaves_north": {
+      "setup": {
+        "x": 400.0,
+        "y": 500.0,
+        "vx": 0.0,
+        "vy": -270.0,
+        "life": 4.0
+      },
+      "removed_tick": 112,
+      "x": 400.0,
+      "y": -4.0,
+      "life": 2.133
+    },
+    "leaves_diagonal": {
+      "setup": {
+        "x": 2200.0,
+        "y": 1500.0,
+        "vx": 190.919,
+        "vy": 190.919,
+        "life": 4.0
+      },
+      "removed_tick": 95,
+      "x": 2502.288,
+      "y": 1802.288,
+      "life": 2.417
+    },
+    "already_at_the_wall": {
+      "setup": {
+        "x": 2599.0,
+        "y": 900.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "dead": true,
+      "removed": true
+    },
+    "short_life": {
+      "setup": {
+        "x": 1300.0,
+        "y": 1300.0,
+        "vx": 0.0,
+        "vy": 0.0,
+        "life": 0.05
+      },
+      "removed_tick": 4
+    },
+    "slow_motion": {
+      "setup": {
+        "x": 1300.0,
+        "y": 1300.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "x": 1367.5,
+      "life": 3.75
+    },
+    "hitstop_freezes": {
+      "setup": {
+        "x": 1300.0,
+        "y": 1300.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "x_after_3_ticks": 1300.0
+    },
+    "pause_freezes": {
+      "setup": {
+        "x": 1300.0,
+        "y": 1300.0,
+        "vx": 270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "x": 1300.0,
+      "life": 4.0
+    }
+  },
+  "player_hit": {
+    "head_on": {
+      "setup": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "tick": 18,
+      "hp": 92.0,
+      "iframes": 0.8,
+      "player_vx": -420.0,
+      "player_vy": 0.0,
+      "hitstop": 0.07,
+      "trauma": 0.45,
+      "projectile_gone": true,
+      "projectile_x": 1319.0
+    },
+    "diagonal": {
+      "setup": {
+        "x": 1370.0,
+        "y": 970.0,
+        "vx": -190.919,
+        "vy": -190.919,
+        "life": 4.0
+      },
+      "tick": 18,
+      "hp": 92.0,
+      "player_vx": -296.985,
+      "player_vy": -296.985
+    },
+    "graze_20": {
+      "setup": {
+        "x": 1400.0,
+        "y": 920.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "hp": 92.0,
+      "alive": false
+    },
+    "graze_22": {
+      "setup": {
+        "x": 1400.0,
+        "y": 922.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "hp": 100.0,
+      "alive": true
+    },
+    "damage_is_eight": {
+      "setup": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "hp": 92.0
+    },
+    "passes_through_iframes": {
+      "setup": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "iframes_start": 0.5,
+      "hp": 100.0,
+      "alive": true,
+      "x": 1175.0,
+      "life": 3.167,
+      "dead": false
+    },
+    "hits_when_iframes_end": {
+      "setup": {
+        "x": 1340.0,
+        "y": 900.0,
+        "vx": -30.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "iframes_start": 0.1,
+      "tick": 39,
+      "hp": 92.0
+    },
+    "dash_dodges": {
+      "setup": {
+        "x": 1320.0,
+        "y": 940.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "iframes_after_dash": 0.24,
+      "hp": 100.0,
+      "alive": true
+    },
+    "second_shot_inside_iframes": {
+      "setup": [
+        {
+          "x": 1400.0,
+          "y": 900.0,
+          "vx": -270.0,
+          "vy": 0.0,
+          "life": 4.0
+        },
+        {
+          "x": 1460.0,
+          "y": 900.0,
+          "vx": -270.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      ],
+      "hit_ticks": [
+        18
+      ],
+      "hp": 92.0,
+      "second_alive": true,
+      "second_x": 1082.0
+    },
+    "dead_player_not_hit": {
+      "setup": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "hp": 100.0,
+      "alive": true,
+      "x": 1175.0
+    },
+    "lethal": {
+      "setup": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      },
+      "start_health": 8.0,
+      "tick": 18,
+      "hp": 0.0,
+      "dead": true,
+      "slowmo": 1.4,
+      "slowmo_scale": 0.25
+    },
+    "expiry_beats_hit": {
+      "setup": {
+        "x": 1324.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 0.015
+      },
+      "hp": 100.0,
+      "dead": true
+    }
+  },
+  "spitter_as_enemy": {
+    "contact": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1320.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "hp": 92.0,
+      "iframes": 0.8,
+      "enemy_vx": 200.0,
+      "enemy_stun": 0.2
+    },
+    "fang_hit": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1360.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "dealt": 7.0,
+      "vx": 187.0,
+      "vy": 0.0,
+      "stun": 0.205,
+      "hitstop": 0.02
+    },
+    "fang_crit": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1360.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 1.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "dealt": 14.0,
+      "vx": 243.1,
+      "vy": 0.0,
+      "stun": 0.242,
+      "hitstop": 0.03
+    }
+  },
+  "fang_parry": {
+    "perpendicular_reach": {
+      "off_+0": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true,
+        "hitstop": 0.025
+      },
+      "off_+10": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 610.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true,
+        "hitstop": 0.025
+      },
+      "off_+14": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 614.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true,
+        "hitstop": 0.025
+      },
+      "off_+16": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 616.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": false,
+        "hitstop": 0.0
+      },
+      "off_+20": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 620.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": false,
+        "hitstop": 0.0
+      },
+      "off_-14": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 586.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true,
+        "hitstop": 0.025
+      },
+      "off_-16": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1040.0,
+            "y": 584.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": false,
+        "hitstop": 0.0
+      }
+    },
+    "along_the_sweep": {
+      "behind_14": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 986.0,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true
+      },
+      "behind_16": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 984.0,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": false
+      },
+      "start": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1000.0,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true
+      },
+      "middle": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1025.0,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true
+      },
+      "ahead_of_tip_14": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1064.4,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": true
+      },
+      "ahead_of_tip_16": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1066.4,
+            "y": 600.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried": false
+      }
+    },
+    "moving_projectile": {
+      "crossing_down": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1335.0,
+            "y": 546.0,
+            "vx": 0.0,
+            "vy": 270.0,
+            "life": 4.0
+          }
+        },
+        "parried_tick": 11,
+        "sword_state": "recover",
+        "hitstop_at_parry": 0.025,
+        "sword_x": 1495.273
+      },
+      "crossing_up": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1335.0,
+            "y": 654.0,
+            "vx": 0.0,
+            "vy": -270.0,
+            "life": 4.0
+          }
+        },
+        "parried_tick": 11,
+        "sword_state": "recover",
+        "hitstop_at_parry": 0.025,
+        "sword_x": 1495.273
+      },
+      "head_on": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1500.0,
+            "y": 603.0,
+            "vx": -270.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried_tick": 15,
+        "sword_state": "recover",
+        "hitstop_at_parry": 0.025,
+        "sword_x": 1495.273
+      },
+      "running_ahead": {
+        "setup": {
+          "sword": {
+            "x": 1000.0,
+            "y": 600.0,
+            "dx": 1.0,
+            "dy": 0.0,
+            "aimx": 3000.0,
+            "aimy": 600.0,
+            "timer": 0.3,
+            "rarity": 0
+          },
+          "projectile": {
+            "x": 1100.0,
+            "y": 600.0,
+            "vx": 270.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        },
+        "parried_tick": 3,
+        "sword_state": "recover",
+        "hitstop_at_parry": 0.025,
+        "sword_x": 1495.273
+      }
+    },
+    "parry_does_not_end_the_strike": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.3,
+          "rarity": 0
+        },
+        "projectile": {
+          "x": 1040.0,
+          "y": 600.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      },
+      "parried_tick": 1,
+      "sword_state_after_3": "strike",
+      "trauma": 0.0,
+      "hitstop_trace": [
+        0.025,
+        0.008,
+        -0.008
+      ]
+    },
+    "two_in_one_sweep": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.3,
+          "rarity": 0
+        },
+        "projectiles": [
+          {
+            "x": 1020.0,
+            "y": 605.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          },
+          {
+            "x": 1040.0,
+            "y": 595.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "life": 4.0
+          }
+        ]
+      },
+      "parried": [
+        1,
+        1
+      ],
+      "hitstop": 0.025,
+      "projectiles_left": 0
+    },
+    "hit_tick_does_not_parry": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.3,
+          "rarity": 0
+        },
+        "enemy": {
+          "kind": "husk",
+          "x": 1040.0,
+          "y": 600.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 30.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "projectile": {
+          "x": 1020.0,
+          "y": 604.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      },
+      "enemy_hp": 23.0,
+      "parried": null,
+      "sword_state": "recover",
+      "hitstop": 0.02,
+      "projectile_alive": true
+    },
+    "recovering_sword_does_not_parry": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.3,
+          "rarity": 0
+        },
+        "enemy": {
+          "kind": "husk",
+          "x": 1040.0,
+          "y": 600.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 30.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        },
+        "projectile": {
+          "x": 1020.0,
+          "y": 604.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      },
+      "parried": false,
+      "sword_state": "recover",
+      "alive": true
+    },
+    "idle_sword_does_not_parry": {
+      "setup": {
+        "projectile": {
+          "x": 1003.0,
+          "y": 595.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        },
+        "sword_x": 1000.0,
+        "sword_y": 600.0
+      },
+      "parried": false,
+      "sword_state": "idle"
+    },
+    "final_strike_tick_parries": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.015,
+          "rarity": 0
+        },
+        "projectile": {
+          "x": 1040.0,
+          "y": 600.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      },
+      "parried": true,
+      "sword_state": "recover"
+    },
+    "mythic_reach": {
+      "setup": {
+        "sword": {
+          "x": 1000.0,
+          "y": 600.0,
+          "dx": 1.0,
+          "dy": 0.0,
+          "aimx": 3000.0,
+          "aimy": 600.0,
+          "timer": 0.3,
+          "rarity": 2
+        },
+        "projectile": {
+          "x": 1068.411,
+          "y": 600.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "life": 4.0
+        }
+      },
+      "parried": true
+    }
+  },
+  "prototype_quirk": {
+    "setup": {
+      "sword": {
+        "x": 1360.0,
+        "y": 900.0,
+        "dx": -1.0,
+        "dy": 0.0,
+        "aimx": -640.0,
+        "aimy": 900.0,
+        "timer": 0.3,
+        "rarity": 0
+      },
+      "projectile": {
+        "x": 1324.0,
+        "y": 900.0,
+        "vx": -270.0,
+        "vy": 0.0,
+        "life": 4.0
+      }
+    },
+    "parried": true,
+    "player_hp": 92.0,
+    "player_iframes": 0.8,
+    "note": "a projectile destroyed by the sweep this tick still hurt the player in the prototype (hp 92); the port resolves it once, as a parry (hp 100)"
+  },
+  "fang_auto": {
+    "on_the_line": {
+      "setup": [
+        {
+          "kind": "husk",
+          "x": 1470.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 900.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "projectile": {
+        "x": 1400.0,
+        "y": 900.0,
+        "vx": 0.0,
+        "vy": 0.0,
+        "life": 10.0
+      },
+      "offset": 0.0,
+      "parried_tick": 30,
+      "first_hit_tick": 34,
+      "hitstop_at_parry": 0.025,
+      "alive": false
+    },
+    "near_the_line": {
+      "setup": [
+        {
+          "kind": "husk",
+          "x": 1470.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 900.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "projectile": {
+        "x": 1400.0,
+        "y": 912.0,
+        "vx": 0.0,
+        "vy": 0.0,
+        "life": 10.0
+      },
+      "offset": 12.0,
+      "parried_tick": 30,
+      "first_hit_tick": 34,
+      "hitstop_at_parry": 0.025,
+      "alive": false
+    },
+    "clear_of_the_line": {
+      "setup": [
+        {
+          "kind": "husk",
+          "x": 1470.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 900.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 99.0,
+          "charge": 0.0
+        }
+      ],
+      "projectile": {
+        "x": 1400.0,
+        "y": 940.0,
+        "vx": 0.0,
+        "vy": 0.0,
+        "life": 10.0
+      },
+      "offset": 40.0,
+      "parried_tick": null,
+      "first_hit_tick": 32,
+      "hitstop_at_parry": null,
+      "alive": true
+    },
+    "undefended_shot": {
+      "setup": [
+        {
+          "kind": "spitter",
+          "x": 1720.0,
+          "y": 900.0,
+          "vx": 0.0,
+          "vy": 0.0,
+          "stun": 0.0,
+          "hp": 24.0,
+          "t": 0.0,
+          "wave": 1,
+          "speed_scale": 0.0,
+          "shoot_cd": 0.2,
+          "charge": 0.0
+        }
+      ],
+      "shot_tick": 43,
+      "hit_tick": 128,
+      "hp": 92.0
+    }
+  },
+  "fixture_scope": {
+    "enemies_created": 32,
+    "armed_enemies": 0,
+    "kinds": [
+      "husk",
+      "spitter"
+    ],
+    "afflict_disabled": true,
+    "swords_used": [
+      "fang"
+    ],
+    "ultimates_and_converge_used": false,
+    "waves_enabled": false
+  }
+}

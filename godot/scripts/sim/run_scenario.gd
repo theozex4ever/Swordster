@@ -28,9 +28,25 @@ const CROWD_WAVE: Array[StringName] = [
 	&"brute", &"runner", &"husk", &"runner", &"husk",
 ]
 
+## The spitter encounter's wave: five spitters among three husks, spawned in
+## this order so shooters keep arriving while the husks close in.
+const SPITTER_WAVE: Array[StringName] = [
+	&"spitter", &"husk", &"spitter", &"spitter", &"husk", &"spitter", &"husk", &"spitter",
+]
+
+## The dev encounters the C key / dev button cycles through, in order. The empty
+## name is the normal run (or whatever custom scenario the run was made with).
+const ENCOUNTER_NORMAL: StringName = &""
+const ENCOUNTER_CROWD: StringName = &"crowd"
+const ENCOUNTER_SPITTERS: StringName = &"spitters"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS]
+
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
 var seed: int = -1
+## Which dev encounter this scenario is (`ENCOUNTER_*`); empty for the normal run.
+## The wall encounter is a variant of the crowd encounter and shares its name.
+var encounter: StringName = ENCOUNTER_NORMAL
 var start_position: Vector2 = GameRun.WORLD.get_center()
 ## Starting health; negative means full health.
 var start_health: float = -1.0
@@ -89,6 +105,7 @@ static func fang_fixture_loadout() -> Array[SwordSpec]:
 ## deliberate fixture, not a wave-generation rule (issue #18).
 static func crowd_encounter() -> RunScenario:
 	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_CROWD
 	scenario.wave_kinds = CROWD_WAVE.duplicate()
 	scenario.dev_shove = true
 	scenario.first_wave_delay = 1.0
@@ -107,3 +124,32 @@ static func wall_encounter() -> RunScenario:
 		placements.append(EnemyPlacement.make(WALL_CROWD_KINDS[i], WALL_CROWD_POINTS[i]))
 	scenario.initial_enemies = placements
 	return scenario
+
+
+## The spitter encounter: DEVELOPMENT FIXTURE for issue #10. One wave of five
+## spitters and three husks against the three-Fang fixture loadout, so shooting,
+## dodging and parrying can be played at once. The prototype only brings
+## spitters in from wave 3; the composition is a fixture, not a wave-generation
+## rule (issue #18). No shove: nothing here needs a heavy blow.
+static func spitter_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_SPITTERS
+	scenario.wave_kinds = SPITTER_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
+## Display name of an encounter for the dev button and legend.
+static func encounter_title(name: StringName) -> String:
+	match name:
+		ENCOUNTER_CROWD:
+			return "Crowd"
+		ENCOUNTER_SPITTERS:
+			return "Spitters"
+		_:
+			return "Normal"
+
+
+## The encounter the dev button / C key leads to from `name`.
+static func next_encounter(name: StringName) -> StringName:
+	return ENCOUNTER_CYCLE[(ENCOUNTER_CYCLE.find(name) + 1) % ENCOUNTER_CYCLE.size()]

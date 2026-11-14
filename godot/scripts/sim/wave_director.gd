@@ -2,7 +2,7 @@ class_name WaveDirector
 extends RefCounted
 ## Wave schedule and spawn telegraphs (game/main.py `start_wave`,
 ## `update_waves`, `spawn_point`). Waves are husk-only unless a scenario names
-## an explicit composition (the crowd encounter fixture); composition unlocks,
+## an explicit composition (the crowd and spitter encounter fixtures); composition unlocks,
 ## armed enemies and sword drops arrive with the later slices, and the scenario
 ## normally asks for exactly one wave.
 
@@ -56,7 +56,10 @@ func update(run: GameRun, dt: float) -> void:
 		if marker.remaining <= 0.0:
 			var factor: float = (run.rng.randf_range(0.9, 1.12) if _speed_jitter else 1.0) * run.scenario.enemy_speed_scale
 			var phase: float = run.rng.randf_range(0.0, 10.0)
-			var enemy: EnemyState = EnemyState.make(marker.kind, marker.position, wave, factor, run.next_serial(), phase)
+			var cooldown: float = 0.0
+			if marker.kind == EnemyDefs.SPITTER:
+				cooldown = run.rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)
+			var enemy: EnemyState = EnemyState.make(marker.kind, marker.position, wave, factor, run.next_serial(), phase, cooldown)
 			run.enemies.append(enemy)
 			run.add_cue(SimCue.make(SimCue.Kind.ENEMY_SPAWNED, marker.position))
 	var waiting: Array[SpawnMarker] = []

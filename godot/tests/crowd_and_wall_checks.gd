@@ -177,7 +177,7 @@ func _check_reference_scope() -> void:
 	_ok("no enemy in the capture was armed (arming and drops are issue #17)", int(scope["armed_enemies"]) == 0)
 	_ok("the capture fielded only husks, runners and brutes (spitters are issue #10)", _same_names(scope["kinds"], ["husk", "runner", "brute"]))
 	_ok("no sword was equipped in the capture, so no ultimate or Converge ran", int(scope["swords_equipped"]) == 0)
-	_ok("the spitter is not ported by this slice", not EnemyDefs.is_supported(&"spitter"))
+	_ok("spitters belong to the spitters_and_parries reference, not this one", EnemyDefs.is_supported(&"spitter") and _ref["crowd_encounter"]["setup"].filter(func(setup: Dictionary) -> bool: return setup["kind"] == "spitter").is_empty())
 
 
 func _same_names(actual: Array, expected: Array[String]) -> bool:
@@ -782,15 +782,18 @@ func _check_restart_with_crowd() -> void:
 	run.apply(GameCommand.dev_shove())
 	_steps(run, 30)
 	run.apply(GameCommand.toggle_encounter())
-	_ok("switching back restores the normal scenario", not run.scenario.dev_shove and run.restarts == 2)
+	_ok("the dev encounter after the crowd is the spitters (issue #10)", run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and run.restarts == 2)
+	run.apply(GameCommand.toggle_encounter())
+	_ok("and the one after that restores the normal scenario", not run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and run.restarts == 3)
 	_ok("nothing from the crowd fight survives the switch: enemies, motes, counters, markers, cues",
 		run.enemies.is_empty() and run.motes.is_empty() and run.kills == 0 and run.combo == 0 and run.director.markers.is_empty() and run.director.queue.is_empty()
 		and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 0 and run.cue_count(SimCue.Kind.WALL_SLAM) == 0 and run.take_cues().is_empty())
 	run.apply(GameCommand.toggle_encounter())
-	_ok("toggling again returns to the crowd encounter", run.scenario.dev_shove)
+	_ok("toggling again returns to the crowd encounter", run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_CROWD)
 	var crowd_first: GameRun = GameRun.new(RunScenario.crowd_encounter())
 	crowd_first.apply(GameCommand.toggle_encounter())
-	_ok("a run that began as the crowd encounter toggles back to the plain run", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
+	crowd_first.apply(GameCommand.toggle_encounter())
+	_ok("a run that began as the crowd encounter reaches the plain run after the spitters", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
 
 
 # ------------------------------------------------------ real Main scene
@@ -843,9 +846,12 @@ func _check_main_scene() -> void:
 	_ok("the Shove button acts on press", main.run.cue_count(SimCue.Kind.SHOVE) == 2)
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
-	_ok("the Crowd/Normal button switches back to the plain run and clears the arena", not main.run.scenario.dev_shove and main.run.enemies.is_empty() and main._presenter.visual_count() == 3 and not main._hud._shove_button.visible)
+	_ok("the dev button leads from the crowd to the spitter encounter and clears the arena (no shove there)", main.run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and main.run.enemies.is_empty() and main._presenter.visual_count() == 3 and not main._hud._shove_button.visible)
+	main._hud._encounter_button.button_down.emit()
+	await _tree.process_frame
+	_ok("pressing it again returns to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and not main._hud._encounter_label.visible)
 	_press(main, KEY_C)
-	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 2)
+	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 3)
 	main._sfx.unlock()
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.WALL_SLAM, Vector2.ZERO, Vector2.ZERO, 9))

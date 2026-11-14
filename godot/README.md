@@ -2,26 +2,40 @@
 
 Godot 4 port of Swordster, built slice by slice. Currently playable: a complete
 Fang survival loop (move, dash, three Fang spirit swords attacking on their own, a
-telegraphed wave of eight husks, healing motes, death and restart) plus a **crowd
-encounter** with runners and brutes, crowd bowling and wall slams, on top of the
+telegraphed wave of eight husks, healing motes, death and restart), a **crowd
+encounter** with runners and brutes, crowd bowling and wall slams, and a **spitter
+encounter** with ranged foes, enemy orbs and sword parries, on top of the
 delivery-proof arena, exported to Windows and Web from one Linux command. The other
 sword types, ultimates, conditions, drops and further waves arrive in later
 slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
-[runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9).
+[runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
+[spitters, projectiles and parries](../docs/reference/spitters-projectiles-parries.md) (#10).
 
 ### The crowd encounter
 
 A development fixture for slice #9: one wave of five husks, five runners and two
 brutes against the three-Fang fixture loadout, with a **shove** that flings nearby
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
-are not ported yet). Switch to it at any time with the **Crowd** button or `C`
-(back with **Normal** / `C`); shove with the **Shove** button or `F`. To start in it:
+are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
+`C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
+normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
 (shove them straight into the wall). The normal run stays the husk wave.
+
+### The spitter encounter
+
+A development fixture for slice #10: one wave of five spitters among three husks against
+the same three-Fang loadout. Spitters back away when you are within 260 px, circle out to
+380 px, glow at the snout for half a second (a dashed line shows the heading) and spit an
+orb at 270 px/s that hurts for 8 unless you are invulnerable (a dash gives 0.24 s). A Fang
+strike that sweeps through an orb **parries** it: green flash, sparks and a `PARRY` tag, no
+damage numbers. Start in it with `Swordster.exe -- --encounter=spitters` or
+`index.html?encounter=spitters`, or reach it with the dev button / `C` (after the crowd).
+The prototype only brings spitters in from wave 3, so the normal run is unchanged.
 
 - Engine: Godot **4.7.2-stable**, standard (non-.NET) editor, typed GDScript,
   Compatibility renderer, Web export single-thread with extensions disabled.

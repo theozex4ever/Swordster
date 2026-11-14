@@ -129,7 +129,9 @@ func _start_strike(run: GameRun) -> void:
 
 
 ## The strike dashes the sword along a homing line; the first enemy touched by
-## the swept segment takes the hit and ends the strike.
+## the swept segment takes the hit and ends the strike. A sweep that touches no
+## enemy parries every projectile within reach of its swept segment instead (a
+## tick that hits is not a parrying tick), then the strike runs on or ends.
 func _update_strike(run: GameRun, dt: float) -> void:
 	timer -= dt
 	var previous: Vector2 = position
@@ -146,6 +148,7 @@ func _update_strike(run: GameRun, dt: float) -> void:
 			timer = SwordDefs.FANG_RECOVER_AFTER_HIT
 			velocity = -dir * 380.0 + SimMath.polar(run.rng.randf_range(0.0, TAU), 160.0)
 			return
+	run.parry_projectiles(previous, tip, SwordDefs.FANG_PARRY_PAD)
 	if timer <= 0.0 or (target == null and (aim - position).length() < 12.0):
 		phase = Phase.RECOVER
 		timer = SwordDefs.FANG_RECOVER_AFTER_MISS
