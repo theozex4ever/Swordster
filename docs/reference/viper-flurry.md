@@ -133,8 +133,10 @@ eligible enemies **other than the one just struck**, or the same one when it is 
 | the victim is killed by something else between darts | no damage to the corpse, one kill; the next beat replaces it; the other enemy is struck one beat later |
 | an empty area | a new wander goal every five ticks (ticks 1, 6, … 71), 20 to 105 px from the centre, the sword never farther than 105 px; no hit, no kill |
 
-"Removed" is the same case as "dead" in both implementations: an enemy only leaves the
-enemy list when it is dead. Asserted by `flurry: who is inside the 150 px area, and an empty
+In the prototype "removed" is the same case as "dead": an enemy only leaves the enemy list
+when it is dead. The port goes one step further for a reference kept across ticks (see
+deliberate exception 10: an enemy removed from the run while still alive is dropped too).
+Asserted by `flurry: who is inside the 150 px area, and an empty
 area` and `flurry: dart targets are replaced, never repeated, and dead or removed ones are
 skipped`, and by `flurry: deaths and rewards resolve exactly once` (three weak enemies, nine
 darts, three kills and nine motes, nothing duplicated).
@@ -229,37 +231,56 @@ Each is a scope or correctness decision of slice #12, not a rebalance.
    (`GameRun.parry_projectiles`) is not called; a check pins that an orb in the area survives.
 9. **No dedicated dev encounter.** The existing encounters (normal, crowd, spitters) already
    give targets; no new control was added.
+10. **A sword drops an enemy that left the run, dead or alive (hardening).** The prototype
+    (`update_ult` 869, `Sword.update` 667) asks only `not v.dead`, because an enemy only leaves
+    `enemies` once dead, so a living-but-removed enemy cannot occur in play. Spec #4
+    Implementation Decision 7 asks for dead *or removed* targets to be handled safely, so
+    `SwordState._in_play` (alive **and** still in `run.enemies`) guards every enemy reference a
+    sword keeps across ticks: the flurry's victim and the Fang's automatic-attack `target`. A
+    victim no longer in play takes no damage, causes no kill, mote, cue or shake, and the flurry
+    picks a fresh one on the same beat exactly as it does for a dead victim; an attack target no
+    longer in play is dropped and its aim stops following it. (The strike's sweep and `acquire`
+    already iterate `run.enemies`, so they cannot reach a removed enemy.) Asserted by
+    `flurry: an enemy removed from the run while alive ...`; the mutations
+    `flurry-strikes-the-removed`, `attack-keeps-removed-target`, `in-play-ignores-dead` and
+    `in-play-ignores-removal` fail it. Identical to the prototype for every reachable state: the
+    reference comparisons are unchanged.
 
 ## Validation
 
-Run on build `20261114-182303-7a90f29b4` (source commit 7a90f29, clean tree; the commits after
-it only add documentation), Linux, Godot 4.7.2-stable.
+Review fixes (removed-while-alive hardening, HUD layout check, shipped-pack Wine frames) were run
+on head `df64a92` plus documentation; the original slice figures were on `7a90f29`. Linux, Godot
+4.7.2-stable.
 
 | What | Result |
 |---|---|
-| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 824` (683 before this slice plus 141 new, two of the old ones reworded for R); full build OK, Windows ZIP and Web bundle produced |
-| `tools/godot/mutation-check.sh` | 251 of 251 deliberate bugs caught, 0 inconclusive (baseline 824 checks pass; 197 before this slice plus 54 new: every flurry constant, the clamp and where it is measured, the recharge being armed, running through the ultimate and scaled by rarity, each refusal, wrong slot, victim repeats, strikes or targets the dead, blink, parry-by-flurry, death not ending it, the heavy hit's hitstop, key mapping and order of R, the mouse-to-world conversion, HUD card text and bar, sound, refusal text and the phase reaching the visual). The suite was run as five parallel shards of the same list; the first pass found two survivors (a dead victim still shaking the screen; a corpse still a candidate on the tick it died) and three mutants that crashed a check instead of failing it, each now has a check that fails on it. |
-| Reference regeneration | `capture_viper_flurry.py`, `capture_spitters_and_parries.py`, `capture_crowd_and_walls.py` and `capture_fang_survival_loop.py` each run twice give byte-identical output equal to the committed JSON; `crowd_and_walls.json`, `fang_survival_loop.json`, `spitters_and_parries.json` and `game/` are unchanged against the base commit 435308d |
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 839` (824 before the review fixes plus 6 for removed-while-alive and 9 for the HUD layout at eight window shapes). Full builds OK on a clean tree: `20261114-185904-adff4e9c3` (the one the Wine frames used) and the final head's build (see the PR) |
+| `tools/godot/mutation-check.sh` | **259 of 259** deliberate bugs caught, 0 retried, 0 inconclusive, 0 survived (251 before the fixes plus 8: the four removed-while-alive guards `flurry-strikes-the-removed`, `attack-keeps-removed-target`, `in-play-ignores-dead`, `in-play-ignores-removal` and four HUD layout ones `hud-card-below-the-view`, `hud-cards-anchored-top`, `hud-dash-below-the-view`, `hud-stretch-not-expand`; `flurry-strikes-the-dead` was re-expressed against the new guard). Run as six parallel shards of the same list (`SHARD=i SHARDS=6`, 44 + 43 + 43 + 43 + 43 + 43); the first pass of the last shard aborted on `flurry-strikes-the-dead` not applying (its anchor text had changed), and the whole shard was rerun after fixing it. |
+| Reference regeneration | `capture_viper_flurry.py`, `capture_spitters_and_parries.py`, `capture_crowd_and_walls.py` and `capture_fang_survival_loop.py` each run again on the review head give byte-identical output equal to the committed JSON (no JSON changed); `crowd_and_walls.json`, `fang_survival_loop.json`, `spitters_and_parries.json` and `game/` are unchanged against the base commit 435308d |
 | Low/high render rates | The scripted flurry fight (six flurries from all three slots, four refused commands, 55 darts, seven kills, player alive) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time (darts, kills, positions, phases and recharges) |
 | **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Served build `20261114-175450-59536bf6e` (identical game code; only test files changed since) over HTTP with `?encounter=crowd` and drove it with browser mouse-move and key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=flurry`): the cursor was moved and Q, E and R pressed; each sword blinked to the cursor, the 150 px area was outlined, darts streaked between foes with damage numbers (8, 17!), the cards read ACTIVE / READY and then counted down (`2s`, `5s`), Q while recharging printed "recharging 3s", and Q worked again after the recharge. No console errors. |
-| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The full build's `Swordster.exe` (the shipped binary) run with Godot's Movie Maker (`--write-movie`, 30 fps frames, 20 s) and a **scratch evidence pack** in place of `Swordster.pck`: the game's own files plus an autoload that hands `Main._input` mouse-move and key events (Q, E, Q while recharging, R). Frames show the Q sword blinking into its area ("VIPER FLURRY") and the E sword's darts with 8 / 17! hits. The pack differs from the shipped one only by that driver, so this proves the exported binary runs the ultimates, not that the shipped `.pck` was driven. In this Wine frame the HUD sits about 35 px too high (the bottom cards and the top-left lines are cropped), which did not happen in the #10 Wine run nor in Chromium; it was not investigated. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | Build `20261114-185904-adff4e9c3`, the full build's Windows ZIP extracted unmodified (`SHA256SUMS` verified; `Swordster.exe` and the shipped `Swordster.pck`), run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <png> --fixed-fps 30 --quit-after 300` (and again with `-- --encounter=crowd`): engine-side frames of the game's own viewport, no desktop capture and no input injected, nothing added to the game. At 1280x720 (visible rect) the shipped pack renders the whole HUD: the three slot cards **Q / E / R "Viper Flurry" READY**, with their key badges and full tinted bars, bottom left; Dash (and Shove in the crowd encounter) bottom right; Pause, Restart and the Dev button top right; every top-left line. The run also fights (kills 3 and 7, hit numbers `14!` and `7`). **What this does not show:** Q/E/R input in a Windows build. No key or mouse event was sent to the shipped build, so that belongs to the deferred device matrix (#6/#22). The earlier **replacement-pack** run (an autoload added to a scratch `.pck` to feed Q/E/R; `wine-flurry-blink.png`, `wine-flurry-darts.png`) showed the exported *binary* running the ultimates, not the shipped pack, and is kept only as that. |
+| **The 35 px "crop" in the earlier Wine frame: a capture artifact, not a HUD bug** | Reproduced with the shipped build and no special pack ([`wine-shipped-default-window-cropped.png`](viper-flurry/wine-shipped-default-window-cropped.png)): with no `--resolution`, the bottom cards and Dash button are cut and the top lines are shifted. Cause, measured with a diagnostic autoload in a scratch export (not shipped): this machine's monitor is **1080 px wide** (portrait 1080x1920), so the window requested at 1280x720 is clamped to **1084x720**. The project stretches with `canvas_items` / `expand`, so the viewport rectangle becomes **1280x850** (the HUD correctly anchors to its edges), while Godot's Movie Maker always writes a **1280x720** frame, which cuts the top and bottom of that rectangle (about 65 px each, not the 35 px first estimated by eye). With `--resolution 1000x563` (16:9, fits the monitor) the visible rect is exactly 1280x720 and the same shipped pack shows the whole HUD. So it is the narrow monitor and the movie frame, not window decorations (the decorated window was 1092x754) and not an anchor or scale-mode bug. What a real player sees in a 1084x720 window (the full 1280x850 rectangle) was not captured, since full-desktop capture was out of bounds; the new layout check asserts every HUD control lies inside the visible rect at eight window shapes including 1084x720. |
 
 Screenshots (in `docs/reference/viper-flurry/`):
 [`web-flurry-02-q-150.png`](viper-flurry/web-flurry-02-q-150.png),
 [`web-flurry-03-q-refused.png`](viper-flurry/web-flurry-03-q-refused.png),
 [`web-flurry-04-r-200.png`](viper-flurry/web-flurry-04-r-200.png),
-[`wine-flurry-blink.png`](viper-flurry/wine-flurry-blink.png),
-[`wine-flurry-darts.png`](viper-flurry/wine-flurry-darts.png).
+[`wine-shipped-hud-ready.png`](viper-flurry/wine-shipped-hud-ready.png) and
+[`wine-shipped-crowd-ready.png`](viper-flurry/wine-shipped-crowd-ready.png) (shipped pack, whole HUD),
+[`wine-shipped-default-window-cropped.png`](viper-flurry/wine-shipped-default-window-cropped.png) (the clamped-window artifact),
+[`wine-flurry-blink.png`](viper-flurry/wine-flurry-blink.png) and
+[`wine-flurry-darts.png`](viper-flurry/wine-flurry-darts.png) (replacement pack, input-driven).
 
 ## What was not verified
 
 - **No real Windows machine** and no real Android device (#6, #22). The Wine run proves the
-  export launches and runs the ultimates, not that it behaves on Windows. No touch ultimate
+  shipped export launches and renders the slot HUD, not that it behaves on Windows. No touch ultimate
   controls exist yet (#20), so Android has nothing to test.
 - Web was run in headless Chromium with a software renderer and synthetic browser input, not
   Firefox, a real GPU or a phone. Frame pacing and audio were not measured (audio was muted;
   the blink sound is asserted by a check only).
-- The Wine run's HUD cropping (see above) is unexplained.
+- Windows evidence is engine-side frames of the shipped pack under Wine: **no Q/E/R key or mouse input was exercised in any Windows build** (deferred to #6/#22), and a real player's view of a window narrower than 1280 px was not captured (only asserted by the layout check).
 - Viper Flurry was not tuned for fun or difficulty; the numbers are the prototype's.
 - Out of scope and untouched: conditions (#11), Warden/Pike/Colossus (#13-#15), Converge (#16),
   drops and swaps (#17), later waves (#18), touch controls (#20).
