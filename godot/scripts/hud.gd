@@ -48,6 +48,8 @@ var _ult_names: Array[Label] = []
 var _ult_status: Array[Label] = []
 var _ult_bars: Array[ColorRect] = []
 var _ult_badges: Array[ColorRect] = []
+## Each card's element tag (FIRE / ICE / POISON), in the element's colour.
+var _ult_elements: Array[Label] = []
 
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 62.0)
 const ULT_KEYS: Array[String] = ["Q", "E", "R"]
@@ -181,6 +183,11 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	name_label.position = Vector2(50.0, 4.0)
 	var status_label: Label = _make_label(card, "")
 	status_label.position = Vector2(50.0, 26.0)
+	var element_label: Label = _make_label(card, "")
+	element_label.position = Vector2(112.0, 28.0)
+	element_label.size = Vector2(70.0, 20.0)
+	element_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	element_label.add_theme_font_size_override("font_size", 14)
 	var track: ColorRect = _make_rect(card, Color(0.16, 0.14, 0.21))
 	track.position = Vector2(8.0, 50.0)
 	track.size = Vector2(ULT_CARD_SIZE.x - 16.0, 5.0)
@@ -192,6 +199,7 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	_ult_status.append(status_label)
 	_ult_bars.append(bar)
 	_ult_badges.append(badge)
+	_ult_elements.append(element_label)
 
 
 ## What the slot's card says: READY, ACTIVE while the ultimate runs, or the whole
@@ -227,6 +235,8 @@ func _show_ultimates(run: GameRun) -> void:
 		else:
 			_ult_status[slot].text = "%ds" % SimMath.py_round(sword.ultimate_cooldown_left)
 		_ult_status[slot].modulate = tint if ready or active else Color(0.62, 0.6, 0.7)
+		_ult_elements[slot].text = String(sword.spec.element).to_upper()
+		_ult_elements[slot].modulate = tint
 		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
 		_ult_bars[slot].color = tint
 		_ult_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 if active else sword.ultimate_charge())
@@ -313,6 +323,16 @@ func _show_encounter(run: GameRun) -> void:
 	if run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS:
 		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dash through it or let a striking Fang sweep it away.   %s" % [
 			left[EnemyDefs.SPITTER], left[EnemyDefs.HUSK], run.cue_count(SimCue.Kind.PROJECTILE_FIRED), run.cue_count(SimCue.Kind.PROJECTILE_PARRIED), switch_hint]
+	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:
+		var frozen: int = 0
+		var burning: int = 0
+		var poisoned: int = 0
+		for enemy: EnemyState in run.enemies:
+			frozen += 1 if enemy.conditions.is_frozen() else 0
+			burning += 1 if enemy.conditions.is_burning() else 0
+			poisoned += 1 if enemy.conditions.poison > 0.0 else 0
+		_encounter_label.text = "CONDITIONS ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   burning %d, poisoned %d, frozen %d\nPoison stacks to 6, four ice hits freeze (a brute thaws sooner), a burning death sets its neighbours alight.   %s" % [
+			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], burning, poisoned, frozen, switch_hint]
 	else:
 		_encounter_label.text = "CROWD ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute\nF / Shove: launch nearby foes into each other and the wall   %s" % [left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], switch_hint]
 

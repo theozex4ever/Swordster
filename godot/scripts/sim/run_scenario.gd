@@ -34,12 +34,19 @@ const SPITTER_WAVE: Array[StringName] = [
 	&"spitter", &"husk", &"spitter", &"spitter", &"husk", &"spitter", &"husk", &"spitter",
 ]
 
+## The conditions encounter's wave: two brutes (to show their shorter freeze) and
+## clustering husks and runners (to show fire spreading), arriving together.
+const CONDITIONS_WAVE: Array[StringName] = [
+	&"brute", &"husk", &"husk", &"runner", &"husk", &"husk", &"brute", &"husk", &"husk", &"runner", &"husk", &"husk",
+]
+
 ## The dev encounters the C key / dev button cycles through, in order. The empty
 ## name is the normal run (or whatever custom scenario the run was made with).
 const ENCOUNTER_NORMAL: StringName = &""
 const ENCOUNTER_CROWD: StringName = &"crowd"
 const ENCOUNTER_SPITTERS: StringName = &"spitters"
-const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS]
+const ENCOUNTER_CONDITIONS: StringName = &"conditions"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS]
 
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
@@ -84,6 +91,17 @@ var enemy_speed_jitter: bool = true
 var enemy_speed_scale: float = 1.0
 ## Probability of a critical hit (prototype: 12%).
 var crit_chance: float = 0.12
+## False makes the run a condition-free FIXTURE: swords still hit, but no element
+## is ever applied. The earlier slices' references were captured with the prototype's
+## `afflict` switched off, and their checks compare against them in this mode. The
+## game itself always plays with conditions on.
+var conditions_enabled: bool = true
+
+
+## Turns this scenario into a condition-free fixture (see `conditions_enabled`).
+func without_conditions() -> RunScenario:
+	conditions_enabled = false
+	return self
 
 
 ## DEVELOPMENT FIXTURE, not the final default loadout: three Fang swords (one
@@ -139,6 +157,20 @@ static func spitter_encounter() -> RunScenario:
 	return scenario
 
 
+## The conditions encounter: DEVELOPMENT FIXTURE for issue #11. One wave of husks and
+## runners with two brutes, against the three-Fang fixture loadout whose swords carry
+## poison, ice and fire: stacks, freezing (shorter on a brute), chill, burning and
+## fire spreading through the clustered crowd can all be watched. The prototype would
+## not field runners or brutes before wave 2; the composition is a fixture, not a
+## wave-generation rule (issue #18).
+static func conditions_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_CONDITIONS
+	scenario.wave_kinds = CONDITIONS_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
 ## Display name of an encounter for the dev button and legend.
 static func encounter_title(name: StringName) -> String:
 	match name:
@@ -146,6 +178,8 @@ static func encounter_title(name: StringName) -> String:
 			return "Crowd"
 		ENCOUNTER_SPITTERS:
 			return "Spitters"
+		ENCOUNTER_CONDITIONS:
+			return "Conditions"
 		_:
 			return "Normal"
 

@@ -5,12 +5,15 @@ extends RefCounted
 ## nothing about nodes, rendering, audio or input devices.
 ##
 ## Ported from game/main.py (`Game.update`, `Player`, `hit_enemy`, `kill`,
-## `hurt_player`, `separate`, `parry_projectiles`) and stepped at a fixed 60 Hz; the prototype uses a
+## `hurt_player`, `separate`, `parry_projectiles`, `afflict`, `update_conditions`) and stepped at a fixed 60 Hz; the prototype uses a
 ## variable step capped at 1/30. The update order inside `step()` is the
 ## prototype's, explicitly: player, then each sword slot in order (a running ultimate
-## strikes during its sword's update), then enemies, separation, contacts, removal of
-## the dead, projectiles, motes, counters and the wave director. See docs/reference/fang-survival-loop.md and
-## docs/reference/runners-brutes-crowd.md and docs/reference/spitters-projectiles-parries.md
+## strikes during its sword's update), then enemies, separation, elemental conditions
+## (damage over time, expiry), contacts, removal of
+## the dead, projectiles, motes, counters and the wave director. Elemental fields (issue #15)
+## will tick right after the conditions and call the same `afflict`. See docs/reference/fang-survival-loop.md,
+## docs/reference/runners-brutes-crowd.md, docs/reference/spitters-projectiles-parries.md,
+## docs/reference/viper-flurry.md and docs/reference/elemental-conditions.md
 ## for the captured reference values and tolerances. Crowd and wall rules (separation, bowling, wall slams) are
 ## explicit circle geometry on the enemies' own positions and velocities, never
 ## rigid bodies. Enemy projectiles are run-owned `ProjectileState`s moved by
@@ -168,7 +171,7 @@ var _cues: Array[SimCue] = []
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
 ## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
-## order (normal, crowd, spitters): the one the run was made with keeps its own
+## order (normal, crowd, spitters, conditions): the one the run was made with keeps its own
 ## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
 var _encounter_scenarios: Array[RunScenario] = []
 
@@ -179,6 +182,7 @@ func _init(scenario_value: RunScenario = null) -> void:
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.new(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CROWD else RunScenario.crowd_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_SPITTERS else RunScenario.spitter_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS else RunScenario.conditions_encounter(),
 	]
 	if scenario.seed < 0:
 		rng.randomize()
@@ -322,6 +326,7 @@ func step() -> void:
 	for enemy: EnemyState in enemies:
 		enemy.update(self, dt)
 	_separate()
+	_update_conditions(dt)
 	_resolve_contacts()
 	var alive: Array[EnemyState] = []
 	for enemy: EnemyState in enemies:
@@ -365,10 +370,11 @@ func _update_camera(dt: float) -> void:
 
 
 ## Enemies touching the player hurt it (unless invulnerable) and are knocked
-## back regardless. Prototype order: after enemy movement and separation.
+## back regardless. A frozen enemy does neither: it neither hurts nor is pushed. Prototype order: after
+## enemy movement, separation and the conditions' damage over time.
 func _resolve_contacts() -> void:
 	for enemy: EnemyState in enemies:
-		if not enemy.dead and (enemy.position - position).length() < enemy.radius + PLAYER_RADIUS:
+		if not enemy.dead and not enemy.conditions.is_frozen() and (enemy.position - position).length() < enemy.radius + PLAYER_RADIUS:
 			hurt_player(enemy.damage, enemy.position)
 			enemy.velocity = SimMath.norm(enemy.position - position, rng) * CONTACT_KNOCKBACK
 			enemy.stun = CONTACT_STUN
@@ -504,18 +510,22 @@ func _bowl(launched: EnemyState, hit: EnemyState, normal: Vector2, sign_value: f
 
 
 # ------------------------------------------------------------------- combat
-## A sword hits an enemy (prototype `hit_enemy`): critical roll, rounding
-## (Python round-half-even), knockback, stun, hitstop and shake. A dead enemy
+## A sword hits an enemy (prototype `hit_enemy`): critical roll, the frozen bonus, rounding
+## (Python round-half-even), knockback, stun, hitstop and shake; a blow that leaves the
+## enemy alive then applies the sword's element (`stacks` doses of it). A dead enemy
 ## ignores further hits so its death and rewards resolve exactly once.
 ## A `heavy` blow (a Fang flurry dart) flashes the enemy longer and, unlike a normal hit,
 ## causes no hitstop and no hit shake of its own (the caller adds its own).
-func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: float, sword: SwordState, heavy: bool = false) -> void:
+func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: float, sword: SwordState, heavy: bool = false, stacks: int = 1) -> void:
 	if enemy.dead:
 		return
 	var crit: bool = rng.randf() < scenario.crit_chance
 	var dmg: float = raw_damage
 	if crit:
 		dmg *= CRIT_MULTIPLIER
+	var shattered: bool = enemy.conditions.is_frozen()
+	if shattered:
+		dmg *= ConditionDefs.SHATTER
 	var dealt: int = maxi(1, SimMath.py_round(dmg))
 	enemy.hp -= float(dealt)
 	enemy.flash = SwordDefs.HEAVY_HIT_FLASH if heavy else SwordDefs.NORMAL_HIT_FLASH
@@ -527,12 +537,51 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 		var stop: float = SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR if crit else 1.0)
 		hitstop = maxf(hitstop, stop)
 		add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
-	add_cue(SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, d, dealt, crit))
+	var hit_cue: SimCue = SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, d, dealt, crit)
+	if shattered:
+		hit_cue.element = ConditionDefs.ICE
+	add_cue(hit_cue)
 	if enemy.hp <= 0.0:
 		kill(enemy, d)
+	elif sword != null:
+		afflict(enemy, sword.spec.element, sword.damage, stacks)
 
 
-## Resolves an enemy's death exactly once: counters, combo and healing motes.
+## Applies `stacks` doses of an element to a living enemy (prototype `afflict`); `power`
+## is the source's base damage (a sword's type damage times its rarity). Sword hits and
+## elemental fields both come through here. Does nothing when the scenario is a
+## condition-free fixture. Freezing is announced with a cue and slows the enemy at once.
+func afflict(enemy: EnemyState, element: StringName, power: float, stacks: int = 1) -> void:
+	if not scenario.conditions_enabled or enemy.dead:
+		return
+	if enemy.conditions.apply(element, power, stacks):
+		enemy.velocity *= ConditionDefs.FREEZE_VELOCITY_KEEP
+		var cue: SimCue = SimCue.make(SimCue.Kind.ENEMY_FROZEN, enemy.position)
+		cue.element = ConditionDefs.ICE
+		add_cue(cue)
+
+
+## Burn and poison damage over time, chill and freeze expiry (prototype
+## `update_conditions`). Damage here is neither critical nor frozen-boosted. An enemy it
+## kills dies through `kill` like any other, spreading its fire if it burned.
+func _update_conditions(dt: float) -> void:
+	for enemy: EnemyState in enemies:
+		if enemy.dead:
+			continue
+		var dealt: int = enemy.conditions.tick(dt)
+		if dealt < 1:
+			continue
+		enemy.hp -= float(dealt)
+		var cue: SimCue = SimCue.make(SimCue.Kind.CONDITION_DAMAGE, enemy.position, Vector2.ZERO, dealt)
+		cue.element = enemy.conditions.dominant_element()
+		add_cue(cue)
+		if enemy.hp <= 0.0:
+			kill(enemy, Vector2.UP)
+
+
+## Resolves an enemy's death exactly once: counters, combo and healing motes, and the
+## fire a burning enemy leaves behind. Every cause of death (a blow, bowling, a wall slam,
+## damage over time) comes through here.
 func kill(enemy: EnemyState, direction: Vector2) -> void:
 	if enemy.dead:
 		return
@@ -544,6 +593,22 @@ func kill(enemy: EnemyState, direction: Vector2) -> void:
 	for i: int in 3:
 		motes.append(Mote.scatter(enemy.position, rng))
 	add_cue(SimCue.make(SimCue.Kind.ENEMY_KILLED, enemy.position, direction))
+	if enemy.conditions.is_burning():
+		_spread_fire(enemy)
+	if enemy.conditions.is_frozen():
+		add_cue(SimCue.make(SimCue.Kind.ENEMY_SHATTERED, enemy.position))
+
+
+## A burning enemy's death ignites the living enemies beside it (prototype `kill`). It
+## only sets burns; an ignited enemy dies, and spreads in turn, by its own damage over
+## time, so a chain advances one death at a time.
+func _spread_fire(source: EnemyState) -> void:
+	for other: EnemyState in enemies:
+		if other != source and not other.dead and (other.position - source.position).length() < source.radius + other.radius + ConditionDefs.SPREAD_REACH:
+			other.conditions.ignite_from_spread(source.conditions.burn_dps)
+	var cue: SimCue = SimCue.make(SimCue.Kind.FIRE_SPREAD, source.position)
+	cue.element = ConditionDefs.FIRE
+	add_cue(cue)
 
 
 ## An enemy launched into the arena wall (prototype `wall_slam`). `speed` is

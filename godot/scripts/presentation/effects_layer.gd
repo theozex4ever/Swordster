@@ -7,7 +7,11 @@ extends Node2D
 ## orb died, with no number; a hit on an enemy is a white ring and a damage
 ## number, a hit on the player a red ring and "-8". A sword's ultimate announces itself with a
 ## ring where the sword left, a ring closing on the area it landed in and its name over the
-## player; while it runs the area is outlined and each dart leaves a streak. Purely visual: it reads the
+## player; while it runs the area is outlined and each dart leaves a streak. Conditions
+## shed their own particles (rising embers on a burning enemy, green drips on a poisoned
+## one, ice motes on a chilled one) and cue bursts: FROZEN when an enemy freezes, a shatter
+## when it dies frozen, a fire ring when a burning enemy dies, a coloured number for each
+## damage-over-time landing. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -18,6 +22,8 @@ var _sparks: Array[Dictionary] = []
 ## Streaks left by a sword darting during its ultimate, and where each sword was drawn last.
 var _streaks: Array[Dictionary] = []
 var _last_sword_at: Dictionary = {}
+## Element particles (embers, drips, ice motes): pos, vel, life, max, color, size.
+var _embers: Array[Dictionary] = []
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -27,6 +33,7 @@ func clear() -> void:
 	_texts.clear()
 	_sparks.clear()
 	_streaks.clear()
+	_embers.clear()
 	_last_sword_at.clear()
 	queue_redraw()
 
@@ -49,7 +56,12 @@ func sync(run: GameRun) -> void:
 		for streak: Dictionary in _streaks:
 			streak["life"] = float(streak["life"]) - dt
 		_streaks = _streaks.filter(func(st: Dictionary) -> bool: return float(st["life"]) > 0.0)
+		for ember: Dictionary in _embers:
+			ember["life"] = float(ember["life"]) - dt
+			ember["pos"] = Vector2(ember["pos"]) + Vector2(ember["vel"]) * dt
+		_embers = _embers.filter(func(em: Dictionary) -> bool: return float(em["life"]) > 0.0)
 		_add_dart_streaks(run)
+		_add_condition_particles(run, dt)
 		_sparks = _sparks.filter(func(sp: Dictionary) -> bool: return float(sp["life"]) > 0.0)
 		_rings = _rings.filter(func(r: Dictionary) -> bool: return float(r["life"]) > 0.0)
 		_texts = _texts.filter(func(t: Dictionary) -> bool: return float(t["life"]) > 0.0)
@@ -70,7 +82,36 @@ func _add_dart_streaks(run: GameRun) -> void:
 
 
 static func _sword_color(spec: SwordSpec) -> Color:
-	return PlaceholderSwordVisual.ELEMENT_COLORS.get(spec.element, Color.WHITE)
+	return element_color(spec.element)
+
+
+static func element_color(element: StringName) -> Color:
+	return PlaceholderSwordVisual.ELEMENT_COLORS.get(element, Color.WHITE)
+
+
+## Particles an enemy sheds while it burns (rises), is poisoned (drips; more stacks, more
+## drips) or is chilled (drifts), at the prototype's rates. Drawn from this layer's own
+## random stream; nothing here reaches the run.
+func _add_condition_particles(run: GameRun, dt: float) -> void:
+	for enemy: EnemyState in run.enemies:
+		var conditions: EnemyConditions = enemy.conditions
+		if conditions.is_burning() and _rng.randf() < dt * 14.0:
+			_add_ember(enemy.position, enemy.radius * 0.8, Vector2(_rng.randf_range(-25.0, 25.0), _rng.randf_range(-150.0, -70.0)), _rng.randf_range(0.3, 0.55), ConditionDefs.FIRE, _rng.randf_range(1.5, 3.0), _rng.randf())
+		if conditions.poison > 0.0 and _rng.randf() < dt * float(3 + 2 * conditions.poison_stacks):
+			_add_ember(enemy.position, enemy.radius * 0.8, Vector2(_rng.randf_range(-10.0, 10.0), _rng.randf_range(-45.0, -15.0)), _rng.randf_range(0.5, 0.9), ConditionDefs.POISON, _rng.randf_range(1.5, 3.5), 0.0)
+		if conditions.is_chilled() and _rng.randf() < dt * 5.0:
+			_add_ember(enemy.position, enemy.radius, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(10.0, 50.0)), _rng.randf_range(0.4, 0.7), ConditionDefs.ICE, _rng.randf_range(1.0, 2.5), 0.5)
+
+
+## One element particle near `at` (within `spread` px), tinted by the element and
+## `mix_white` toward white (fire: toward yellow-white).
+func _add_ember(at: Vector2, spread: float, velocity: Vector2, life: float, element: StringName, size: float, mix_white: float) -> void:
+	if _embers.size() >= MAX_EFFECTS:
+		return
+	var tint: Color = element_color(element)
+	tint = tint.lerp(Color(1.0, 0.86, 0.35) if element == ConditionDefs.FIRE else Color.WHITE, mix_white)
+	var origin: Vector2 = at + SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(0.0, spread))
+	_embers.append({"pos": origin, "vel": velocity, "life": life, "max": life, "color": tint, "size": size})
 
 
 func apply_cue(cue: SimCue) -> void:
@@ -79,7 +120,24 @@ func apply_cue(cue: SimCue) -> void:
 			_add_ring(cue.position, 10.0, 30.0 + float(cue.amount) * 0.4, 0.18, Color(1.0, 0.95, 0.8, 0.9), 2.0)
 			var jitter: Vector2 = Vector2(_rng.randf_range(-10.0, 10.0), -22.0)
 			var label: String = "%d%s" % [cue.amount, "!" if cue.critical else ""]
-			_add_text(cue.position + jitter, label, Color(1.0, 0.88, 0.35) if cue.critical else Color.WHITE, 1.0 if cue.critical else 0.75, 28 if cue.critical else 22)
+			var number: Color = Color(1.0, 0.88, 0.35) if cue.critical else Color.WHITE
+			if cue.element == ConditionDefs.ICE:
+				number = Color(0.78, 0.94, 1.0)
+			_add_text(cue.position + jitter, label, number, 1.0 if cue.critical else 0.75, 28 if cue.critical else 22)
+		SimCue.Kind.ENEMY_FROZEN:
+			_add_ring(cue.position, 16.0, 40.0, 0.3, Color(element_color(ConditionDefs.ICE), 0.95), 3.0)
+			_add_text(cue.position + Vector2(0.0, -40.0), "FROZEN", element_color(ConditionDefs.ICE), 0.7, 22)
+			for i: int in 10:
+				_add_ember(cue.position, 16.0, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(10.0, 50.0)), _rng.randf_range(0.4, 0.7), ConditionDefs.ICE, _rng.randf_range(1.0, 2.5), 0.5)
+		SimCue.Kind.ENEMY_SHATTERED:
+			for i: int in 18:
+				_add_ember(cue.position, 16.0, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(60.0, 260.0)), _rng.randf_range(0.4, 0.7), ConditionDefs.ICE, _rng.randf_range(1.0, 2.5), 0.5)
+		SimCue.Kind.FIRE_SPREAD:
+			_add_ring(cue.position, 16.0, 16.0 + ConditionDefs.SPREAD_REACH + 20.0, 0.3, Color(element_color(ConditionDefs.FIRE), 0.95), 3.0)
+			for i: int in 14:
+				_add_ember(cue.position, 16.0, Vector2(_rng.randf_range(-25.0, 25.0), _rng.randf_range(-150.0, -70.0)), _rng.randf_range(0.3, 0.55), ConditionDefs.FIRE, _rng.randf_range(1.5, 3.0), _rng.randf())
+		SimCue.Kind.CONDITION_DAMAGE:
+			_add_text(cue.position + Vector2(_rng.randf_range(-12.0, 12.0), -18.0), str(cue.amount), element_color(cue.element), 0.6, 20)
 		SimCue.Kind.ENEMY_KILLED:
 			_add_ring(cue.position, 12.0, 52.0, 0.3, Color(0.9, 0.5, 0.6, 0.9), 3.0)
 		SimCue.Kind.ENEMY_SPAWNED:
@@ -166,6 +224,9 @@ func _draw() -> void:
 			draw_circle(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, Color(tint, 0.06))
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
+	for ember: Dictionary in _embers:
+		var ember_fade: float = clampf(float(ember["life"]) / float(ember["max"]), 0.0, 1.0)
+		draw_circle(Vector2(ember["pos"]), float(ember["size"]), Color(Color(ember["color"]), ember_fade))
 	for streak: Dictionary in _streaks:
 		var streak_fade: float = clampf(float(streak["life"]) / float(streak["max"]), 0.0, 1.0)
 		draw_line(Vector2(streak["from"]), Vector2(streak["to"]), Color(Color(streak["color"]).lerp(Color.WHITE, 0.5), streak_fade), 3.0)

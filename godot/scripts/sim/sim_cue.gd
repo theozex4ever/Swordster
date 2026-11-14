@@ -33,6 +33,16 @@ enum Kind {
 	## (`position` = the player, `amount` = whole seconds left, `critical` unused).
 	## Refusals for any other reason (paused, dead, already active) are silent.
 	ULTIMATE_REFUSED,
+	## An enemy froze solid (`position` = where, `element` = ice).
+	ENEMY_FROZEN,
+	## An enemy died while frozen (`position` = where); alongside ENEMY_KILLED.
+	ENEMY_SHATTERED,
+	## Burn or poison damage over time landed (`amount` = whole points, `element` =
+	## the condition shown, `position` = the enemy).
+	CONDITION_DAMAGE,
+	## A burning enemy died and set its neighbours alight (`position` = where it died);
+	## alongside ENEMY_KILLED.
+	FIRE_SPREAD,
 }
 
 var kind: Kind = Kind.DASH
@@ -43,6 +53,9 @@ var amount: int = 0
 var critical: bool = false
 ## Where a moving thing came from, when that matters (an ultimate's blink).
 var origin: Vector2 = Vector2.ZERO
+## The element a condition cue speaks of; `ice` on an ENEMY_HIT that struck a frozen
+## enemy for the shatter bonus. Empty when no element is involved.
+var element: StringName = &""
 
 
 static func make(kind_value: Kind, at: Vector2, direction_value: Vector2 = Vector2.ZERO, amount_value: int = 0, critical_value: bool = false) -> SimCue:

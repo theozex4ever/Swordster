@@ -88,7 +88,7 @@ func _placement(setup: Dictionary) -> EnemyPlacement:
 
 ## No waves and no swords: only what the case itself puts in the arena.
 func _arena(setups: Array, player_at: Vector2 = Vector2(-1.0, -1.0)) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 23
 	scenario.waves_enabled = false
 	var no_swords: Array[SwordSpec] = []
@@ -638,7 +638,7 @@ func _check_wall_encounter() -> void:
 	print("crowd: the wall encounter is the reference's pinned crowd")
 	var encounter: Dictionary = _ref["crowd_encounter"]
 	var setups: Array = encounter["setup"]
-	var scenario: RunScenario = RunScenario.wall_encounter()
+	var scenario: RunScenario = RunScenario.wall_encounter().without_conditions()
 	var same_crowd: bool = scenario.initial_enemies.size() == setups.size()
 	for i: int in mini(setups.size(), scenario.initial_enemies.size()):
 		var placement: EnemyPlacement = scenario.initial_enemies[i]
@@ -657,7 +657,7 @@ func _check_wall_encounter() -> void:
 			if cue.kind == SimCue.Kind.WALL_SLAM:
 				slam_ticks.append(step_index)
 	_ok("shoving it slams the crowd into the wall on the prototype's ticks (without swords it plays the captured composite)", _ticks_close(slam_ticks, _ref_ticks(encounter["events"], "wall_slam"), TICK_TOL) and run.kills == int(encounter["final_kills"]), "%s kills %d" % [slam_ticks, run.kills])
-	var fought: GameRun = GameRun.new(RunScenario.wall_encounter())
+	var fought: GameRun = GameRun.new(RunScenario.wall_encounter().without_conditions())
 	_ok("the wall encounter has a three-Fang loadout and no further wave", fought.swords.size() == 3 and not fought.scenario.waves_enabled and fought.enemies.size() == 14)
 
 
@@ -713,8 +713,8 @@ func _key(code: Key) -> InputEventKey:
 # ----------------------------------------------------- wave composition
 func _check_wave_composition() -> void:
 	print("crowd: the encounter's wave fields husks, runners and brutes")
-	_ok("the normal run stays the husk wave (the prototype's wave 1 has no runners or brutes)", RunScenario.new().wave_kinds.is_empty() and not RunScenario.new().dev_shove)
-	var scenario: RunScenario = RunScenario.crowd_encounter()
+	_ok("the normal run stays the husk wave (the prototype's wave 1 has no runners or brutes)", RunScenario.new().without_conditions().wave_kinds.is_empty() and not RunScenario.new().without_conditions().dev_shove)
+	var scenario: RunScenario = RunScenario.crowd_encounter().without_conditions()
 	scenario.seed = 9
 	scenario.first_wave_delay = 0.1
 	var run: GameRun = GameRun.new(scenario)
@@ -755,7 +755,7 @@ func _check_wave_composition() -> void:
 		checks_out = checks_out and enemy.radius == def.radius and enemy.damage == def.damage and enemy.knock_mult == def.knock and enemy.max_hp == def.hp
 	_ok("spawned enemies carry their type's radius, damage, knockback multiplier and health", checks_out and not run.enemies.is_empty())
 	# The fixture is playable end to end under real play: the player can finish it.
-	var clear: RunScenario = RunScenario.crowd_encounter()
+	var clear: RunScenario = RunScenario.crowd_encounter().without_conditions()
 	clear.seed = 9
 	clear.first_wave_delay = 0.1
 	var cleared: GameRun = GameRun.new(clear)
@@ -784,16 +784,19 @@ func _check_restart_with_crowd() -> void:
 	run.apply(GameCommand.toggle_encounter())
 	_ok("the dev encounter after the crowd is the spitters (issue #10)", run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and run.restarts == 2)
 	run.apply(GameCommand.toggle_encounter())
-	_ok("and the one after that restores the normal scenario", not run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and run.restarts == 3)
+	_ok("then the conditions encounter (issue #11)", run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS and run.restarts == 3)
+	run.apply(GameCommand.toggle_encounter())
+	_ok("and the one after that restores the normal scenario", not run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and run.restarts == 4)
 	_ok("nothing from the crowd fight survives the switch: enemies, motes, counters, markers, cues",
 		run.enemies.is_empty() and run.motes.is_empty() and run.kills == 0 and run.combo == 0 and run.director.markers.is_empty() and run.director.queue.is_empty()
 		and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 0 and run.cue_count(SimCue.Kind.WALL_SLAM) == 0 and run.take_cues().is_empty())
 	run.apply(GameCommand.toggle_encounter())
 	_ok("toggling again returns to the crowd encounter", run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_CROWD)
-	var crowd_first: GameRun = GameRun.new(RunScenario.crowd_encounter())
+	var crowd_first: GameRun = GameRun.new(RunScenario.crowd_encounter().without_conditions())
 	crowd_first.apply(GameCommand.toggle_encounter())
 	crowd_first.apply(GameCommand.toggle_encounter())
-	_ok("a run that began as the crowd encounter reaches the plain run after the spitters", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
+	crowd_first.apply(GameCommand.toggle_encounter())
+	_ok("a run that began as the crowd encounter reaches the plain run after the spitters and the conditions encounter", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
 
 
 # ------------------------------------------------------ real Main scene
@@ -818,7 +821,7 @@ func _press(main: Main, code: Key) -> void:
 
 func _check_main_scene() -> void:
 	print("crowd: the Main scene shows and controls the encounter")
-	var scenario: RunScenario = RunScenario.crowd_encounter()
+	var scenario: RunScenario = RunScenario.crowd_encounter().without_conditions()
 	scenario.seed = 12
 	scenario.first_wave_delay = 0.1
 	var main: Main = _main_with(scenario, "res://tests/alt_enemy.tscn")
@@ -849,9 +852,12 @@ func _check_main_scene() -> void:
 	_ok("the dev button leads from the crowd to the spitter encounter and clears the arena (no shove there)", main.run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and main.run.enemies.is_empty() and main._presenter.visual_count() == 3 and not main._hud._shove_button.visible)
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
-	_ok("pressing it again returns to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and not main._hud._encounter_label.visible)
+	_ok("pressing it again leads to the conditions encounter, and once more to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS and main._hud._encounter_label.visible)
+	main._hud._encounter_button.button_down.emit()
+	await _tree.process_frame
+	_ok("pressing it once more returns to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and not main._hud._encounter_label.visible)
 	_press(main, KEY_C)
-	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 3)
+	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 4)
 	main._sfx.unlock()
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.WALL_SLAM, Vector2.ZERO, Vector2.ZERO, 9))
@@ -859,7 +865,7 @@ func _check_main_scene() -> void:
 	main.queue_free()
 	await _tree.process_frame
 
-	var plain: Main = _main_with(RunScenario.new())
+	var plain: Main = _main_with(RunScenario.new().without_conditions())
 	await _tree.process_frame
 	_press(plain, KEY_F)
 	_ok("in the normal run the shove does nothing and its controls are hidden", plain.run.cue_count(SimCue.Kind.SHOVE) == 0 and not plain._hud._shove_button.visible and not plain._hud._encounter_label.visible)
@@ -879,7 +885,7 @@ func _check_visual_independence() -> void:
 	var results: Array[Dictionary] = []
 	var hosts: Array[Main] = []
 	for use_alt: bool in [false, true]:
-		var scenario: RunScenario = RunScenario.crowd_encounter()
+		var scenario: RunScenario = RunScenario.crowd_encounter().without_conditions()
 		scenario.seed = 14
 		scenario.first_wave_delay = 0.2
 		hosts.append(_main_with(scenario, "res://tests/alt_enemy.tscn" if use_alt else ""))

@@ -80,6 +80,7 @@ func _sync_enemies(run: GameRun) -> void:
 			visual.setup(enemy.kind)
 			_enemy_visuals[key] = visual
 		visual.apply_pose(enemy.position, enemy.facing, enemy.flash, enemy.squash, enemy.hp / enemy.max_hp, enemy.stun > 0.0, enemy.telegraph())
+		visual.apply_conditions(enemy.conditions.view())
 		if fresh:
 			visual.snap()
 	_drop_missing(_enemy_visuals, live)

@@ -89,7 +89,7 @@ func _placement(setup: Dictionary) -> EnemyPlacement:
 
 ## No waves and no swords: only what the case itself puts in the arena.
 func _arena(setups: Array, swords: Array[SwordSpec] = []) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 31
 	scenario.waves_enabled = false
 	scenario.crit_chance = 0.0
@@ -734,7 +734,7 @@ func _check_exactly_once() -> void:
 
 	# A whole fight: spitters only, so every PLAYER_HURT is an orb and each fired
 	# orb is accounted for exactly once.
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 17
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -816,7 +816,7 @@ func _check_paused_and_dead() -> void:
 	restart.take_cues()
 	restart.apply(GameCommand.restart())
 	_ok("restarting drops every orb in flight and their counters", restart.projectiles.is_empty() and restart.cue_count(SimCue.Kind.PROJECTILE_FIRED) == 0)
-	var scenario: RunScenario = RunScenario.spitter_encounter()
+	var scenario: RunScenario = RunScenario.spitter_encounter().without_conditions()
 	scenario.seed = 6
 	scenario.first_wave_delay = 0.0
 	var long_run: GameRun = GameRun.new(scenario)
@@ -869,39 +869,40 @@ func _check_shared_parry_rule() -> void:
 # --------------------------------------------- encounter, cycle, launch
 func _check_encounter_and_cycle() -> void:
 	print("spitters: the encounter fixture and the dev-encounter cycle")
-	var scenario: RunScenario = RunScenario.spitter_encounter()
+	var scenario: RunScenario = RunScenario.spitter_encounter().without_conditions()
 	var spitters: int = scenario.wave_kinds.count(EnemyDefs.SPITTER)
 	var husks: int = scenario.wave_kinds.count(EnemyDefs.HUSK)
 	_ok("the spitter encounter is one wave of %d spitters and %d husks with the three-Fang fixture loadout and no shove" % [spitters, husks], spitters == 5 and husks == 3 and scenario.wave_kinds.size() == 8 and scenario.loadout.size() == 3 and not scenario.dev_shove and scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and scenario.waves_enabled)
-	var run: GameRun = GameRun.new(RunScenario.new())
+	var run: GameRun = GameRun.new(RunScenario.new().without_conditions())
 	var visited: Array[StringName] = [run.scenario.encounter]
-	for i: int in 3:
+	for i: int in 4:
 		run.apply(GameCommand.toggle_encounter())
 		visited.append(run.scenario.encounter)
-	_ok("the dev command cycles normal -> crowd -> spitters -> normal, restarting each time (%s)" % [visited], visited == [&"", &"crowd", &"spitters", &""] and run.restarts == 3)
-	var from_spitters: GameRun = GameRun.new(RunScenario.spitter_encounter())
+	_ok("the dev command cycles normal -> crowd -> spitters -> conditions -> normal, restarting each time (%s)" % [visited], visited == [&"", &"crowd", &"spitters", &"conditions", &""] and run.restarts == 4)
+	var from_spitters: GameRun = GameRun.new(RunScenario.spitter_encounter().without_conditions())
 	from_spitters.apply(GameCommand.toggle_encounter())
-	_ok("a run that began in the spitter encounter continues to the normal run", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and from_spitters.scenario.wave_kinds.is_empty())
+	_ok("a run that began in the spitter encounter continues to the conditions encounter (issue #11)", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS)
+	from_spitters.apply(GameCommand.toggle_encounter())
+	_ok("then to the normal run", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and from_spitters.scenario.wave_kinds.is_empty())
 	from_spitters.apply(GameCommand.toggle_encounter())
 	_ok("and then to the crowd", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_CROWD)
-	var wall: GameRun = GameRun.new(RunScenario.wall_encounter())
-	wall.apply(GameCommand.toggle_encounter())
-	wall.apply(GameCommand.toggle_encounter())
-	wall.apply(GameCommand.toggle_encounter())
-	_ok("the wall encounter keeps the crowd slot: spitters, normal, then the pinned crowd again", wall.scenario.encounter == RunScenario.ENCOUNTER_CROWD and wall.enemies.size() == 14 and not wall.scenario.waves_enabled)
-	var custom: RunScenario = RunScenario.new()
+	var wall: GameRun = GameRun.new(RunScenario.wall_encounter().without_conditions())
+	for i: int in 4:
+		wall.apply(GameCommand.toggle_encounter())
+	_ok("the wall encounter keeps the crowd slot: spitters, conditions, normal, then the pinned crowd again", wall.scenario.encounter == RunScenario.ENCOUNTER_CROWD and wall.enemies.size() == 14 and not wall.scenario.waves_enabled)
+	var custom: RunScenario = RunScenario.new().without_conditions()
 	custom.seed = 77
 	var custom_run: GameRun = GameRun.new(custom)
-	for i: int in 3:
+	for i: int in 4:
 		custom_run.apply(GameCommand.toggle_encounter())
 	_ok("a custom scenario is the normal slot and returns after the cycle", custom_run.scenario == custom)
 	var launched_spitters: RunScenario = LaunchOptions.scenario_for("spitters")
 	var launched_crowd: RunScenario = LaunchOptions.scenario_for("crowd")
 	var launched_wall: RunScenario = LaunchOptions.scenario_for("wall")
 	_ok("the launch option asks for the spitter encounter", launched_spitters != null and launched_spitters.encounter == RunScenario.ENCOUNTER_SPITTERS and launched_crowd != null and launched_crowd.encounter == RunScenario.ENCOUNTER_CROWD and launched_wall != null and launched_wall.encounter == RunScenario.ENCOUNTER_CROWD and LaunchOptions.scenario_for("nonsense") == null)
-	_ok("the dev button names where it leads: %s" % [[RunScenario.encounter_title(RunScenario.next_encounter(&"")), RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")), RunScenario.encounter_title(RunScenario.next_encounter(&"spitters"))]],
-		RunScenario.encounter_title(RunScenario.next_encounter(&"")) == "Crowd" and RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")) == "Spitters" and RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")) == "Normal")
-	var played: RunScenario = RunScenario.spitter_encounter()
+	_ok("the dev button names where it leads: %s" % [[RunScenario.encounter_title(RunScenario.next_encounter(&"")), RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")), RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")), RunScenario.encounter_title(RunScenario.next_encounter(&"conditions"))]],
+		RunScenario.encounter_title(RunScenario.next_encounter(&"")) == "Crowd" and RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")) == "Spitters" and RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")) == "Conditions" and RunScenario.encounter_title(RunScenario.next_encounter(&"conditions")) == "Normal")
+	var played: RunScenario = RunScenario.spitter_encounter().without_conditions()
 	played.seed = 21
 	played.first_wave_delay = 0.2
 	var played_run: GameRun = GameRun.new(played)
@@ -924,7 +925,7 @@ func _check_encounter_and_cycle() -> void:
 
 func _check_normal_run_unchanged() -> void:
 	print("spitters: the normal run is unchanged")
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 5
 	var run: GameRun = GameRun.new(scenario)
 	var kinds: Dictionary = {}
@@ -955,7 +956,7 @@ func _tick_main(main: Main, count: int) -> void:
 
 func _check_main_scene() -> void:
 	print("spitters: the Main scene shows spitters, their wind-up and the dev controls")
-	var scenario: RunScenario = RunScenario.spitter_encounter()
+	var scenario: RunScenario = RunScenario.spitter_encounter().without_conditions()
 	scenario.seed = 12
 	scenario.first_wave_delay = 0.1
 	var main: Main = _main_with(scenario, "res://tests/alt_enemy.tscn")
@@ -982,13 +983,15 @@ func _check_main_scene() -> void:
 	_ok("shots are heard (the shot sound played) and flying orbs are in the run (%d fired)" % main.run.cue_count(SimCue.Kind.PROJECTILE_FIRED), main.run.cue_count(SimCue.Kind.PROJECTILE_FIRED) > shot_before and main._sfx.played.has("shot"), "%s" % [main._sfx.played])
 	_ok("the presenter shows a visual for every enemy and the three swords: %d for %d" % [main._presenter.visual_count(), main.run.enemies.size()], main._presenter.visual_count() == main.run.enemies.size() + 3)
 	_ok("the legend names the encounter as a dev fixture and counts the orbs", main._hud._encounter_label.visible and main._hud._encounter_label.text.begins_with("SPITTER ENCOUNTER (dev fixture)") and main._hud._encounter_label.text.contains("spitter") and main._hud._encounter_label.text.contains("parried"), main._hud._encounter_label.text)
-	_ok("the dev button says where it leads and that it restarts play, and the shove stays hidden here", main._hud._encounter_button.text == "Dev: Normal (restarts)" and not main._hud._shove_button.visible, main._hud._encounter_button.text)
+	_ok("the dev button says where it leads and that it restarts play, and the shove stays hidden here", main._hud._encounter_button.text == "Dev: Conditions (restarts)" and not main._hud._shove_button.visible, main._hud._encounter_button.text)
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.PROJECTILE_PARRIED, Vector2.ZERO))
 	_ok("a parry has its own sound, different from a hit's", main._sfx.played.has("parry") and not main._sfx.played.has("hit"), "%s" % [main._sfx.played])
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
-	_ok("the dev button returns to the normal run: no enemies, no orbs, controls and legend hidden", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and main.run.enemies.is_empty() and main.run.projectiles.is_empty() and not main._hud._encounter_label.visible and main._hud._encounter_button.text == "Dev: Crowd (restarts)", main._hud._encounter_button.text)
+	main._hud._encounter_button.button_down.emit()
+	await _tree.process_frame
+	_ok("the dev button returns (via the conditions encounter) to the normal run: no enemies, no orbs, controls and legend hidden", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and main.run.enemies.is_empty() and main.run.projectiles.is_empty() and not main._hud._encounter_label.visible and main._hud._encounter_button.text == "Dev: Crowd (restarts)", main._hud._encounter_button.text)
 	main.queue_free()
 	await _tree.process_frame
 	# Silhouettes: every type reads differently without final art.
@@ -1013,7 +1016,7 @@ func _check_visual_independence() -> void:
 	var results: Array[Dictionary] = []
 	var hosts: Array[Main] = []
 	for use_alt: bool in [false, true]:
-		var scenario: RunScenario = RunScenario.spitter_encounter()
+		var scenario: RunScenario = RunScenario.spitter_encounter().without_conditions()
 		scenario.seed = 14
 		scenario.first_wave_delay = 0.2
 		hosts.append(_main_with(scenario, "res://tests/alt_enemy.tscn" if use_alt else ""))
