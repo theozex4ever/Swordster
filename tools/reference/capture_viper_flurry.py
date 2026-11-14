@@ -297,14 +297,26 @@ def case_target_replacement():
         hp_other = other.hp
         tick(g, 4)
         dead_victim_hit_on_its_turn = first_victim.hp < 500.0
-        tick(g, 1)  # the tick on which the dead victim was due a dart: nothing happens, a replacement is chosen
+        trauma_before_due_tick = g.trauma
+        tick(g, 1)
+        no_shake_for_a_dead_victim = g.trauma <= trauma_before_due_tick  # the tick on which the dead victim was due a dart: nothing happens, a replacement is chosen
         replaced = sw.victim is other
         hit_on_due_tick = other.hp < hp_other
         tick(g, 5)  # and the replacement is struck one cadence later
         out["killed_by_something_else"] = dict(setup=[a.setup, b.setup], kills=g.kills, dead_victim_took_damage=dead_victim_hit_on_its_turn,
                                                replaced_by_the_other=replaced, other_hit_on_due_tick=hit_on_due_tick,
                                                other_hits_after_replacement=r((hp_other - other.hp) / 8.0, 3),
-                                               victim_hp_after=r(first_victim.hp))
+                                               victim_hp_after=r(first_victim.hp), no_shake_for_a_dead_victim=no_shake_for_a_dead_victim)
+        # the only enemy in the area is killed by something else: the next choice finds nobody and the sword wanders
+        g = fresh()
+        a = foe(g, (point[0] - 40.0, point[1]))
+        sw = g.swords[0]
+        key(g, pygame.K_q, mouse=point)
+        tick(g)
+        g.kill(sw.victim, V(1, 0), False)
+        tick(g, 5)
+        out["killed_only_enemy"] = dict(setup=[a.setup], kills=g.kills, victim_none=sw.victim is None, state=sw.state,
+                                        shake_after=r(g.trauma))
     return out
 
 

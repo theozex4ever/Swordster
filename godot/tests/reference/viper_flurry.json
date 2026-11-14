@@ -2289,7 +2289,22 @@
       "replaced_by_the_other": true,
       "other_hit_on_due_tick": false,
       "other_hits_after_replacement": 1.0,
-      "victim_hp_after": 500.0
+      "victim_hp_after": 500.0,
+      "no_shake_for_a_dead_victim": true
+    },
+    "killed_only_enemy": {
+      "setup": [
+        {
+          "x": 1520.0,
+          "y": 900.0,
+          "hp": 500.0,
+          "speed_scale": 0.0
+        }
+      ],
+      "kills": 1,
+      "victim_none": true,
+      "state": "ult",
+      "shake_after": 0.0
     }
   },
   "recharge_and_rejections": {
@@ -2651,7 +2666,7 @@
     }
   },
   "fixture_scope": {
-    "enemies_created": 30,
+    "enemies_created": 31,
     "armed_enemies": 0,
     "kinds": [
       "husk"

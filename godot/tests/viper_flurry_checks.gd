@@ -393,12 +393,24 @@ func _check_target_replacement() -> void:
 	var replacement_hp: float = replacement.hp
 	_steps(run_other, 4)
 	var dead_took_damage: bool = chosen.hp < 500.0
+	var trauma_before_due: float = run_other.trauma
 	run_other.step()
+	var quiet_for_the_dead: bool = run_other.trauma <= trauma_before_due
 	var replaced: bool = sword_other.ultimate_victim == replacement
 	var hit_on_due_tick: bool = replacement.hp < replacement_hp
 	_steps(run_other, 5)
 	_ok("a victim killed by something else before its dart takes no hit and is not killed twice (kills %d)" % run_other.kills,
 		not dead_took_damage == not bool(other["dead_victim_took_damage"]) and run_other.kills == int(other["kills"]) and chosen.hp == float(other["victim_hp_after"]))
+	_ok("a dead victim's dart makes no shake either: only a real hit shakes the screen", quiet_for_the_dead == bool(other["no_shake_for_a_dead_victim"]) and quiet_for_the_dead)
+	var lone: Dictionary = cases["killed_only_enemy"]
+	var run_lone: GameRun = _run_of(lone["setup"])
+	var sword_lone: SwordState = run_lone.swords[0]
+	run_lone.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
+	run_lone.step()
+	if sword_lone.ultimate_victim != null:
+		run_lone.kill(sword_lone.ultimate_victim, Vector2.RIGHT)
+	_steps(run_lone, 5)
+	_ok("when the only enemy in the area is killed by something else nobody is chosen next (the corpse is not a candidate) and the sword wanders on", sword_lone.ultimate_victim == null and bool(lone["victim_none"]) and run_lone.kills == int(lone["kills"]) and _phase_name(sword_lone.phase) == String(lone["state"]) and run_lone.trauma <= float(lone["shake_after"]) + SCALAR_TOL)
 	_ok("the dart's turn passes without a hit and the other enemy becomes the victim and is struck one beat later", replaced == bool(other["replaced_by_the_other"]) and hit_on_due_tick == bool(other["other_hit_on_due_tick"]) and _hits(replacement, 500.0) == float(other["other_hits_after_replacement"]))
 	# A victim that left the run (dead and removed at the end of its tick) between darts.
 	var run_removed: GameRun = _run_of(other["setup"])
