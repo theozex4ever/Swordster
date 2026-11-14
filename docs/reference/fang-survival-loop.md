@@ -111,6 +111,21 @@ Restart: R restarts only when dead **and** the death timer (scaled time) is abov
 0.8 s (1530); otherwise R is the slot-three ultimate key. Because slow motion
 quarters the timer for the first 1.4 real seconds, the delay is ~1.93 real seconds.
 
+### Touch buttons (web/mobile.js 54–60; `Hud`)
+
+The prototype's on-screen buttons all dispatch on `pointerdown`, never on release.
+In the port the Dash, Pause/Resume and Restart buttons act on press: they are wired to
+`button_down`, not `pressed` (which fires on release by default; connecting it was a
+bug in the first version of this slice that delayed a touch dash by the length of
+the tap). `button_down` rather than `pressed` plus press mode, because Godot also
+delivers a real touch as its own emulated mouse button, and `pressed` then fires twice per
+touch while `button_down` fires once. `survival_loop_checks.gd` drives all three
+buttons with real mouse and touch events through the viewport: the dash is live on
+press (invulnerable before the next contact tick), holding does not repeat it even
+after the cooldown, releasing does nothing, and Pause/Resume and Restart likewise act
+once on press. The joystick, Ranges, ultimate, swap, Strike and fullscreen buttons
+belong to later slices.
+
 ### Time: hitstop, slow motion, pause (Game.update 1549–1560)
 
 Real time (`real_time`, shake decay and the hitstop timer itself) keeps running
@@ -161,7 +176,29 @@ enemies empty) starts 0.7 s of slow motion at ×0.3 and a 3.2 s break.
 | wave 1 starts | tick 97 |
 | telegraph ticks | 116, 141, 166, 191, 216, 241, 266, 291 |
 | husk appearance ticks | 157, 182, 207, 232, 257, 282, 307, 332 |
-| three Fangs vs wave 1, stationary player, 8 seeds | all survive, 8 kills, cleared 13.2–14.3 s, lowest health 83 |
+| three Fangs vs wave 1, **unarmed** husks, stationary player, 8 seeds | all survive, 8 kills, cleared 13.1–14.6 s, lowest health 83 |
+
+The survival row is an **unarmed** fixture. The prototype's `start_wave` always arms
+the first two foes of wave 1 and rolls arming for the rest; an armed foe has 1.35×
+health (40.5 for a husk) and drops a sword, none of which this slice has. The capture
+therefore discards the arming result of every spawn-queue entry (the prototype still
+draws its random numbers) and stops with an assertion if any marker or enemy it sees
+is armed or any husk's health is not 30. Each seed records `armed_enemies: 0` and
+`husks_spawned: 8`, and the Godot check rejects a reference that does not say so. An
+earlier capture without this step contained two armed husks per seed and so measured
+a different, harder fight (13.2–14.3 s then; the unarmed band is 13.1–14.6 s). The
+Godot run is compared with the band ±1 s, unchanged.
+
+After the player dies, husks stop chasing and drift: the velocity eases (blend
+`min(1, dt·6)`) toward a vector of length `0.3 × speed` whose angle is
+`t·0.3 + id % 7`, i.e. it turns 0.3 rad/s. The starting angle is an identity value
+in the prototype, so the reference only holds quantities independent of it.
+
+| Case (husk 300 px away, player dead) | Reference |
+|---|---|
+| speed at 0.5 / 1 / 2 / 3 s | 26.414 / 27.522 / 27.569 / 27.569 (target 27.6) |
+| distance travelled at 0.5 / 1 / 2 / 3 s | 9.83 / 23.39 / 50.38 / 76.25 px |
+| heading turn from 1 s to 3 s | 0.5995 rad |
 
 A killed enemy releases 3 healing motes: they scatter 120–260 px/s, home in after
 0.25 s, are collected within 18 px for +0.5 health, capped at 100; a mote is
@@ -184,7 +221,8 @@ Each is a scope decision of slice #8, not a rebalance.
 2. **No armed enemies or drops.** Prototype wave 1 arms the first two husks (the
    first with a Pike) at 1.35× health and they drop swords. Drops are issue #17, so
    husks here are unarmed with base health (30). Wave composition beyond wave 1,
-   unlocks and brute/runner/spitter behaviour are issue #18 and later.
+   unlocks and brute/runner/spitter behaviour are issue #18 and later. The survival
+   reference is captured with the arming disabled to match (see above).
 3. **One wave.** After the scenario's wave count (1) is cleared the run is
    *survived* and no further wave starts; the prototype would continue.
 4. **No elemental conditions.** Burn, poison, chill, freeze, the frozen damage
@@ -209,7 +247,26 @@ Each is a scope decision of slice #8, not a rebalance.
 10. **Rendering is not a gate.** Placeholder visuals follow the logical pose; the
     prototype's particles, trails, glow and vignette are not reproduced.
 
-## What was not verified here
+## Validation
 
-Interactive play in the Windows and Web exports (feel, audio, touch dash, real
-frame pacing) cannot be run headlessly. See the PR for what was and was not run.
+Run on build `20261114-100754-3895208bf` (source commit 3895208, clean tree; the
+later commits on this branch change documentation only), Linux, Godot 4.7.2-stable.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 289`; full build OK, Windows ZIP and Web bundle produced |
+| `tools/godot/mutation-check.sh` | 46 of 46 deliberate bugs caught, 0 inconclusive (baseline 289 checks pass) |
+| Reference regeneration | `capture_fang_survival_loop.py` run twice gives byte-identical output |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The full build's `Swordster.exe`, extracted from the ZIP, starts under Wine with this machine's NVIDIA GPU, opens a window, shows the build label, arena and HUD, spawns telegraphed husks, the three Fang swords fight them and the run ends on the WAVE SURVIVED screen (8 kills, health 96, ~17 s after launch). Wine screenshots were taken at 2, 6, 10 and 17 s. No input was sent: the only way to synthesise it on this desktop (X11 test events) triggered a desktop remote-control permission prompt, which was not approved. Dash and Restart in that export were therefore not exercised. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, desktop viewport 1280×720)** | Served the built bundle over HTTP and loaded it: engine starts without console errors, the same loop plays to WAVE SURVIVED (kills 8, health 100, ~25 s). Space dashes (HUD shows the dash cooldown). A real mouse press on Restart restarts the run while the button is still held. A synthetic CDP **touch** on Dash shows the dash cooldown running while the finger is still down, and holding it past the cooldown does not dash again (HUD back to "dash ready" after release). |
+
+## What was not verified
+
+- **No real Windows machine** and no real Android device. Windows and Android hardware
+  validation is deferred to #6 and #22 by the maintainer's decision; the Wine run above
+  proves the export launches and runs the loop, not that it behaves on Windows.
+- Web was run in headless Chromium with a software renderer and synthetic CDP touch,
+  not in Firefox, on a real GPU or on a phone. Frame pacing, audio and real multi-touch
+  were not measured.
+- Only Space (dash) was pressed in the Web run; WASD, P and R were covered by the
+  headless checks alone. No keyboard or button input reached the Windows export.
