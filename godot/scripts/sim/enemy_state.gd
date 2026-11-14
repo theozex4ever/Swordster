@@ -37,6 +37,8 @@ var age: float = 0.0
 ## and how long it has been charging the current one.
 var shoot_cooldown: float = 0.0
 var charge: float = 0.0
+## Burn, poison, chill and freeze (see `EnemyConditions`).
+var conditions: EnemyConditions = EnemyConditions.new()
 
 
 static func husk(at: Vector2, wave: int, speed_factor: float, serial_value: int) -> EnemyState:
@@ -59,6 +61,7 @@ static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: f
 	enemy.speed = def.speed * speed_factor
 	enemy.damage = def.damage
 	enemy.knock_mult = def.knock
+	enemy.conditions.freeze_factor = def.freeze_factor
 	enemy.age = phase
 	enemy.shoot_cooldown = shoot_cooldown_value
 	return enemy
@@ -81,19 +84,21 @@ func launch(direction: Vector2, force: float) -> void:
 
 
 ## Prototype `Enemy.update`: chase the player (a runner weaves across the line
-## of approach, a spitter keeps its distance and shoots); a stunned enemy only
-## decays its knockback velocity, and a stun cancels a spitter's charge. Once the
+## of approach, a spitter keeps its distance and shoots, a chilled enemy moves at half
+## speed); a stunned or frozen enemy only decays its knockback velocity, and either cancels a
+## spitter's charge. A frozen enemy's own clock stops. Once the
 ## player is dead every enemy wanders slowly and nothing shoots. Walls clamp the enemy; hitting one
 ## while stunned and fast is a wall slam.
 func update(run: GameRun, dt: float) -> void:
-	age += dt
+	if conditions.frozen <= 0.0:
+		age += dt
 	flash = maxf(0.0, flash - dt)
 	squash = maxf(0.0, squash - dt * 5.0)
 	var to_player: Vector2 = run.position - position
 	var dist: float = maxf(1.0, to_player.length())
 	var toward: Vector2 = to_player / dist
 	facing = toward
-	if stun > 0.0:
+	if stun > 0.0 or conditions.frozen > 0.0:
 		stun -= dt
 		velocity *= exp(-dt * 5.0)
 		charge = 0.0
@@ -106,6 +111,8 @@ func update(run: GameRun, dt: float) -> void:
 		elif kind == EnemyDefs.RUNNER:
 			var side: Vector2 = Vector2(-toward.y, toward.x)
 			want = (toward + side * sin(age * RUNNER_WEAVE_RATE) * RUNNER_WEAVE_AMPLITUDE) * speed
+		if conditions.chill > 0.0:
+			want *= ConditionDefs.CHILL_SLOW
 		velocity += (want - velocity) * minf(1.0, dt * 6.0)
 	var speed_before: float = velocity.length()
 	position += velocity * dt

@@ -5,7 +5,9 @@ extends RefCounted
 ## come out identical however the frames around those ticks are cut. Three
 ## scripts: "crowd" (issue #9: a shoved crowd against the wall), "spitters"
 ## (issue #10: orbs fired, parried and dodged) and "flurry" (issue #12: Viper
-## Flurry commanded from every sword slot, repeated and refused). The probe (`frame_rate_probe.gd`)
+## Flurry commanded from every sword slot, repeated and refused) and "conditions"
+## (issue #11: three elemental swords burning, poisoning and freezing standing packs,
+## burning deaths spreading, brutes freezing for less). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
@@ -14,6 +16,7 @@ const REFERENCE_PATH: String = "res://tests/reference/crowd_and_walls.json"
 const CROWD: String = "crowd"
 const SPITTERS: String = "spitters"
 const FLURRY: String = "flurry"
+const CONDITIONS: String = "conditions"
 const TOTAL_TICKS: int = 900
 ## Simulation ticks (ticks already completed) before which each command is issued.
 const SHOVE_TICKS: Array[int] = [0, 200, 420, 520, 560, 640, 700]
@@ -37,6 +40,20 @@ const FLURRY_COMMANDS: Array[Vector3] = [
 	Vector3(155.0, 0.0, 0.0), Vector3(300.0, 1.0, 0.0), Vector3(400.0, 2.0, 0.0), Vector3(500.0, 0.0, 0.0), Vector3(600.0, 0.0, 0.0), Vector3(601.0, 0.0, 0.0), Vector3(620.0, 1.0, 0.0), Vector3(760.0, 2.0, 0.0),
 ]
 const FLURRY_AIMS: Array[Vector2] = [Vector2(280.0, 20.0), Vector2(-270.0, 0.0), Vector2(0.0, 290.0), Vector2(900.0, 0.0), Vector2(-250.0, -20.0), Vector2(0.0, -300.0)]
+## The conditions script: the player stands still while the three elemental Fang swords
+## (poison, ice, fire) fight standing packs: a tight pack of husks (fire spreads through it),
+## two brutes, runners, and tough posts that soak up stacks. The same ultimates are commanded
+## at these ticks: (tick, slot, aim point as an offset from the player).
+const CONDITIONS_PACK: Array[Vector2] = [
+	Vector2(150.0, 0.0), Vector2(186.0, 0.0), Vector2(150.0, 36.0), Vector2(186.0, 36.0), Vector2(150.0, -36.0), Vector2(186.0, -36.0), Vector2(222.0, 0.0),
+]
+const CONDITIONS_BRUTES: Array[Vector2] = [Vector2(-160.0, 20.0), Vector2(-120.0, -110.0)]
+const CONDITIONS_RUNNERS: Array[Vector2] = [Vector2(20.0, -150.0), Vector2(60.0, -150.0), Vector2(-30.0, 150.0)]
+const CONDITIONS_POSTS: Array[Vector2] = [Vector2(110.0, 130.0), Vector2(-110.0, 130.0)]
+const CONDITIONS_COMMANDS: Array[Vector3] = [
+	Vector3(150.0, 2.0, 0.0), Vector3(260.0, 0.0, 0.0), Vector3(380.0, 1.0, 0.0), Vector3(520.0, 2.0, 0.0), Vector3(640.0, 0.0, 0.0), Vector3(760.0, 1.0, 0.0),
+]
+const CONDITIONS_AIMS: Array[Vector2] = [Vector2(170.0, 0.0), Vector2(180.0, 20.0), Vector2(-150.0, 0.0), Vector2(160.0, -20.0), Vector2(0.0, -140.0), Vector2(190.0, 10.0)]
 ## The first SPITTER_PINNED shooters stand their ground (their shots keep flying
 ## along the husk spokes the swords strike); the rest move as spitters do.
 const SPITTER_PINNED: int = 8
@@ -51,6 +68,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _spitter_scenario()
 	if name == FLURRY:
 		return _flurry_scenario()
+	if name == CONDITIONS:
+		return _conditions_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	var reference: Dictionary = JSON.parse_string(file.get_as_text())
 	var crowd: Dictionary = reference["crowd_encounter"]
@@ -110,9 +129,43 @@ static func _flurry_scenario() -> RunScenario:
 	return scenario
 
 
+static func _conditions_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 11
+	scenario.waves_enabled = false
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	var center: Vector2 = scenario.start_position
+	var placements: Array[EnemyPlacement] = []
+	for offset: Vector2 in CONDITIONS_PACK:
+		var husk: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + offset)
+		husk.speed_scale = 0.0
+		placements.append(husk)
+	for offset: Vector2 in CONDITIONS_BRUTES:
+		var brute: EnemyPlacement = EnemyPlacement.make(EnemyDefs.BRUTE, center + offset)
+		brute.speed_scale = 0.0
+		placements.append(brute)
+	for offset: Vector2 in CONDITIONS_RUNNERS:
+		var runner: EnemyPlacement = EnemyPlacement.make(EnemyDefs.RUNNER, center + offset)
+		runner.speed_scale = 0.0
+		placements.append(runner)
+	for offset: Vector2 in CONDITIONS_POSTS:
+		var post: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + offset)
+		post.speed_scale = 0.0
+		post.hp = 5000.0
+		placements.append(post)
+	scenario.initial_enemies = placements
+	return scenario
+
+
 ## Commands to issue once `completed_ticks` ticks have run.
 static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
+	if name == CONDITIONS:
+		for i: int in CONDITIONS_COMMANDS.size():
+			var entry: Vector3 = CONDITIONS_COMMANDS[i]
+			if completed_ticks == int(entry.x):
+				commands.append(GameCommand.ultimate(int(entry.y), GameRun.WORLD.get_center() + CONDITIONS_AIMS[i]))
+		return commands
 	if name == FLURRY:
 		for i: int in FLURRY_COMMANDS.size():
 			var entry: Vector3 = FLURRY_COMMANDS[i]
@@ -150,7 +203,8 @@ static func digest(run: GameRun) -> Dictionary:
 	var ordered: Array[EnemyState] = run.enemies.duplicate()
 	ordered.sort_custom(func(a: EnemyState, b: EnemyState) -> bool: return a.serial < b.serial)
 	for enemy: EnemyState in ordered:
-		alive.append("%d:%s:%.3f:%.3f:%.3f" % [enemy.serial, enemy.kind, enemy.position.x, enemy.position.y, enemy.hp])
+		var c: EnemyConditions = enemy.conditions
+		alive.append("%d:%s:%.3f:%.3f:%.3f:%.3f:%.3f:%d:%.3f:%d:%.3f:%.3f" % [enemy.serial, enemy.kind, enemy.position.x, enemy.position.y, enemy.hp, c.burn, c.poison, c.poison_stacks, c.chill, c.chill_stacks, c.frozen, c.dot])
 	return {
 		"tick": run.tick,
 		"kills": run.kills,
@@ -171,6 +225,10 @@ static func digest(run: GameRun) -> Dictionary:
 		"hit_cues": run.cue_count(SimCue.Kind.ENEMY_HIT),
 		"ultimate_cues": run.cue_count(SimCue.Kind.ULTIMATE_STARTED),
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
+		"frozen_cues": run.cue_count(SimCue.Kind.ENEMY_FROZEN),
+		"shatter_cues": run.cue_count(SimCue.Kind.ENEMY_SHATTERED),
+		"spread_cues": run.cue_count(SimCue.Kind.FIRE_SPREAD),
+		"condition_damage_cues": run.cue_count(SimCue.Kind.CONDITION_DAMAGE),
 		"ultimate_cooldowns": _ultimate_state(run),
 		"sword_phases": run.snapshot()["sword_phases"],
 		"alive": alive,

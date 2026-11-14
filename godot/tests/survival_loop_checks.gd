@@ -52,7 +52,7 @@ func run_all() -> void:
 
 # --------------------------------------------------------------- helpers
 func _plain() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 11
 	scenario.waves_enabled = false
 	var no_swords: Array[SwordSpec] = []
@@ -469,7 +469,7 @@ func _check_time_scales() -> void:
 	_ok("slow motion slows enemy chase (%.1f px vs %.1f px)" % [slowed_travel, normal_travel], slowed_travel < normal_travel * 0.45 and slowed_travel > 0.0)
 
 	# Wave-clear slow motion is part of the same machinery.
-	var cleared: RunScenario = RunScenario.new()
+	var cleared: RunScenario = RunScenario.new().without_conditions()
 	cleared.seed = 5
 	cleared.husk_count = 0
 	cleared.first_wave_delay = 0.1
@@ -647,7 +647,7 @@ func _check_fang() -> void:
 func _check_wave_and_outcomes() -> void:
 	print("survival: telegraphed wave, survive or lose")
 	var wave_ref: Dictionary = _ref["wave"]
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 21
 	var no_swords: Array[SwordSpec] = []
 	scenario.loadout = no_swords
@@ -705,7 +705,7 @@ func _check_wave_and_outcomes() -> void:
 	var cleared_in_band: bool = true
 	var min_hp: float = 100.0
 	for seed_value: int in range(1, 9):
-		var survive_scenario: RunScenario = RunScenario.new()
+		var survive_scenario: RunScenario = RunScenario.new().without_conditions()
 		survive_scenario.seed = seed_value
 		var survive_run: GameRun = GameRun.new(survive_scenario)
 		var ticks_taken: int = 0
@@ -724,7 +724,7 @@ func _check_wave_and_outcomes() -> void:
 	_ok("the survived runs stayed healthy (lowest health %.1f)" % min_hp, min_hp > 40.0)
 
 	# Lost: no swords, the husks reach the player.
-	var lose_scenario: RunScenario = RunScenario.new()
+	var lose_scenario: RunScenario = RunScenario.new().without_conditions()
 	lose_scenario.seed = 33
 	lose_scenario.loadout = no_swords
 	var lost_run: GameRun = GameRun.new(lose_scenario)
@@ -742,7 +742,7 @@ func _check_wave_and_outcomes() -> void:
 # ------------------------------------------------------------------- pause
 func _check_pause_rules() -> void:
 	print("survival: pause freezes the whole run")
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 8
 	var run: GameRun = GameRun.new(scenario)
 	_steps(run, 400)
@@ -767,7 +767,7 @@ func _check_pause_rules() -> void:
 # ----------------------------------------------------------------- restart
 func _check_restart_cleanup() -> void:
 	print("survival: restart clears every run-owned entity and counter")
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 8
 	var run: GameRun = GameRun.new(scenario)
 	var fresh: Dictionary = GameRun.new(scenario).snapshot()
@@ -834,7 +834,7 @@ func _check_input_aliases() -> void:
 
 # --------------------------------------------------- the real Main scene
 func _main_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 17
 	return scenario
 
@@ -852,7 +852,7 @@ func _check_main_scene_loop() -> void:
 	print("survival: the Main scene plays the loop (HUD, presenters, keys)")
 	var scene: PackedScene = load("res://scenes/main.tscn")
 	var main: Main = scene.instantiate() as Main
-	var quick: RunScenario = RunScenario.new()
+	var quick: RunScenario = RunScenario.new().without_conditions()
 	quick.seed = 4
 	quick.first_wave_delay = 0.1
 	quick.husk_count = 3
@@ -884,7 +884,7 @@ func _check_main_scene_loop() -> void:
 	await _tree.process_frame
 
 	# Lost: a lethal contact fixture.
-	var doom: RunScenario = RunScenario.new()
+	var doom: RunScenario = RunScenario.new().without_conditions()
 	doom.seed = 6
 	doom.waves_enabled = false
 	doom.start_health = 10.0
@@ -1005,7 +1005,7 @@ func _check_visual_independence() -> void:
 	var hosts: Array[Main] = []
 	for use_alt: bool in [false, true]:
 		var main: Main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
-		var scenario: RunScenario = RunScenario.new()
+		var scenario: RunScenario = RunScenario.new().without_conditions()
 		scenario.seed = 29
 		scenario.first_wave_delay = 0.2
 		main.scenario = scenario

@@ -33,7 +33,7 @@ brutes against the three-Fang fixture loadout, with a **shove** that flings near
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
 are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
 `C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
-normal; shove with the **Shove** button or `F`. To start in it:
+conditions → normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
@@ -49,6 +49,19 @@ strike that sweeps through an orb **parries** it: green flash, sparks and a `PAR
 damage numbers. Start in it with `Swordster.exe -- --encounter=spitters` or
 `index.html?encounter=spitters`, or reach it with the dev button / `C` (after the crowd).
 The prototype only brings spitters in from wave 3, so the normal run is unchanged.
+
+### Elemental conditions and the conditions encounter
+
+Slice #11 ([reference](../docs/reference/elemental-conditions.md)). Every sword blow that
+leaves its target alive applies the sword's element: **fire** burns for 3 s (spreading to
+neighbours when a burning enemy dies), **poison** stacks to six and ticks for 4.5 s, **ice**
+chills (half speed) and freezes at four stacks for 1.6 s (0.96 s on a brute). A frozen enemy
+cannot hurt you by touch and takes 30 % more from every blow. Enemies show their conditions
+(tinted rim, glow, ice shell and one pip per element), each sword card names its element, and
+the legend of the dev encounter counts the burning, poisoned and frozen. A development fixture
+for it: one wave of husks, runners and two brutes against the three-Fang loadout. Start in it
+with `Swordster.exe -- --encounter=conditions` or `index.html?encounter=conditions`, or reach it
+with the dev button / `C` (after the spitters).
 
 - Engine: Godot **4.7.2-stable**, standard (non-.NET) editor, typed GDScript,
   Compatibility renderer, Web export single-thread with extensions disabled.

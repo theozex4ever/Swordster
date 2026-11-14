@@ -20,11 +20,22 @@ func apply_pose(world_position: Vector2, facing: Vector2, flash: float, squash: 
 	_on_pose(facing, flash, squash, hp_fraction, stunned, telegraph)
 
 
+## Called every fixed tick after `apply_pose`: which elemental conditions are on the
+## enemy (a read-only copy). Optional: a visual that does not show conditions can
+## ignore it. Timers and damage stay in the simulation; a cue's look never drives them.
+func apply_conditions(view: ConditionView) -> void:
+	_on_conditions(view)
+
+
 func snap() -> void:
 	reset_physics_interpolation()
 
 
 func _on_setup(_kind: StringName) -> void:
+	pass
+
+
+func _on_conditions(_view: ConditionView) -> void:
 	pass
 
 

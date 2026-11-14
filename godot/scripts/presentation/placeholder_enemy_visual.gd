@@ -9,6 +9,10 @@ extends EnemyVisual
 ##   * brute  - large dark-purple armoured body with a bright rim and horns.
 ## Every size here is the visual's own; none feeds collision or reach. A white
 ## dashed ring marks an enemy that is stunned or flying (knocked back).
+## Conditions (read from a `ConditionView`): poison greens the body more with each
+## stack, burning pulses the rim orange inside a warm glow, a chilled enemy's rim turns
+## icy blue, a frozen one goes pale inside a hexagonal ice shell; small pips above the
+## health bar count fire (one), poison stacks and ice stacks.
 
 const HUSK_COLOR: Color = Color(0.84, 0.28, 0.34)
 const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)
@@ -17,6 +21,11 @@ const SPITTER_COLOR: Color = Color(0.51, 0.82, 0.35)
 ## Warning glow of a spitter's shot; the orbs it fires share it (see EffectsLayer).
 const SPIT_GLOW: Color = Color(0.78, 1.0, 0.45)
 const EYE_COLOR: Color = Color(1.0, 0.94, 0.78)
+## Condition palette: the elements' colours (the same ones a sword is tinted with).
+const FIRE_COLOR: Color = Color(1.0, 0.46, 0.17)
+const ICE_COLOR: Color = Color(0.47, 0.80, 1.0)
+const POISON_COLOR: Color = Color(0.52, 0.90, 0.26)
+const FROZEN_COLOR: Color = Color(0.82, 0.94, 1.0)
 
 var _kind: StringName = EnemyDefs.HUSK
 var _body_radius: float = 16.0
@@ -26,6 +35,7 @@ var _squash: float = 0.0
 var _hp_fraction: float = 1.0
 var _stunned: bool = false
 var _telegraph: float = 0.0
+var _conditions: ConditionView = ConditionView.new()
 ## Cosmetic clock for spinning parts; advances once per fixed tick.
 var _clock: float = 0.0
 
@@ -62,6 +72,11 @@ func _on_setup(kind: StringName) -> void:
 	_body_radius = visual_radius_of(kind)
 
 
+func _on_conditions(view: ConditionView) -> void:
+	_conditions = view
+	queue_redraw()
+
+
 func _on_pose(facing: Vector2, flash: float, squash: float, hp_fraction: float, stunned: bool, telegraph: float) -> void:
 	_telegraph = telegraph
 	_facing = facing
@@ -75,8 +90,10 @@ func _on_pose(facing: Vector2, flash: float, squash: float, hp_fraction: float, 
 
 func _draw() -> void:
 	var radius: float = _body_radius
-	var base: Color = color_of(_kind)
+	var base: Color = _condition_tint(color_of(_kind))
 	draw_circle(Vector2(0.0, radius * 0.4), radius, Color(0.0, 0.0, 0.0, 0.35))
+	if _conditions.burning:
+		draw_circle(Vector2.ZERO, radius * 1.6, Color(FIRE_COLOR, 0.16))
 	var stretch: float = 1.0 + _squash * 0.18
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(stretch, 1.0 / stretch))
 	var rim: Color = base.lerp(Color.WHITE, clampf(_flash * 6.0, 0.0, 1.0))
@@ -93,12 +110,59 @@ func _draw() -> void:
 	_draw_eyes(radius)
 	if _kind == EnemyDefs.SPITTER and _telegraph > 0.0:
 		_draw_spit_telegraph(radius)
+	if _conditions.frozen:
+		_draw_ice_shell(radius)
 	if _stunned:
 		_draw_stun_ring(radius)
 	if _hp_fraction < 1.0:
 		var width: float = radius * 2.0
 		draw_rect(Rect2(-width * 0.5, -radius - 10.0, width, 4.0), Color(0.0, 0.0, 0.0, 0.6))
 		draw_rect(Rect2(-width * 0.5, -radius - 10.0, width * _hp_fraction, 4.0), Color(0.95, 0.35, 0.4))
+	_draw_condition_pips(radius)
+
+
+## The body colour under the enemy's conditions (prototype `draw_enemy`): poison
+## greens it by stack, burning pulses it toward fire, a chill cools it, a freeze
+## blanches it. Purely a look: nothing here reads back into the run.
+func _condition_tint(color: Color) -> Color:
+	var tinted: Color = color
+	if _conditions.poison_stacks > 0:
+		tinted = tinted.lerp(POISON_COLOR.darkened(0.3), 0.2 + 0.1 * float(_conditions.poison_stacks))
+	if _conditions.burning:
+		tinted = tinted.lerp(FIRE_COLOR, 0.5 + 0.2 * sin(_clock * 20.0))
+	if _conditions.frozen:
+		tinted = tinted.lerp(FROZEN_COLOR, 0.8)
+	elif _conditions.chilled:
+		tinted = tinted.lerp(ICE_COLOR, 0.6)
+	return tinted
+
+
+func _draw_ice_shell(radius: float) -> void:
+	var shell: float = radius * 1.25
+	var points: PackedVector2Array = PackedVector2Array()
+	for corner: int in 7:
+		points.append(SimMath.polar(float(corner % 6) * TAU / 6.0 + 0.3, shell * (1.0 if corner % 2 == 1 else 0.8)))
+	draw_circle(Vector2.ZERO, radius * 1.4, Color(ICE_COLOR, 0.2))
+	draw_polyline(points, Color(0.86, 0.96, 1.0), 2.0)
+
+
+## One pip per active element above the health bar: fire is one, poison and ice show
+## their stacks (a ringed pip means more than one).
+func _draw_condition_pips(radius: float) -> void:
+	var pips: Array[Dictionary] = []
+	if _conditions.burning:
+		pips.append({"color": FIRE_COLOR, "count": 1})
+	if _conditions.poison_stacks > 0:
+		pips.append({"color": POISON_COLOR, "count": _conditions.poison_stacks})
+	if _conditions.chilled or _conditions.frozen:
+		pips.append({"color": ICE_COLOR, "count": _conditions.chill_stacks})
+	var y: float = -radius - 16.0
+	var x: float = -float(pips.size() - 1) * 6.0
+	for pip: Dictionary in pips:
+		draw_circle(Vector2(x, y), 4.0, pip["color"])
+		if int(pip["count"]) > 1:
+			draw_arc(Vector2(x, y), 4.0, 0.0, TAU, 12, Color.WHITE, 1.0)
+		x += 12.0
 
 
 func _draw_runner(radius: float, rim: Color) -> void:

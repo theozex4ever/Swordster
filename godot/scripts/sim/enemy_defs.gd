@@ -30,6 +30,8 @@ const BRUTE_HP: float = 170.0
 const BRUTE_SPEED: float = 52.0
 const BRUTE_DAMAGE: int = 20
 const BRUTE_KNOCK: float = 0.35
+## A brute stays frozen for only this fraction of the usual freeze time (`afflict`).
+const BRUTE_FREEZE_FACTOR: float = 0.6
 
 ## Ranged: keeps its distance, glows for half a second and spits a slow orb.
 const SPITTER_RADIUS: float = 15.0
@@ -66,6 +68,8 @@ var speed: float = HUSK_SPEED
 var damage: int = HUSK_DAMAGE
 ## Multiplies the knockback force a blow imparts (resistance below 1).
 var knock: float = HUSK_KNOCK
+## Multiplies how long a freeze lasts on this type (brutes resist).
+var freeze_factor: float = 1.0
 
 
 static func is_supported(kind_value: StringName) -> bool:
@@ -94,6 +98,7 @@ static func of(kind_value: StringName) -> EnemyDefs:
 			def.speed = BRUTE_SPEED
 			def.damage = BRUTE_DAMAGE
 			def.knock = BRUTE_KNOCK
+			def.freeze_factor = BRUTE_FREEZE_FACTOR
 		_:
 			assert(kind_value == HUSK, "enemy type not ported yet: %s" % kind_value)
 	return def

@@ -83,7 +83,7 @@ func _steps(run: GameRun, count: int) -> void:
 ## Three Fang swords (Q, E, R) with no automatic attacks, enemies standing as the
 ## reference's `setup` says: no waves, no spawns, only what the case puts in the arena.
 func _arena(setups: Array, rarities: Array[int] = [0, 0, 0], crit_chance: float = 0.0) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.new().without_conditions()
 	scenario.seed = 41
 	scenario.waves_enabled = false
 	scenario.crit_chance = crit_chance
@@ -521,7 +521,7 @@ func _check_hud_layout() -> void:
 		_tree.root.add_child(window)
 		var hud: Hud = Hud.new()
 		window.add_child(hud)
-		var run: GameRun = GameRun.new(RunScenario.crowd_encounter())
+		var run: GameRun = GameRun.new(RunScenario.crowd_encounter().without_conditions())
 		await _tree.process_frame
 		hud.show_state(false, false)
 		hud.show_run(run)
@@ -980,7 +980,7 @@ func _check_main_scene() -> void:
 	main.queue_free()
 	await _tree.process_frame
 	# R as restart in the real scene: refused early, accepted after the delay, and never as an ultimate then.
-	var doom: RunScenario = RunScenario.new()
+	var doom: RunScenario = RunScenario.new().without_conditions()
 	doom.seed = 6
 	doom.waves_enabled = false
 	doom.start_health = 10.0

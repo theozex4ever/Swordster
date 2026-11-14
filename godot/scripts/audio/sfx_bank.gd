@@ -79,5 +79,7 @@ func play_cue(cue: SimCue) -> void:
 			play("shot")
 		SimCue.Kind.PROJECTILE_PARRIED:
 			play("parry")
+		SimCue.Kind.ENEMY_FROZEN:
+			play("parry")
 		_:
 			pass
