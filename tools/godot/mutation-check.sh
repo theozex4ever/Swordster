@@ -205,7 +205,7 @@ mutate restart-with-keeps-scenario scripts/sim/game_run.gd "	scenario = new_scen
 mutate restart-keeps-cue-counts scripts/sim/game_run.gd "	_cue_counts = {}
 " "	_cue_counts = _cue_counts
 "
-mutate placements-ignored   scripts/sim/game_run.gd "	for placement: EnemyPlacement in scenario.initial_enemies:" "	for placement: EnemyPlacement in []:"
+mutate placement-position-dropped scripts/sim/game_run.gd "EnemyState.make(placement.kind, placement.position," "EnemyState.make(placement.kind, placement.position + Vector2(40.0, 0.0),"
 mutate placement-velocity-dropped scripts/sim/game_run.gd "		enemy.velocity = placement.velocity" "		enemy.velocity = Vector2.ZERO"
 mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.0:
 			enemy.hp = placement.hp" "		if false:
@@ -221,7 +221,11 @@ mutate shove-button-on-release scripts/hud.gd "_shove_button.button_down.connect
 mutate shove-button-unwired scripts/main.gd "	_hud.shove_pressed.connect(func() -> void: _submit(GameCommand.dev_shove()))" "	_hud.shove_pressed.connect(func() -> void: pass)"
 mutate crowd-button-unwired scripts/main.gd "	_hud.encounter_pressed.connect(func() -> void: _submit(GameCommand.toggle_encounter()))" "	_hud.encounter_pressed.connect(func() -> void: pass)"
 mutate launch-option-lost   scripts/launch_options.gd 'ENCOUNTER_ARGUMENT: String = "--encounter=crowd"' 'ENCOUNTER_ARGUMENT: String = "--encounter=none"'
-mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: float) -> void:" "func _process(_delta: float) -> void:"
+mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: float) -> void:" "func _process(_delta: float) -> void:
+	run.step()
+
+
+func _physics_process(_delta: float) -> void:"
 mutate wall-slam-sound-lost scripts/audio/sfx_bank.gd "		SimCue.Kind.ENEMY_HIT, SimCue.Kind.WALL_SLAM:" "		SimCue.Kind.ENEMY_HIT:"
 
 echo

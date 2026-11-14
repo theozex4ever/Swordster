@@ -4,6 +4,13 @@ extends RefCounted
 ## game itself, with defaults) so no check needs a parallel rules implementation.
 ## Every field has the prototype's behaviour as its default.
 
+## The crowd encounter's wave: five husks, five runners and two brutes,
+## interleaved so the arrival reads (see `crowd_encounter`).
+const CROWD_WAVE: Array[StringName] = [
+	&"brute", &"runner", &"husk", &"runner", &"husk", &"runner", &"husk",
+	&"brute", &"runner", &"husk", &"runner", &"husk",
+]
+
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
 var seed: int = -1
@@ -44,11 +51,6 @@ var enemy_speed_jitter: bool = true
 var enemy_speed_scale: float = 1.0
 ## Probability of a critical hit (prototype: 12%).
 var crit_chance: float = 0.12
-
-const CROWD_WAVE: Array[StringName] = [
-	&"brute", &"runner", &"husk", &"runner", &"husk", &"runner", &"husk",
-	&"brute", &"runner", &"husk", &"runner", &"husk",
-]
 
 
 ## DEVELOPMENT FIXTURE, not the final default loadout: three Fang swords (one

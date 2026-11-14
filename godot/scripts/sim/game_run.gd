@@ -7,8 +7,11 @@ extends RefCounted
 ## Ported from game/main.py (`Game.update`, `Player`, `hit_enemy`, `kill`,
 ## `hurt_player`, `separate`) and stepped at a fixed 60 Hz; the prototype uses a
 ## variable step capped at 1/30. The update order inside `step()` is the
-## prototype's, explicitly. See docs/reference/fang-survival-loop.md for the
-## captured reference values and tolerances.
+## prototype's, explicitly. See docs/reference/fang-survival-loop.md and
+## docs/reference/runners-brutes-crowd.md for the captured reference values and
+## tolerances. Crowd and wall rules (separation, bowling, wall slams) are
+## explicit circle geometry on the enemies' own positions and velocities, never
+## rigid bodies.
 ##
 ## Three clocks, as in the prototype:
 ##   * real time (`real_time`, `tick`): advances every unpaused tick, including
