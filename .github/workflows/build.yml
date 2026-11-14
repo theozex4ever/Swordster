@@ -1,0 +1,124 @@
+name: Build
+
+# Builds every commit pushed to main and every pull request head (and manual
+# runs) with the same ./build-godot.sh used locally and keeps
+# the complete Windows/Web artifact pair, named by build ID. No publication
+# happens here: this workflow holds no itch.io credentials and uploads only to
+# GitHub Actions artifacts. See "CI" in godot/README.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Only superseded pull request pushes share a group (and are cancelled). Every
+  # other run (push to main, workflow_dispatch) gets a group of its own via the
+  # run ID: a shared group would let GitHub replace a *pending* run with a newer
+  # one even with cancel-in-progress off, and that main commit would lose its
+  # pair. Main builds may therefore run in parallel, but each one finishes.
+  group: build-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@v7 # v7.0.1; the major tag is the pin
+        with:
+          # Build the PR head itself, not the synthetic merge commit, so the
+          # build ID names a commit that exists in the repository.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          # build-godot.sh only needs `git rev-parse HEAD` and `git status`.
+
+      # Only the *downloaded archives* are cached. The script re-checks each
+      # cached archive against the SHA-512 values in tools/godot/godot.lock on
+      # every run and re-extracts the toolchain from them, so a stale or
+      # tampered cache entry fails with exit 12 instead of being trusted. (The
+      # extracted toolchain is deliberately not cached: its own checksum list
+      # would travel inside the cache and prove nothing.)
+      - name: Restore Godot download cache
+        uses: actions/cache@v6 # v6.1.0
+        with:
+          path: ~/.cache/swordster/downloads
+          key: godot-downloads-${{ hashFiles('tools/godot/godot.lock') }}
+
+      - name: Build (checks, import, exports, packaging)
+        id: build
+        shell: bash
+        run: |
+          set +e
+          ./build-godot.sh
+          rc=$?
+          set -e
+          if ((rc != 0)); then
+            echo "::error title=build-godot.sh failed::exit code $rc (0 ok, 2 usage, 10 missing utility, 11 download, 12 checksum, 13 version, 14 import, 15 checks, 16 export, 17 output, 18 source/build id)"
+            exit "$rc"
+          fi
+
+      - name: Identify the produced pair
+        id: pair
+        shell: bash
+        run: |
+          shopt -s nullglob
+          pairs=(dist/*/)
+          if ((${#pairs[@]} != 1)); then
+            echo "::error::expected exactly one pair in dist/, found ${#pairs[@]}: ${pairs[*]}"
+            exit 1
+          fi
+          build_id="$(basename "${pairs[0]}")"
+          python3 -I - "dist/$build_id/BUILD-INFO.json" "$build_id" "$(git rev-parse HEAD)" <<'PY'
+          import json, sys
+          path, build_id, commit = sys.argv[1:]
+          info = json.load(open(path))
+          problems = []
+          if info.get("build_id") != build_id: problems.append("build_id mismatch")
+          if info.get("source_commit") != commit: problems.append("source_commit is not the checked-out commit")
+          if info.get("source_dirty") is not False or build_id.endswith("-dirty"):
+              problems.append("build came from a dirty working tree")
+          if problems:
+              sys.exit("BUILD-INFO check failed: " + "; ".join(problems))
+          PY
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Build \`$build_id\`"
+            echo
+            echo "Commit \`$(git rev-parse HEAD)\`. Artifact: \`swordster-$build_id\` (kept 90 days)."
+            echo
+            echo '```'
+            cat "dist/$build_id/SHA256SUMS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the pair
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          # Named by build ID so a later publish step can select it.
+          name: swordster-${{ steps.pair.outputs.build_id }}
+          # The whole of dist/ is exactly one pair; the artifact therefore
+          # contains <build-id>/{Windows ZIP, -web/, BUILD-INFO.json, SHA256SUMS}.
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90
+          # Already compressed (ZIP, wasm, pck); recompressing only costs time.
+          compression-level: 0
+
+      # Failed runs produce no pair; keep the step logs the script kept in its
+      # staging directory so the failure can be diagnosed.
+      - name: Upload build logs (failure only)
+        if: failure()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: build-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .build-godot/staging.*/logs/
+          # .build-godot is a hidden directory; upload-artifact skips hidden
+          # files by default, which would silently match nothing here.
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

@@ -120,6 +120,51 @@ tampered cached tools are reported, not silently re-downloaded or upgraded; dele
 the named cache directory to reinstall. To change the engine, update every line of
 `tools/godot/godot.lock` together.
 
+## CI
+
+`.github/workflows/build.yml` runs the unchanged `./build-godot.sh` on a clean
+`ubuntu-24.04` runner for every push to `main`, every pull request (the PR head
+commit, not the merge commit) and on manual dispatch. There is no CI-only build
+path: the script's own order (verified toolchain → import → headless checks →
+exports → packaging → verification) applies, and a failing check, import, export
+or missing output fails the job with the script's exit code, which the job log
+reports as an annotation (see *Exit codes*). The job also fails if the produced
+`BUILD-INFO.json` is not for the checked-out commit or is `dirty`.
+
+- **Toolchain cache:** only `~/.cache/swordster/downloads` is cached, keyed by the
+  hash of `tools/godot/godot.lock`. On every run the script re-verifies each
+  cached archive against the SHA-512 values in the lock and re-extracts from it, so
+  a bad cache entry fails with exit 12 rather than being trusted. Changing the pin
+  changes the key.
+- **Concurrency:** a new push to a pull request cancels that PR's superseded
+  in-progress build. Pushes to `main` and manual runs each get their own
+  concurrency group, so they never queue behind or replace one another and every
+  commit on `main` keeps its pair (parallel runs are possible). Pushes to a
+  branch without a pull request are not built.
+- **Not run in CI:** `tools/godot/test-build-failures.sh` (dozens of sandboxed
+  builds, minutes of runtime) and `tools/godot/mutation-check.sh` (tests the
+  checks themselves, not the build) are tooling self-tests run by hand when the
+  script or checks change.
+- **Where the build is:** open the run (Actions → *Build*, or `gh run list
+  --workflow build.yml`). Each successful run uploads one artifact named
+  `swordster-<build-id>` containing `<build-id>/` with the Windows ZIP, the Web
+  bundle folder, `BUILD-INFO.json` and `SHA256SUMS`, exactly as in *Output*. The
+  build ID is also in the run's summary. Find a run by build ID with
+  `gh api "repos/theozex4ever/Swordster/actions/artifacts?name=swordster-<build-id>"`
+  (its `workflow_run.id` is the run) and download with
+  `gh run download <run-id> -n swordster-<build-id>`. Verify with
+  `sha256sum -c SHA256SUMS` inside `<build-id>/`.
+- **Retention:** artifacts are kept **90 days** (the GitHub maximum), then
+  deleted (re-running a run builds again, with a new build ID, and replaces that
+  run's artifact); an expired build ID can only be rebuilt, which yields a new ID.
+  Anything that must outlive that (a known-good rollback pair) has to be
+  re-published or copied elsewhere before it expires. Failed runs upload only
+  their step logs (`build-logs-<run-id>-<attempt>`, 7 days).
+- **Not a tester channel:** the workflow has `contents: read` only, no secrets,
+  and no itch.io credentials, and it never publishes. Downloading a CI artifact
+  needs a GitHub login with access to the repository, so these are not tester
+  links; publication to testers is a separate, explicit step.
+
 ## Checks
 
 - `godot/tests/run_checks.gd` drives the real `GameRun` simulation, the
