@@ -229,8 +229,12 @@ func _check_single_victim() -> void:
 		var trace_detail: String = ""
 		for key: String in case["trace"]:
 			var want_trace: Dictionary = case["trace"][key]
-			var got: Dictionary = traces[int(key)]
 			var step_index: int = int(key)
+			if not traces.has(step_index):
+				trace_ok = false
+				trace_detail = "no sample at tick %s" % key
+				break
+			var got: Dictionary = traces[step_index]
 			if crit and step_index > 65:
 				# The crit knockback carries the husk out of the area; the sword then wanders at random.
 				continue
@@ -380,6 +384,9 @@ func _check_target_replacement() -> void:
 	run_other.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
 	run_other.step()
 	var chosen: EnemyState = sword_other.ultimate_victim
+	if chosen == null:
+		_ok("the flurry chose a first victim among the two enemies in its area", false)
+		return
 	var replacement: EnemyState = two if chosen == one else one
 	run_other.kill(chosen, Vector2.RIGHT)
 	var replacement_hp: float = replacement.hp
@@ -398,6 +405,9 @@ func _check_target_replacement() -> void:
 	run_removed.apply(GameCommand.ultimate(0, CENTER + Vector2(260.0, 0.0)))
 	run_removed.step()
 	var gone: EnemyState = sword_removed.ultimate_victim
+	if gone == null:
+		_ok("the flurry chose a victim to remove", false)
+		return
 	run_removed.hit_enemy(gone, 9999.0, Vector2.RIGHT, 0.0, sword_removed)
 	_steps(run_removed, 4)  # the hit's own hitstop first, then the dead enemy leaves the run
 	_ok("a victim already removed from the run (killed and cleared) is simply skipped: still one kill, the run does not error", run_removed.kills == 1 and not run_removed.enemies.has(gone) and sword_removed.phase == SwordState.Phase.ULTIMATE)

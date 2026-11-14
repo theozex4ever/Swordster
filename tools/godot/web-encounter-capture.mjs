@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Plays the exported Web build's dev encounters in headless Chromium and writes
 // page screenshots. Evidence for issues #9 (crowd, wall) and #10 (spitters); not
-// part of the build. SCENARIO=crowd|wall|spitters|normal.
+// part of the build. SCENARIO=crowd|wall|spitters|normal|flurry (issue #12: the mouse
+// is moved and Q, E and R are pressed as browser key events; the flurry scenario
+// starts in the crowd encounter so there is something to dart between).
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -70,6 +72,7 @@ const key = async (code, k, vk) => {
   await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
   await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
 };
+const move = (x, y) => send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
 const click = async (x, y) => {
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1 });
@@ -79,8 +82,8 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal
-const query = scenario === "normal" ? "" : `?encounter=${scenario}`;
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry
+const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
   // The pinned crowd starts fighting the moment the engine runs, so react to the
@@ -110,6 +113,27 @@ if (scenario === "crowd") {
   await sleep(1500); await shot("crowd-06-normal-wave");
   await key("KeyC", "c", 67); // and round to the crowd again
   await sleep(1500); await shot("crowd-07-encounter-again");
+} else if (scenario === "flurry") {
+  // Viper Flurry through the keyboard and mouse: aim with the cursor (the view is
+  // 1280x720 and centred on the player), press Q, E and R, then Q again while it
+  // recharges (refused). Screenshots follow each press.
+  await sleep(2500); await shot("flurry-01-before");
+  await move(840, 330); await key("KeyQ", "q", 81);
+  console.log(`Q at ${stamp()}s, cursor (840, 330)`);
+  for (const wait of [60, 150, 250, 400]) { await sleep(wait); await shot(`flurry-02-q-${wait}`); }
+  await move(470, 420); await key("KeyE", "e", 69);
+  console.log(`E at ${stamp()}s, cursor (470, 420)`);
+  for (const wait of [60, 200, 400]) { await sleep(wait); await shot(`flurry-03-e-${wait}`); }
+  await key("KeyQ", "q", 81); // slot one is still recharging: refused, with a "recharging Ns" tag
+  console.log(`Q while recharging at ${stamp()}s`);
+  await sleep(100); await shot("flurry-03-q-refused");
+  await move(660, 200); await key("KeyR", "r", 82);
+  console.log(`R at ${stamp()}s, cursor (660, 200)`);
+  for (const wait of [60, 200, 600, 900]) { await sleep(wait); await shot(`flurry-04-r-${wait}`); }
+  // by now (more than nine seconds after the first press) slot one has recharged: Q works again
+  await key("KeyQ", "q", 81);
+  console.log(`Q after the recharge at ${stamp()}s`);
+  await sleep(150); await shot("flurry-05-q-again");
 } else if (scenario === "spitters") {
   // The spitters arrive, glow, shoot. Walk toward them with the keyboard so the
   // Fang swords strike near the orbs, dash through some, and keep shooting the
