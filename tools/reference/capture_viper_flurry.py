@@ -178,8 +178,9 @@ def case_range_clamp():
     g = fresh()
     g.player.pos = V(PLAYER[0] - 500.0, PLAYER[1] - 300.0)
     sw = g.swords[0]
-    key(g, pygame.K_q, mouse=(PLAYER[0] + 500.0, PLAYER[1] + 100.0))
-    out["from_moved_player"] = dict(player=[r(g.player.pos.x), r(g.player.pos.y)], blink=[r(sw.point.x), r(sw.point.y)],
+    moved_point = (PLAYER[0] + 500.0, PLAYER[1] + 100.0)
+    key(g, pygame.K_q, mouse=moved_point)
+    out["from_moved_player"] = dict(point=list(moved_point), player=[r(g.player.pos.x), r(g.player.pos.y)], blink=[r(sw.point.x), r(sw.point.y)],
                                     distance=r((sw.point - g.player.pos).length()))
     return out
 

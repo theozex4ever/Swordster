@@ -31,6 +31,8 @@ func _run_all() -> void:
 	await crowd.run_all()
 	var spitters: SpitterAndParryChecks = SpitterAndParryChecks.new(_check, self)
 	await spitters.run_all()
+	var flurry: ViperFlurryChecks = ViperFlurryChecks.new(_check, self)
+	await flurry.run_all()
 	if _failed == 0 and _total > 0:
 		print("CHECKS PASSED: %d" % _total)
 		quit(0)
