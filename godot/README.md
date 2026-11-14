@@ -150,7 +150,8 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   `gh run download <run-id> -n swordster-<build-id>`. Verify with
   `sha256sum -c SHA256SUMS` inside `<build-id>/`.
 - **Retention:** artifacts are kept **90 days** (the GitHub maximum), then
-  deleted; an expired build ID can only be rebuilt, which yields a new ID.
+  deleted (re-running a run builds again, with a new build ID, and replaces that
+  run's artifact); an expired build ID can only be rebuilt, which yields a new ID.
   Anything that must outlive that (a known-good rollback pair) has to be
   re-published or copied elsewhere before it expires. Failed runs upload only
   their step logs (`build-logs-<run-id>-<attempt>`, 7 days).
