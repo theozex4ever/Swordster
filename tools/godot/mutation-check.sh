@@ -220,7 +220,10 @@ mutate runner-same-colour   scripts/presentation/placeholder_enemy_visual.gd "co
 mutate shove-button-on-release scripts/hud.gd "_shove_button.button_down.connect" "_shove_button.pressed.connect"
 mutate shove-button-unwired scripts/main.gd "	_hud.shove_pressed.connect(func() -> void: _submit(GameCommand.dev_shove()))" "	_hud.shove_pressed.connect(func() -> void: pass)"
 mutate crowd-button-unwired scripts/main.gd "	_hud.encounter_pressed.connect(func() -> void: _submit(GameCommand.toggle_encounter()))" "	_hud.encounter_pressed.connect(func() -> void: pass)"
-mutate launch-option-lost   scripts/launch_options.gd 'ENCOUNTER_ARGUMENT: String = "--encounter=crowd"' 'ENCOUNTER_ARGUMENT: String = "--encounter=none"'
+mutate launch-option-lost   scripts/launch_options.gd 'ENCOUNTER_ARGUMENT_PREFIX: String = "--encounter="' 'ENCOUNTER_ARGUMENT_PREFIX: String = "--enc="'
+mutate wall-crowd-moved     scripts/sim/run_scenario.gd "Vector2(2420.0, 900.0)," "Vector2(2420.0, 930.0),"
+mutate wall-encounter-wave-on scripts/sim/run_scenario.gd "	scenario.waves_enabled = false
+	scenario.start_position = WALL_PLAYER" "	scenario.start_position = WALL_PLAYER"
 mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: float) -> void:" "func _process(_delta: float) -> void:
 	run.step()
 

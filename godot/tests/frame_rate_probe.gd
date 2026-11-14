@@ -62,5 +62,6 @@ func _report() -> void:
 
 
 func _report_launch() -> void:
-	print("PROBE " + JSON.stringify({"dev_shove": _main.run.scenario.dev_shove, "wave_kinds": _main.run.scenario.wave_kinds.size()}))
+	var picked: RunScenario = _main.run.scenario
+	print("PROBE " + JSON.stringify({"dev_shove": picked.dev_shove, "wave_kinds": picked.wave_kinds.size(), "standing": picked.initial_enemies.size()}))
 	quit(0)

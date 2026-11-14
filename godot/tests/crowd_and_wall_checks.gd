@@ -52,6 +52,7 @@ func run_all() -> void:
 	_check_wall_slams()
 	_check_exactly_once()
 	_check_crowd_encounter()
+	_check_wall_encounter()
 	_check_dev_shove_rules()
 	_check_wave_composition()
 	_check_restart_with_crowd()
@@ -633,6 +634,33 @@ func _check_crowd_encounter() -> void:
 
 
 # --------------------------------------------------------- the dev shove
+func _check_wall_encounter() -> void:
+	print("crowd: the wall encounter is the reference's pinned crowd")
+	var encounter: Dictionary = _ref["crowd_encounter"]
+	var setups: Array = encounter["setup"]
+	var scenario: RunScenario = RunScenario.wall_encounter()
+	var same_crowd: bool = scenario.initial_enemies.size() == setups.size()
+	for i: int in mini(setups.size(), scenario.initial_enemies.size()):
+		var placement: EnemyPlacement = scenario.initial_enemies[i]
+		var setup: Dictionary = setups[i]
+		same_crowd = same_crowd and placement.kind == StringName(setup["kind"]) and placement.position == Vector2(float(setup["x"]), float(setup["y"]))
+	var player: Array = encounter["player"]
+	_ok("the playable wall encounter holds exactly the reference crowd and player position", same_crowd and scenario.start_position == Vector2(float(player[0]), float(player[1])))
+	scenario.loadout = []
+	scenario.seed = 23
+	var run: GameRun = GameRun.new(scenario)
+	run.apply(GameCommand.dev_shove())
+	var slam_ticks: Array[int] = []
+	for step_index: int in range(1, 241):
+		run.step()
+		for cue: SimCue in run.take_cues():
+			if cue.kind == SimCue.Kind.WALL_SLAM:
+				slam_ticks.append(step_index)
+	_ok("shoving it slams the crowd into the wall on the prototype's ticks (without swords it plays the captured composite)", _ticks_close(slam_ticks, _ref_ticks(encounter["events"], "wall_slam"), TICK_TOL) and run.kills == int(encounter["final_kills"]), "%s kills %d" % [slam_ticks, run.kills])
+	var fought: GameRun = GameRun.new(RunScenario.wall_encounter())
+	_ok("the wall encounter has a three-Fang loadout and no further wave", fought.swords.size() == 3 and not fought.scenario.waves_enabled and fought.enemies.size() == 14)
+
+
 func _check_dev_shove_rules() -> void:
 	print("crowd: the dev shove is only a fixture")
 	var near: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, GameRun.WORLD.get_center() + Vector2(0.0, 320.0))
@@ -792,7 +820,7 @@ func _check_main_scene() -> void:
 	scenario.first_wave_delay = 0.1
 	var main: Main = _main_with(scenario, "res://tests/alt_enemy.tscn")
 	await _tree.process_frame
-	_ok("launching without a request starts the plain run, a crowd scenario starts the encounter", not LaunchOptions.crowd_requested() and main.run.scenario.dev_shove)
+	_ok("launching without a request starts the plain run, a crowd scenario starts the encounter", LaunchOptions.requested_encounter().is_empty() and LaunchOptions.requested_scenario() == null and main.run.scenario.dev_shove)
 	_tick_main(main, 60 * 6)
 	await _tree.process_frame
 	var kinds_seen: Dictionary[StringName, int] = {}
@@ -894,16 +922,18 @@ func _check_render_rates() -> void:
 			int(result["kills"]) == int(result["kill_cues"]) and int(result["visuals"]) == int(result["enemies"]) + 3)
 	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
 		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
-	var launch_output: Array = []
-	OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=crowd"], launch_output, true)
-	var launch_line: String = _probe_line(launch_output)
-	var launched: Dictionary = JSON.parse_string(launch_line) if not launch_line.is_empty() else {}
-	_ok("the launch option --encounter=crowd starts the crowd encounter", bool(launched.get("dev_shove", false)) and int(launched.get("wave_kinds", 0)) == RunScenario.CROWD_WAVE.size(), "%s" % [launch_output])
+	for encounter: String in ["crowd", "wall"]:
+		var launch_output: Array = []
+		OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=%s" % encounter], launch_output, true)
+		var launch_line: String = _probe_line(launch_output)
+		var launched: Dictionary = JSON.parse_string(launch_line) if not launch_line.is_empty() else {}
+		var standing: int = RunScenario.WALL_CROWD_KINDS.size() if encounter == "wall" else 0
+		_ok("the launch option --encounter=%s starts that encounter" % encounter, bool(launched.get("dev_shove", false)) and int(launched.get("standing", -1)) == standing, "%s" % [launch_output])
 	var plain_output: Array = []
-	OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch"], plain_output, true)
+	OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=nonsense"], plain_output, true)
 	var plain_line: String = _probe_line(plain_output)
 	var plain: Dictionary = JSON.parse_string(plain_line) if not plain_line.is_empty() else {}
-	_ok("without it the normal husk wave starts", plain.has("dev_shove") and not bool(plain["dev_shove"]) and int(plain["wave_kinds"]) == 0, "%s" % [plain_output])
+	_ok("an unknown or missing launch option starts the normal husk wave", plain.has("dev_shove") and not bool(plain["dev_shove"]) and int(plain["wave_kinds"]) == 0 and int(plain["standing"]) == 0, "%s" % [plain_output])
 
 
 func _probe_line(output: Array) -> String:

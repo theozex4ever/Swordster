@@ -73,29 +73,35 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd";
-await send("Page.navigate", { url: scenario === "crowd" ? `${base}?encounter=crowd` : base });
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | normal
+const query = scenario === "normal" ? "" : `?encounter=${scenario}`;
+await send("Page.navigate", { url: `${base}${query}` });
 await sleep(5000);
 await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
 
 if (scenario === "crowd") {
-  // Let the telegraphed wave arrive and the swords start working, then shove.
-  await sleep(2500); await shot("01-arrival");
-  await sleep(4500); await shot("02-fight");
+  await sleep(1800); await shot("crowd-01-arrival");
+  await sleep(2500); await shot("crowd-02-fight");
   await key("KeyF", "f", 70); // shove through the keyboard
   console.log(`shove F at ${stamp()}s`);
-  await sleep(250); await shot("03-shoved");
-  await sleep(450); await shot("04-slam-and-bowl");
-  await sleep(1500); await shot("05-aftermath");
+  for (const wait of [200, 300, 400]) { await sleep(wait); await shot(`crowd-03-shoved-${wait}`); }
   await click(1084, 644); // the Shove button (bottom right, left of Dash)
   console.log(`shove button at ${stamp()}s`);
-  await sleep(300); await shot("06-shove-button");
+  await sleep(300); await shot("crowd-04-shove-button");
   await key("KeyC", "c", 67); // switch back to the normal husk wave
-  await sleep(1500); await shot("07-normal-wave");
+  await sleep(1500); await shot("crowd-05-normal-wave");
   await key("KeyC", "c", 67); // and into the encounter again
-  await sleep(1500); await shot("08-encounter-again");
+  await sleep(1500); await shot("crowd-06-encounter-again");
+} else if (scenario === "wall") {
+  await shot("wall-01-pinned");
+  await key("KeyF", "f", 70);
+  console.log(`shove F at ${stamp()}s`);
+  for (const wait of [100, 150, 200, 300]) { await sleep(wait); await shot(`wall-02-shoved-${wait}`); }
+  await sleep(1500); await shot("wall-03-aftermath");
+  await key("KeyF", "f", 70);
+  for (const wait of [150, 300]) { await sleep(wait); await shot(`wall-04-second-shove-${wait}`); }
 } else {
   await sleep(2500); await shot("normal-01");
 }

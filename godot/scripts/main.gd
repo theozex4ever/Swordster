@@ -27,8 +27,8 @@ var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func _ready() -> void:
-	if scenario == null and LaunchOptions.crowd_requested():
-		scenario = RunScenario.crowd_encounter()
+	if scenario == null:
+		scenario = LaunchOptions.requested_scenario()
 	run = GameRun.new(scenario)
 	_fx_rng.randomize()
 	visual = actor_visual.instantiate() as ActorVisual

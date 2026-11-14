@@ -19,7 +19,9 @@ foes like a heavy Colossus blow (the sword types that cause bowling and wall sla
 are not ported yet). Switch to it at any time with the **Crowd** button or `C`
 (back with **Normal** / `C`); shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
-`index.html?encounter=crowd`. The normal run stays the husk wave.
+`index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
+fourteen foes already pinned between the player and the east wall and no further wave
+(shove them straight into the wall). The normal run stays the husk wave.
 
 - Engine: Godot **4.7.2-stable**, standard (non-.NET) editor, typed GDScript,
   Compatibility renderer, Web export single-thread with extensions disabled.

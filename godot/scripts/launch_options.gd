@@ -2,20 +2,38 @@ class_name LaunchOptions
 extends RefCounted
 ## What the player asked for at launch, read from the platform: command-line
 ## user arguments (after `--`, e.g. `Swordster.exe -- --encounter=crowd`) or,
-## in a browser, the page address (`index.html?encounter=crowd`). Any other
-## value, or none, starts the normal run. The C key (and Crowd button) switches
-## at any time, so launch options are a convenience, not the only way in.
+## in a browser, the page address (`index.html?encounter=crowd`). The value is
+## `crowd` (the wave of husks, runners and brutes) or `wall` (a crowd already
+## pinned against the east wall). Anything else, or nothing, starts the normal
+## run. The C key (and Crowd button) switches at any time, so launch options are
+## a convenience, not the only way in.
 
-const ENCOUNTER_ARGUMENT: String = "--encounter=crowd"
+const ENCOUNTER_ARGUMENT_PREFIX: String = "--encounter="
 const ENCOUNTER_QUERY: String = "encounter"
-const ENCOUNTER_VALUE: String = "crowd"
 
 
-## True when the crowd encounter fixture was asked for at launch.
-static func crowd_requested() -> bool:
-	if OS.get_cmdline_user_args().has(ENCOUNTER_ARGUMENT):
-		return true
+## The fixture scenario asked for at launch, or null for the normal run.
+static func requested_scenario() -> RunScenario:
+	return scenario_for(requested_encounter())
+
+
+static func scenario_for(encounter: String) -> RunScenario:
+	match encounter:
+		"crowd":
+			return RunScenario.crowd_encounter()
+		"wall":
+			return RunScenario.wall_encounter()
+		_:
+			return null
+
+
+## The raw requested value ("" when none).
+static func requested_encounter() -> String:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with(ENCOUNTER_ARGUMENT_PREFIX):
+			return argument.trim_prefix(ENCOUNTER_ARGUMENT_PREFIX)
 	if OS.has_feature("web"):
 		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % ENCOUNTER_QUERY)
-		return query is String and (query as String) == ENCOUNTER_VALUE
-	return false
+		if query is String:
+			return query as String
+	return ""
