@@ -250,9 +250,24 @@ func _replay(group: String, name: String, label: String) -> Dictionary:
 	return played
 
 
-## What the enemy at `index` looked like after `step`.
+## What the enemy at `index` looked like after `step`. A step or enemy the replay never
+## reached (a mutated rule can make an expected event never happen) reads as an impossible
+## state, so the check that asked fails instead of crashing the run.
 func _at(played: Dictionary, step: int, index: int = 0) -> Dictionary:
-	return ((played["record"] as Array)[step] as Array)[index] as Dictionary
+	var record: Array = played["record"]
+	if step < 1 or step >= record.size() or index >= (record[step] as Array).size():
+		return _impossible_state()
+	return (record[step] as Array)[index] as Dictionary
+
+
+func _impossible_state() -> Dictionary:
+	var state: Dictionary = {}
+	for key: String in ["hp", "burn", "burn_dps", "poison", "poison_dps", "chill", "frozen", "dot", "dot_t", "x", "y", "vx", "vy", "stun", "t"]:
+		state[key] = -999.0
+	state["poison_stacks"] = -999
+	state["chill_stacks"] = -999
+	state["dead"] = false
+	return state
 
 
 func _first_step(played: Dictionary, from_step: int, test: Callable, index: int = 0) -> int:
@@ -352,14 +367,13 @@ func _check_poison() -> void:
 	var stacks: Dictionary = _replay("poison", "poison_stacks", "nine poison blows ten ticks apart")
 	var highest: int = 0
 	var never_above_cap: bool = true
-	var dps_follows: bool = true
 	for step: int in range(1, 400):
 		var state: Dictionary = _at(stacks, step)
 		highest = maxi(highest, int(state["poison_stacks"]))
 		never_above_cap = never_above_cap and int(state["poison_stacks"]) <= ConditionDefs.POISON_MAX
 	_ok("stacks grow by one a blow and stop at six although nine blows land (%d)" % highest, highest == ConditionDefs.POISON_MAX and never_above_cap and int(_at(stacks, 12)["poison_stacks"]) == 2 and int(_at(stacks, 52)["poison_stacks"]) == 6 and int(_at(stacks, 82)["poison_stacks"]) == 6)
 	var per_stack: float = float(_at(stacks, 2)["poison_dps"])
-	_ok("every stack deals the same dps (%.2f per stack) and the timer renews to 4.5 s on each blow (%.4f)" % [per_stack, float(_at(stacks, 81)["poison"])], _near(per_stack, ConditionDefs.poison_dps(7.0), 0.0001) and _near(float(_at(stacks, 81)["poison"]), ConditionDefs.POISON_TIME - DT, 0.0001) and dps_follows)
+	_ok("every stack deals the same dps (%.2f per stack) and the timer renews to 4.5 s on each blow (%.4f)" % [per_stack, float(_at(stacks, 81)["poison"])], _near(per_stack, ConditionDefs.poison_dps(7.0), 0.0001) and _near(float(_at(stacks, 81)["poison"]), ConditionDefs.POISON_TIME - DT, 0.0001))
 	var expired: int = _first_step(stacks, 83, func(s: Dictionary) -> bool: return int(s["poison_stacks"]) == 0)
 	_ok("all stacks fall away together when the 4.5 s run out, %d ticks after the last blow" % (expired - 81), absi(expired - 81 - _ticks(ConditionDefs.POISON_TIME)) <= 2)
 	var damage_after_cap: float = float(_at(stacks, 83)["hp"]) - float(_at(stacks, 300)["hp"])
@@ -433,20 +447,19 @@ func _check_frozen_contact() -> void:
 	var frozen: Dictionary = _replay("frozen_contact", "frozen", "an overlapping husk frozen for a second")
 	var thawed: Dictionary = _replay("frozen_contact", "frozen_then_thawed", "an overlapping husk frozen for half a second")
 	var plain_run: GameRun = plain["run"]
-	var frozen_run: GameRun = frozen["run"]
+	# the same fixture replayed tick by tick to watch the player's health
+	var probe: GameRun = GameRun.new(_scenario_of((_ref["frozen_contact"]["frozen"] as Dictionary)["spec"] as Dictionary))
+	probe.enemies[0].conditions.frozen = 1.0
 	var hp_by_tick: Array[float] = []
 	var first_hurt: int = -1
-	var record_frozen: Array = frozen["record"]
-	var frozen_run_probe: GameRun = GameRun.new(_scenario_of((_ref["frozen_contact"]["frozen"] as Dictionary)["spec"] as Dictionary))
-	frozen_run_probe.enemies[0].conditions.frozen = 1.0
 	for step: int in range(1, 100):
-		frozen_run_probe.step()
-		hp_by_tick.append(frozen_run_probe.hp)
-		if first_hurt < 0 and frozen_run_probe.hp < GameRun.PLAYER_MAX_HP:
+		probe.step()
+		hp_by_tick.append(probe.hp)
+		if first_hurt < 0 and probe.hp < GameRun.PLAYER_MAX_HP:
 			first_hurt = step
 	_ok("the player is untouched while the husk is frozen and hurt the moment it thaws (first damage at tick %d, 1 s is tick 60)" % first_hurt, first_hurt >= 59 and first_hurt <= 61 and hp_by_tick[0] == GameRun.PLAYER_MAX_HP and hp_by_tick[57] == GameRun.PLAYER_MAX_HP)
-	_ok("an unfrozen overlapping husk hurts at once for its 10 damage (%.0f)" % plain_run.hp, float(((plain["record"] as Array)[1] as Array).size()) == 1 and _near(plain_run.hp, 90.0, 0.01) and not frozen_run.dead)
-	_ok("a frozen enemy is not shoved by the contact either: it stays put until the thaw (x %.2f, %.2f)" % [float(_at(frozen, 1)["x"]), float(_at(frozen, 50)["x"])], _near(float(_at(frozen, 1)["x"]), float(_at(frozen, 50)["x"]), 1.0) and record_frozen.size() > 50)
+	_ok("an unfrozen overlapping husk hurts at once for its 10 damage (%.0f)" % plain_run.hp, _near(plain_run.hp, 90.0, 0.01) and not (frozen["run"] as GameRun).dead)
+	_ok("a frozen enemy is not shoved by the contact either: it stays put until the thaw (x %.2f at tick 1, %.2f at tick 50)" % [float(_at(frozen, 1)["x"]), float(_at(frozen, 50)["x"])], _near(float(_at(frozen, 1)["x"]), float(_at(frozen, 50)["x"]), 1.0))
 	var thawed_run: GameRun = thawed["run"]
 	_ok("a short freeze ends and the contact resumes: the player ends the half-second case hurt (%.0f)" % thawed_run.hp, thawed_run.hp < GameRun.PLAYER_MAX_HP)
 
@@ -601,9 +614,9 @@ func _check_flurry_darts() -> void:
 	var fire: Dictionary = _replay("flurry", "fire", "a fire sword's Viper Flurry on one enemy")
 	var first_dart: int = _first_step(poison, 1, func(s: Dictionary) -> bool: return float(s["hp"]) < 5000.0)
 	var stack_run: Array[int] = []
-	for step: int in range(first_dart, first_dart + 40):
+	for step: int in range(maxi(first_dart, 1), maxi(first_dart, 1) + 40):
 		stack_run.append(int(_at(poison, step)["poison_stacks"]))
-	_ok("every dart adds one poison stack, six at most (%s)" % [stack_run.slice(0, 20)], stack_run[0] == 1 and stack_run.max() == ConditionDefs.POISON_MAX and stack_run.min() >= 1)
+	_ok("every dart adds one poison stack, six at most (%s)" % [stack_run.slice(0, 20)], first_dart > 0 and stack_run[0] == 1 and stack_run.max() == ConditionDefs.POISON_MAX and stack_run.min() >= 1)
 	var freeze_step: int = _first_step(ice, 1, func(s: Dictionary) -> bool: return float(s["frozen"]) > 0.0)
 	var darts_before: int = 0
 	var last_hp: float = 5000.0
@@ -612,17 +625,17 @@ func _check_flurry_darts() -> void:
 		if hp < last_hp:
 			darts_before += 1
 		last_hp = hp
-	_ok("the fourth dart freezes the enemy (%d darts landed, frozen at tick %d) and the darts after it deal the shattered 11 instead of 8" % [darts_before, freeze_step], darts_before == ConditionDefs.FREEZE_STACKS and float(_at(ice, freeze_step + 9)["hp"]) < float(_at(ice, freeze_step)["hp"]))
+	_ok("the fourth dart freezes the enemy (%d darts landed, frozen at tick %d) and the darts after it deal the shattered 11 instead of 8" % [darts_before, freeze_step], freeze_step > 0 and darts_before == ConditionDefs.FREEZE_STACKS and float(_at(ice, freeze_step + 9)["hp"]) < float(_at(ice, freeze_step)["hp"]))
 	var shattered: bool = false
 	var drops: Array[float] = []
 	last_hp = float(_at(ice, freeze_step)["hp"])
-	for step: int in range(freeze_step + 1, 130):
+	for step: int in range(maxi(freeze_step, 0) + 1, 130):
 		var hp: float = float(_at(ice, step)["hp"])
 		if hp < last_hp:
 			drops.append(last_hp - hp)
 			shattered = true
 		last_hp = hp
-	_ok("darts on the frozen enemy deal %s: 8.4 x 1.3 rounds to 11" % [drops.slice(0, 4)], shattered and float(drops[0]) == 11.0)
+	_ok("darts on the frozen enemy deal %s: 8.4 x 1.3 rounds to 11" % [drops.slice(0, 4)], shattered and not drops.is_empty() and float(drops[0]) == 11.0)
 	_ok("the fire sword's darts keep the burn refreshed to three seconds", float(_at(fire, 40)["burn"]) > ConditionDefs.BURN_TIME - 0.5 and float(_at(fire, 40)["burn_dps"]) > 0.0)
 
 
@@ -772,8 +785,8 @@ func _check_conditions_encounter() -> void:
 	var spread_deaths: int = 0
 	for step: int in 60 * 25:
 		run.step()
+		burning = maxi(burning, run.enemies.filter(func(e: EnemyState) -> bool: return e.conditions.is_burning()).size())
 		for enemy: EnemyState in run.enemies:
-			burning = maxi(burning, run.enemies.filter(func(e: EnemyState) -> bool: return e.conditions.is_burning()).size())
 			frozen_brute = frozen_brute or (enemy.kind == EnemyDefs.BRUTE and enemy.conditions.is_frozen())
 			poisoned = maxi(poisoned, 1 if enemy.conditions.poison_stacks > 0 else 0)
 			frozen = maxi(frozen, 1 if enemy.conditions.is_frozen() else 0)
