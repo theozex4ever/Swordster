@@ -283,17 +283,31 @@ timeout or missing verdict is **inconclusive**; a project the checks accept is
 **survived**. Either of the last two fails the run.
 
 How it is fast. Nearly all of a complete `run_checks.gd` run (about 45 s) is the
-render-rate probes, sub-Godot processes at 5/20/60/240 fps. So each mutation is
-first run with `run_checks.gd -- --fail-fast --skip-probes`: it stops at the first
-failing check and starts no probe, which rejects nearly every mutation in a few
-seconds. Only a mutation that passes everything that quick run executed (printing
-`CHECKS PARTIAL`, which the build never accepts) is run again with the probes,
-still fail-fast, and only a complete `CHECKS PASSED` there is a survivor. A check
-group that launches probes must start its render-rate check with
-`if not RenderRateScenario.probes_enabled(): return`, as the existing ones do;
-without it the group is merely slower in the quick run, not wrong. `FAST=0` runs
-the original complete, non-fail-fast run per mutation, which is the reference the
-fast verdicts are compared with.
+render-rate probes, sub-Godot processes at 5/20/60/240 fps, and most of the rest is
+the groups the mutation has nothing to do with. So each mutation is judged in steps,
+each only when the one before found nothing:
+
+1. **Focused**: `run_checks.gd -- --fail-fast --skip-probes --focus=<group>` runs the
+   checks of the mutation's own section (`warden_maelstrom` for the Warden section;
+   `core` runs only `run_checks.gd`'s own checks) and stops at the first failing one.
+   Most mutations end here, in about two seconds.
+2. **Quick**: the same without `--focus`, over every group.
+3. **Full**: the same with the probes. Only a complete `CHECKS PASSED` here makes a
+   mutation a survivor.
+
+Steps 1 and 2 end in `CHECKS PARTIAL` (never `CHECKS PASSED`, which the build
+requires) when nothing failed. They run a subset of the full run's checks, so a
+failure there is a failure of the full run too: the verdict is the same, only sooner.
+Crashes, timeouts and script errors in any step stay inconclusive. `FAST=0` runs the
+original complete, non-fail-fast run per mutation, the reference for comparing.
+
+A check group takes part by starting its `run_all()` with
+`if not CheckFocus.includes("<file name without _checks.gd>"): return` and its
+render-rate check with `if not RenderRateScenario.probes_enabled(): return`, as the
+existing groups do. A group without those lines is not wrong, only slower: it runs
+in every step. The section's group is found by the table in the script (the early
+slices) or, for a later section, by a group file whose name starts with the section's
+key (`pike` finds `pike_skewer_checks.gd`).
 
 Selection (all of these compose):
 
