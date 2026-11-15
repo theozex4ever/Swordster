@@ -13,7 +13,7 @@ name: Mutation checks
 # first clean failure) may call such a mutation caught; see "Mutation checks" in godot/README.md.
 on:
   push:
-    branches: [main, tooling/35-fast-mutations] # TEMPORARY branch entry: validation only
+    branches: [main]
   workflow_dispatch:
 
 permissions:
