@@ -508,8 +508,10 @@ def corpse_cases():
     """What the prototype's own targeting loop does with a dead enemy still in the list (it does not skip it)."""
     out = {}
     for kind in KINDS:
+        # the corpse is the nearest enemy to the click (14 px); a live enemy stands 78 px away: the prototype's sword
+        # takes the corpse, loses it on its next update and strikes the point; a sword that skipped corpses would follow the live one
         script = [dict(t=3, op="corpse", enemy=0), click_op(3, P(250, -30))]
-        out["corpse_" + kind] = run_case(110, (kind,) * 3, [(P(260, -40),), (P(300, 60),)], script, name="corpse_" + kind)
+        out["corpse_" + kind] = run_case(110, (kind,) * 3, [(P(260, -40),), (P(300, 30),)], script, name="corpse_" + kind)
     return out
 
 

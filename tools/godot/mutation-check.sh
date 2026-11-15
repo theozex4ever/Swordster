@@ -1716,7 +1716,7 @@ mutate converge-hud-click-passes-through                  scripts/main.gd "		inp
 " "		input.pointer = (event as InputEventMouseButton).position
 "
 mutate converge-world-point-ignores-the-view-size         scripts/main.gd "get_viewport().get_visible_rect().size * 0.5" "Vector2(640.0, 360.0)"
-mutate converge-world-point-forgets-the-centre            scripts/main.gd "return run.camera + viewport_point - Vector2(640.0, 360.0)" "return run.camera + viewport_point"
+mutate converge-world-point-forgets-the-centre            scripts/main.gd "return run.camera + viewport_point - get_viewport().get_visible_rect().size * 0.5" "return run.camera + viewport_point"
 mutate converge-hud-never-ready                           scripts/hud.gd "	var ready: bool = run.converge_cooldown_left <= 0.0
 	_converge_label" "	var ready: bool = run.converge_cooldown_left < 0.0
 	_converge_label"
@@ -1728,7 +1728,6 @@ mutate converge-ring-not-drawn                            scripts/presentation/e
 " "		SimCue.Kind.CONVERGE:
 			pass
 "
-mutate converge-telegraph-uses-the-full-windup            scripts/presentation/effects_layer.gd "sword.timer / sword.windup_span, 0.0, 1.0)" "sword.timer / sword.windup, 0.0, 1.0)"
 mutate converge-chime-silent                              scripts/audio/sfx_bank.gd "		SimCue.Kind.CONVERGE:
 			play(\"chime\")" "		SimCue.Kind.CONVERGE:
 			pass"

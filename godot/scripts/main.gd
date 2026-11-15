@@ -149,6 +149,8 @@ func _unlock_audio() -> void:
 
 
 func _update_touch_zone() -> void:
+	if not is_inside_tree():
+		return
 	var size: Vector2 = get_viewport().get_visible_rect().size
 	input.joystick.zone = Rect2(0.0, size.y * 0.15, size.x * 0.55, size.y * 0.85)
 	input.joystick.blocked = _hud.button_rects()

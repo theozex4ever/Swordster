@@ -373,7 +373,7 @@ func _draw() -> void:
 ## windup runs out, so a strike can be read before it lands. Follows the target like the sweep.
 func _draw_sweep_telegraph(sword: SwordState) -> void:
 	draw_counts[&"telegraph"] = draw_counts.get(&"telegraph", 0) + 1
-	var u: float = 1.0 - clampf(sword.timer / sword.windup_span, 0.0, 1.0)
+	var u: float = sword.windup_progress()
 	var span: float = sword.length * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
 	var mid: float = sword.length * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
 	var tint: Color = _sword_color(sword.spec)
