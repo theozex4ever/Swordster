@@ -6,7 +6,8 @@ extends RefCounted
 ## ("warden_maelstrom"); `--focus=none` runs no group at all, only run_checks.gd's own checks.
 ## Every group's `run_all()` starts with `if not CheckFocus.includes("<its name>"): return`. A
 ## group without that line still runs, so a missing line costs time, never correctness.
-## Without `--focus` every group runs.
+## Without `--focus` every group runs. A run with ANY `--focus` is only partial evidence, so
+## run_checks.gd reports it as "CHECKS PARTIAL", never "CHECKS PASSED" (see `active()`).
 
 
 static func includes(group: String) -> bool:
@@ -14,3 +15,11 @@ static func includes(group: String) -> bool:
 		if argument.begins_with("--focus="):
 			return argument.trim_prefix("--focus=").split(",").has(group)
 	return true
+
+
+## True when the run was started with a `--focus=` argument, whatever it names.
+static func active() -> bool:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with("--focus="):
+			return true
+	return false

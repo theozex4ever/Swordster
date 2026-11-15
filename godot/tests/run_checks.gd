@@ -16,7 +16,10 @@ extends SceneTree
 ##                  without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
 ##   --focus=<g>    run only the check group(s) named <g> (see CheckFocus), after run_checks.gd's
 ##                  own checks; the mutation checker tries the group a mutation belongs to first.
-## Without them, every check runs and every failure is reported, as the build requires.
+##                  ANY --focus (even --focus=none or one naming every group) leaves groups or
+##                  probes unproven, so a run without failures prints "CHECKS PARTIAL: <n>".
+## Without them, every check runs and every failure is reported, as the build requires, and only
+## such a complete run prints "CHECKS PASSED".
 
 const EPS: float = 0.001
 
@@ -88,6 +91,8 @@ func _stop_at_first_failure() -> void:
 
 
 func _passed_line() -> String:
+	if CheckFocus.active():
+		return "CHECKS PARTIAL: %d (--focus: only the named check groups ran)" % _total
 	if _skip_probes:
 		return "CHECKS PARTIAL: %d (--skip-probes: the render-rate probes did not run)" % _total
 	return "CHECKS PASSED: %d" % _total
