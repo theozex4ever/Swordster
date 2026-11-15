@@ -123,7 +123,7 @@ def swap(g, slot, via_key=False):
     else:
         g.swap(slot)
     after_swords = [spec_of(s) for s in g.swords]
-    swapped = after_swords != before_swords or [id(s) for s in g.swords] != [id(s) for s in g.swords]
+    swapped = slot < len(g.swords) and g.swords[slot] is not old
     out = dict(slot=slot, swapped=swapped, swords_before=before_swords, swords_after=after_swords, pickups_before=before_pickups,
                pickups_after=[pickup_state(pk, p) for pk in g.pickups], ult_before=old_ult)
     if swapped and slot < len(g.swords):
@@ -295,6 +295,9 @@ def run_wave(wave, probes):
 
 
 def arming_probe(wave, index, kind, arm_roll, drop_draw, rarity_roll, element_index):
+    # Rolls are rounded to nine places: the JSON round trip through Godot's parser is only good to about 1e-15, so a roll
+    # sitting exactly on a threshold would not survive it. What the prototype does with the rounded value is what is recorded.
+    arm_roll, drop_draw, rarity_roll = round(arm_roll, 9), round(drop_draw, 9), round(rarity_roll, 9)
     queue = run_wave(wave, {index: dict(kind=kind, arm_roll=arm_roll, drop_draw=drop_draw, rarity_roll=rarity_roll, element_index=element_index)})
     got_kind, armed = queue[index]
     assert got_kind == kind

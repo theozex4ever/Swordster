@@ -478,7 +478,7 @@ func _show_encounter(run: GameRun) -> void:
 			armed_left += 1 if carried != null else 0
 		for marker: SpawnMarker in run.director.markers:
 			armed_left += 1 if marker.armed != null else 0
-		_encounter_label.text = "DROPS ENCOUNTER (dev fixture)   armed foes left: %d   swords lying: %d   dropped %d, swapped %d\nKill an armed foe, stand within %d px of its sword and press 1 / 2 / 3: it replaces that slot, the old sword drops, the slot keeps its ultimate recharge.   %s" % [
+		_encounter_label.text = "DROPS ENCOUNTER (dev fixture)   armed foes left: %d   swords lying: %d   dropped %d, swapped %d\nKill an armed foe, stand within %d px of its sword and press 1 / 2 / 3 to swap it into that slot.\nThe old sword drops and the slot keeps its ultimate recharge.   %s" % [
 			armed_left, run.pickups.size(), run.cue_count(SimCue.Kind.SWORD_DROPPED), run.cue_count(SimCue.Kind.SWORD_SWAPPED), int(LootDefs.PICKUP_REACH), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS:
 		_encounter_label.text = "COLOSSUS ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d spitter, %d brute\nslams %d, Cataclysm fields %d (live %d)   Q / E / R: Cataclysm at the cursor, up to 480 px\nColossi crush the biggest cluster and clear orbs.   %s" % [

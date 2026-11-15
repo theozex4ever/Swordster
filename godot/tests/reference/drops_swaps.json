@@ -1471,7 +1471,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.38999900000000004,
+    "rarity_roll": 0.389999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1531,7 +1531,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.27999900000000005,
+    "rarity_roll": 0.279999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1591,7 +1591,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.4299990000000001,
+    "rarity_roll": 0.429999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1601,9 +1601,9 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.43000000000000005,
+    "rarity_roll": 0.43,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 3,
@@ -1651,7 +1651,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.31999900000000003,
+    "rarity_roll": 0.319999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1731,7 +1731,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.47000099999999995,
+    "rarity_roll": 0.470001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -1741,7 +1741,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.11999900000000001,
+    "rarity_roll": 0.119999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -1751,9 +1751,9 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.12000000000000001,
+    "rarity_roll": 0.12,
     "element_index": 0,
-    "armed": ["blade", 1, "fire"]
+    "armed": ["blade", 2, "fire"]
    },
    {
     "wave": 5,
@@ -1761,7 +1761,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.12000100000000001,
+    "rarity_roll": 0.120001,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1791,7 +1791,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.36000099999999996,
+    "rarity_roll": 0.360001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -1861,7 +1861,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.13999899999999998,
+    "rarity_roll": 0.139999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -1871,7 +1871,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.13999999999999999,
+    "rarity_roll": 0.14,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1891,7 +1891,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.39999900000000005,
+    "rarity_roll": 0.399999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1921,7 +1921,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.21499899999999997,
+    "rarity_roll": 0.214999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -1931,7 +1931,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.21499999999999997,
+    "rarity_roll": 0.215,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1941,7 +1941,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.21500099999999997,
+    "rarity_roll": 0.215001,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -1971,7 +1971,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5500010000000001,
+    "rarity_roll": 0.550001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2011,7 +2011,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.4399990000000001,
+    "rarity_roll": 0.439999,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2021,9 +2021,9 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.44000000000000006,
+    "rarity_roll": 0.44,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 7,
@@ -2031,7 +2031,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.44000100000000003,
+    "rarity_roll": 0.440001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2041,7 +2041,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.23499899999999999,
+    "rarity_roll": 0.234999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -2081,9 +2081,9 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5900000000000001,
+    "rarity_roll": 0.59,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 7,
@@ -2091,7 +2091,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5900010000000001,
+    "rarity_roll": 0.590001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2151,7 +2151,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.48000099999999996,
+    "rarity_roll": 0.480001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2161,7 +2161,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.25499900000000003,
+    "rarity_roll": 0.254999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -2221,7 +2221,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.19999899999999998,
+    "rarity_roll": 0.199999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -2231,7 +2231,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.19999999999999998,
+    "rarity_roll": 0.2,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2241,7 +2241,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.20000099999999998,
+    "rarity_roll": 0.200001,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2291,7 +2291,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.27499999999999997,
+    "rarity_roll": 0.275,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2301,7 +2301,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.27500099999999994,
+    "rarity_roll": 0.275001,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2331,7 +2331,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.6700010000000001,
+    "rarity_roll": 0.670001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2391,7 +2391,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5500010000000001,
+    "rarity_roll": 0.550001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2421,7 +2421,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.29500099999999996,
+    "rarity_roll": 0.295001,
     "element_index": 0,
     "armed": ["blade", 1, "fire"]
    },
@@ -2441,9 +2441,9 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000000000000001,
+    "rarity_roll": 0.7,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 10,
@@ -2451,7 +2451,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000010000000001,
+    "rarity_roll": 0.700001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2511,7 +2511,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5500010000000001,
+    "rarity_roll": 0.550001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2521,7 +2521,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.31499900000000003,
+    "rarity_roll": 0.314999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -2561,9 +2561,9 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000000000000001,
+    "rarity_roll": 0.7,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 11,
@@ -2571,7 +2571,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000010000000001,
+    "rarity_roll": 0.700001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2631,7 +2631,7 @@
     "kind": "husk",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.5500010000000001,
+    "rarity_roll": 0.550001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    },
@@ -2641,7 +2641,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.32499900000000004,
+    "rarity_roll": 0.324999,
     "element_index": 0,
     "armed": ["blade", 2, "fire"]
    },
@@ -2681,9 +2681,9 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000000000000001,
+    "rarity_roll": 0.7,
     "element_index": 0,
-    "armed": ["blade", 0, "fire"]
+    "armed": ["blade", 1, "fire"]
    },
    {
     "wave": 12,
@@ -2691,7 +2691,7 @@
     "kind": "brute",
     "arm_roll": 0.0,
     "drop_draw": 6.0,
-    "rarity_roll": 0.7000010000000001,
+    "rarity_roll": 0.700001,
     "element_index": 0,
     "armed": ["blade", 0, "fire"]
    }
@@ -3953,12 +3953,34 @@
   },
   {
    "slot": 1,
-   "swapped": false,
+   "swapped": true,
    "swords_before": [["fang", 0, "poison"], ["blade", 1, "ice"], ["colossus", 0, "fire"]],
    "swords_after": [["fang", 0, "poison"], ["blade", 1, "ice"], ["colossus", 0, "fire"]],
    "pickups_before": [{"kind": "blade", "rarity": 1, "element": "ice", "dx": 20.0, "dy": -30.0, "life": 45.0}],
    "pickups_after": [{"kind": "blade", "rarity": 1, "element": "ice", "dx": 12.066, "dy": -6.0, "life": 45.0}],
    "ult_before": [3.5409, 9.57],
+   "new": {
+    "kind": "blade",
+    "rarity": 1,
+    "element": "ice",
+    "name": "Rare Frost Warden",
+    "damage": 22.1,
+    "cooldown": 0.7395,
+    "range": 259.7,
+    "ult_max": 9.57,
+    "ult_cd": 3.5409,
+    "scale": 1.08,
+    "length": 58.32,
+    "ult_aoe": 0.0,
+    "cd": 0.4,
+    "z": 10.0,
+    "flash": 1.0,
+    "vx": 0.0,
+    "vy": -200.0,
+    "x": 1320.0,
+    "y": 870.0,
+    "state": "idle"
+   },
    "setup": {"old": ["blade", 1, "ice"], "fraction": 0.37, "slot": 1, "pickup": ["blade", 1, "ice"]},
    "other_slots_untouched": false,
    "returned": {"kind": "blade", "rarity": 1, "element": "ice", "dx": 12.066, "dy": -6.0, "life": 45.0}
@@ -4645,12 +4667,34 @@
   },
   {
    "slot": 1,
-   "swapped": false,
+   "swapped": true,
    "swords_before": [["fang", 0, "poison"], ["colossus", 2, "ice"], ["colossus", 0, "fire"]],
    "swords_after": [["fang", 0, "poison"], ["colossus", 2, "ice"], ["colossus", 0, "fire"]],
    "pickups_before": [{"kind": "colossus", "rarity": 2, "element": "ice", "dx": 20.0, "dy": -30.0, "life": 45.0}],
    "pickups_after": [{"kind": "colossus", "rarity": 2, "element": "ice", "dx": 4.418, "dy": -6.0, "life": 45.0}],
    "ult_before": [3.8332, 10.36],
+   "new": {
+    "kind": "colossus",
+    "rarity": 2,
+    "element": "ice",
+    "name": "Mythic Frost Colossus",
+    "damage": 87.5,
+    "cooldown": 1.554,
+    "range": 369.6,
+    "ult_max": 10.36,
+    "ult_cd": 3.8332,
+    "scale": 1.18,
+    "length": 103.84,
+    "ult_aoe": 250.632,
+    "cd": 0.4,
+    "z": 10.0,
+    "flash": 1.0,
+    "vx": 0.0,
+    "vy": -200.0,
+    "x": 1320.0,
+    "y": 870.0,
+    "state": "idle"
+   },
    "setup": {"old": ["colossus", 2, "ice"], "fraction": 0.37, "slot": 1, "pickup": ["colossus", 2, "ice"]},
    "other_slots_untouched": false,
    "returned": {"kind": "colossus", "rarity": 2, "element": "ice", "dx": 4.418, "dy": -6.0, "life": 45.0}
