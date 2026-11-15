@@ -61,6 +61,8 @@ func _run_all() -> void:
 	await pike.run_all()
 	var colossus: ColossusCataclysmChecks = ColossusCataclysmChecks.new(_check, self)
 	await colossus.run_all()
+	var converge: ConvergeChecks = ConvergeChecks.new(_check, self)
+	await converge.run_all()
 	if _failed == 0 and _total > 0:
 		print(_passed_line())
 		quit(0)
