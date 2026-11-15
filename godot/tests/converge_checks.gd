@@ -473,45 +473,572 @@ func _log_diff(case: Dictionary, log: Dictionary, rings: Array[Dictionary], tota
 
 
 # --------------------------------------------------------------- explicit rules
+## The converge cues a run has produced since `before` (a count), as the clamped points they carry.
+func _last_converge_point(run: GameRun) -> Vector2:
+	var found: Vector2 = Vector2(INF, INF)
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.CONVERGE:
+			found = cue.position
+	return found
+
+
+func _hit_amounts(run: GameRun) -> Array[int]:
+	var amounts: Array[int] = []
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.ENEMY_HIT:
+			amounts.append(cue.amount)
+	return amounts
+
+
 func _check_damage_boost() -> void:
-	pass
+	print("converge: a commanded attack's damage boost is 1.5x, once")
+	var wanted: Dictionary = {SwordDefs.FANG: [7, 10], SwordDefs.WARDEN: [17, 26], SwordDefs.PIKE: [24, 36], SwordDefs.COLOSSUS: [50, 75]}
+	for type_id: StringName in wanted:
+		var plain_run: GameRun = _lone_run([type_id], [CENTER + Vector2(150.0, -30.0)])
+		plain_run.swords[0].cooldown_left = 0.0
+		plain_run.take_cues()
+		var plain: int = 0
+		for i: int in 120:
+			plain_run.step()
+			var hits: Array[int] = _hit_amounts(plain_run)
+			if not hits.is_empty():
+				plain = hits[0]
+				break
+		var boosted_run: GameRun = _lone_run([type_id], [CENTER + Vector2(150.0, -30.0)])
+		boosted_run.apply(GameCommand.converge(CENTER + Vector2(155.0, -30.0)))
+		boosted_run.take_cues()
+		var boosted: int = 0
+		for i: int in 120:
+			boosted_run.step()
+			var hits: Array[int] = _hit_amounts(boosted_run)
+			if not hits.is_empty():
+				boosted = hits[0]
+				break
+		_ok("%s: an automatic attack deals %d and the commanded one %d (the sword's damage x 1.5, rounded half to even)" % [SwordDefs.display_name(type_id), plain, boosted], plain == int((wanted[type_id] as Array)[0]) and boosted == int((wanted[type_id] as Array)[1]))
+	var fang: GameRun = _lone_run([SwordDefs.FANG], [CENTER + Vector2(150.0, 0.0)])
+	fang.apply(GameCommand.converge(CENTER + Vector2(150.0, 0.0)))
+	_ok("the command sets the boost and a windup of 0.6 x the type's (%.4f s of %.2f s) for the whole attack" % [fang.swords[0].timer, fang.swords[0].windup], fang.swords[0].boost == 1.5 and _near(fang.swords[0].timer, fang.swords[0].windup * 0.6, 0.0001) and _near(fang.swords[0].windup_span, fang.swords[0].timer, 0.0001))
+	var next_attack: bool = false
+	for i: int in 200:
+		fang.step()
+		if fang.swords[0].phase == SwordState.Phase.IDLE:
+			fang.swords[0].cooldown_left = 0.0
+			fang.step()
+			next_attack = fang.swords[0].phase == SwordState.Phase.WINDUP and fang.swords[0].boost == 1.0 and _near(fang.swords[0].timer, fang.swords[0].windup, 0.0001)
+			break
+	_ok("the next automatic attack is unboosted again, with the type's own full windup", next_attack)
+	var pike: GameRun = _lone_run([SwordDefs.PIKE], [CENTER + Vector2(300.0, 0.0)])
+	pike.apply(GameCommand.converge(CENTER + Vector2(300.0, 0.0)))
+	var start_progress: float = pike.swords[0].windup_progress()
+	_steps(pike, 5)
+	var mid: float = pike.swords[0].windup_progress()
+	_ok("a commanded Pike's telegraph runs over its shortened windup (%.2f after 5 of its 11.5 ticks, not %.2f of the full 0.32 s)" % [mid, 5.0 / 19.2], start_progress == 0.0 and _near(mid, 5.0 * GameRun.TICK_DT / (0.32 * 0.6), 0.02))
 
 
 func _check_range_and_target_rules() -> void:
-	pass
+	print("converge: range, near and far points, and the target")
+	var cases: Array = [
+		["a point inside the range is used as clicked", Vector2(300.0, -100.0), Vector2(300.0, -100.0)],
+		["a point exactly 460 px away is used as clicked", Vector2(460.0, 0.0), Vector2(460.0, 0.0)],
+		["a point 460.1 px away is pulled back to 460", Vector2(460.1, 0.0), Vector2(460.0, 0.0)],
+		["a far point east is pulled back along its direction", Vector2(1000.0, 0.0), Vector2(460.0, 0.0)],
+		["a far diagonal keeps its direction (3-4-5)", Vector2(600.0, 800.0), Vector2(276.0, 368.0)],
+		["a far point behind the player too", Vector2(-1500.0, 0.0), Vector2(-460.0, 0.0)],
+		["the player's own position is a valid point", Vector2.ZERO, Vector2.ZERO],
+	]
+	for entry: Array in cases:
+		var run: GameRun = _lone_run([SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS], [])
+		run.apply(GameCommand.converge(CENTER + (entry[1] as Vector2)))
+		var got: Vector2 = _last_converge_point(run)
+		_ok("%s (%s)" % [entry[0], got - CENTER], got.is_equal_approx(CENTER + (entry[2] as Vector2)) and run.swords[0].aim.is_equal_approx(got) and run.swords[2].aim.is_equal_approx(got))
+	var moved: GameRun = _lone_run([SwordDefs.WARDEN], [])
+	moved.position = CENTER + Vector2(-700.0, 300.0)
+	moved.apply(GameCommand.converge(CENTER + Vector2(900.0, 300.0)))
+	_ok("the range is measured from the player, wherever the player stands", _last_converge_point(moved).is_equal_approx(moved.position + Vector2(460.0, 0.0)))
+	var target: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(300.0, 0.0), CENTER + Vector2(300.0, 60.0), CENTER + Vector2(300.0, -20.0)])
+	var sword: SwordState = target.swords[0]
+	var click_at: Vector2 = CENTER + Vector2(300.0, 0.0) + Vector2(0.0, -15.0)
+	sword.command(target, click_at)
+	_ok("the target is the enemy nearest the point within 90 px (the first of equals in the run's order): the one 15 px away, not the one 5 px beyond it", sword.target == target.enemies[0] or sword.target == target.enemies[2])
+	var near_two: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(300.0, 0.0), CENTER + Vector2(300.0, 40.0)])
+	near_two.swords[0].command(near_two, CENTER + Vector2(300.0, 20.0))
+	_ok("two enemies equally near the point: the first in the run's order is the target", near_two.swords[0].target == near_two.enemies[0])
+	var edge: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.WARDEN], [CENTER + Vector2(300.0, 0.0)])
+	edge.swords[0].command(edge, CENTER + Vector2(300.0, 89.9))
+	edge.swords[1].command(edge, CENTER + Vector2(300.0, 90.0))
+	_ok("an enemy 89.9 px from the point is the target and one exactly 90 px away is not (the prototype's strict <)", edge.swords[0].target == edge.enemies[0] and edge.swords[1].target == null)
+	_ok("with no target the sword aims at the point itself and still winds up (boost %.1f, aim %s)" % [edge.swords[1].boost, edge.swords[1].aim - CENTER], edge.swords[1].phase == SwordState.Phase.WINDUP and edge.swords[1].aim.is_equal_approx(CENTER + Vector2(300.0, 90.0)) and edge.swords[1].boost == 1.5)
+	var empty: GameRun = _lone_run([SwordDefs.FANG], [])
+	empty.apply(GameCommand.converge(CENTER + Vector2(120.0, 0.0)))
+	var hung: bool = false
+	for i: int in 60:
+		empty.step()
+	_ok("an empty point strikes and the sword is back to idle afterwards (nothing to hit, nothing stuck): phase %d" % empty.swords[0].phase, empty.swords[0].phase == SwordState.Phase.IDLE or empty.swords[0].phase == SwordState.Phase.RECOVER)
+	var gone: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(200.0, 0.0), CENTER + Vector2(240.0, 100.0)])
+	gone.apply(GameCommand.converge(CENTER + Vector2(205.0, 0.0)))
+	var victim: EnemyState = gone.enemies[0]
+	gone.enemies.erase(victim)
+	gone.step()
+	_ok("an enemy that leaves the run while alive is dropped as the target (the strike carries on to its last point) and is never struck", gone.swords[0].target == null and victim.hp == 900.0 and gone.swords[0].aim.distance_to(CENTER + Vector2(205.0, 0.0)) < 0.5)
+	var touch: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(-350.0, 0.0), CENTER + Vector2(150.0, 100.0)])
+	touch.apply(GameCommand.converge_at_nearest())
+	_ok("the touch Converge aims at the nearest enemy (%s)" % [_last_converge_point(touch) - CENTER], touch.swords[0].aim.is_equal_approx(CENTER + Vector2(150.0, 100.0)) and touch.converge_cooldown_left == 2.5)
+	var lonely: GameRun = _lone_run([SwordDefs.WARDEN], [])
+	lonely.facing = Vector2.LEFT
+	lonely.apply(GameCommand.converge_at_nearest())
+	_ok("and 300 px ahead of the player when nothing is alive", _last_converge_point(lonely).is_equal_approx(CENTER + Vector2(-300.0, 0.0)))
 
 
 func _check_cooldown_rules() -> void:
-	pass
+	print("converge: the shared cooldown")
+	var run: GameRun = _lone_run([SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS], [CENTER + Vector2(200.0, 0.0)])
+	_ok("Converge is ready at the start", run.converge_cooldown_left == 0.0 and run.try_converge(CENTER + Vector2(200.0, 0.0)) == GameRun.ConvergeResult.COMMANDED)
+	_ok("and the cooldown is the prototype's 2.5 s at once", run.converge_cooldown_left == 2.5)
+	var result_again: int = run.try_converge(CENTER + Vector2(100.0, 0.0))
+	var windups: Array[float] = [run.swords[0].timer, run.swords[1].timer]
+	_ok("a second click during the cooldown is refused and changes nothing (aim, timers)", result_again == GameRun.ConvergeResult.COOLING_DOWN and run.swords[0].aim.is_equal_approx(CENTER + Vector2(200.0, 0.0)) and run.converge_cooldown_left == 2.5 and run.swords[1].timer == windups[1])
+	var accepted_at: int = -1
+	for i: int in 400:
+		run.step()
+		if accepted_at < 0 and run.converge_cooldown_left == 0.0:
+			accepted_at = run.tick
+	_ok("it runs out after 2.5 s of gameplay time (tick %d, with the hitstop of the blows it dealt in between: %.2f s)" % [accepted_at, float(accepted_at) / 60.0], accepted_at >= 150 and accepted_at < 200)
+	_ok("and then Converge is accepted again", run.try_converge(CENTER + Vector2(100.0, 0.0)) == GameRun.ConvergeResult.COMMANDED)
+	var spam: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.PIKE], [CENTER + Vector2(200.0, 0.0)])
+	var accepted: int = 0
+	for i: int in 149:
+		if spam.try_converge(CENTER + Vector2(150.0, 20.0)) == GameRun.ConvergeResult.COMMANDED:
+			accepted += 1
+		spam.step()
+	_ok("a click every tick for 2.5 s is accepted once (%d accepted, %d Converge cues)" % [accepted, spam.cue_count(SimCue.Kind.CONVERGE)], accepted == 1 and spam.cue_count(SimCue.Kind.CONVERGE) == 1)
+	var paused: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(200.0, 0.0)])
+	paused.apply(GameCommand.pause())
+	var paused_result: int = paused.try_converge(CENTER + Vector2(200.0, 0.0))
+	_ok("a paused run refuses Converge without starting the cooldown or moving a sword", paused_result == GameRun.ConvergeResult.UNAVAILABLE and paused.converge_cooldown_left == 0.0 and paused.swords[0].phase == SwordState.Phase.IDLE and paused.cue_count(SimCue.Kind.CONVERGE) == 0)
+	paused.apply(GameCommand.resume())
+	paused.apply(GameCommand.converge(CENTER + Vector2(200.0, 0.0)))
+	paused.apply(GameCommand.pause())
+	var frozen: float = paused.converge_cooldown_left
+	_steps(paused, 200)
+	_ok("a paused run does not tick the cooldown down (%.2f s kept)" % frozen, paused.converge_cooldown_left == frozen and frozen == 2.5)
+	var dead: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(200.0, 0.0)])
+	dead.hurt_player(1000, CENTER + Vector2(50.0, 0.0))
+	var dead_result: int = dead.try_converge(CENTER + Vector2(200.0, 0.0))
+	_ok("a dead player cannot command Converge: no cooldown, no sword moved", dead.dead and dead_result == GameRun.ConvergeResult.UNAVAILABLE and dead.converge_cooldown_left == 0.0 and dead.swords[0].phase == SwordState.Phase.IDLE)
+	var freeze: GameRun = _lone_run([SwordDefs.WARDEN], [])
+	freeze.apply(GameCommand.converge(CENTER + Vector2(200.0, 0.0)))
+	freeze.hitstop = 0.5
+	_steps(freeze, 10)
+	_ok("hitstop holds the cooldown still, as it holds all gameplay (%.3f s)" % freeze.converge_cooldown_left, freeze.converge_cooldown_left == 2.5)
+	var slow: GameRun = _lone_run([SwordDefs.WARDEN], [])
+	slow.apply(GameCommand.converge(CENTER + Vector2(200.0, 0.0)))
+	slow.slowmo = 5.0
+	slow.slowmo_scale = 0.25
+	_steps(slow, 60)
+	_ok("slow motion slows it with the rest of gameplay time (%.3f s after one real second at quarter speed)" % slow.converge_cooldown_left, _near(slow.converge_cooldown_left, 2.5 - 0.25, 0.001))
+	var hitstop_click: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(200.0, 0.0)])
+	hitstop_click.hitstop = 0.4
+	hitstop_click.apply(GameCommand.converge(CENTER + Vector2(200.0, 0.0)))
+	_ok("a click during hitstop is taken at once (the sword is already winding up)", hitstop_click.swords[0].phase == SwordState.Phase.WINDUP and hitstop_click.converge_cooldown_left == 2.5)
+	var busy: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS], [CENTER + Vector2(200.0, 0.0)])
+	for slot: int in 3:
+		busy.apply(GameCommand.ultimate(slot, CENTER + Vector2(190.0, -22.0)))
+	busy.take_cues()
+	var busy_result: int = busy.try_converge(CENTER + Vector2(200.0, 0.0))
+	var cue_amount: int = -1
+	for cue: SimCue in busy.take_cues():
+		if cue.kind == SimCue.Kind.CONVERGE:
+			cue_amount = cue.amount
+	_ok("with every sword in its ultimate nobody takes the command (cue says %d) but the cooldown starts all the same" % cue_amount, busy_result == GameRun.ConvergeResult.COMMANDED and cue_amount == 0 and busy.converge_cooldown_left == 2.5)
 
 
 func _check_eligibility_rules() -> void:
-	pass
+	print("converge: which swords take the command")
+	var run: GameRun = _lone_run([SwordDefs.COLOSSUS, SwordDefs.COLOSSUS, SwordDefs.COLOSSUS], [CENTER + Vector2(300.0, 0.0)])
+	var sword: SwordState = run.swords[0]
+	sword.phase = SwordState.Phase.STRIKE
+	run.swords[1].phase = SwordState.Phase.STUCK
+	run.swords[2].begin_ultimate(run, CENTER + Vector2(300.0, 0.0))
+	run.take_cues()
+	run.apply(GameCommand.converge(CENTER + Vector2(300.0, 0.0)))
+	var untouched: bool = true
+	for each: SwordState in run.swords:
+		untouched = untouched and each.boost == 1.0 and each.phase != SwordState.Phase.WINDUP
+	_ok("a striking sword, a buried one and one in its ultimate all ignore the command (boost stays 1, none winds up)", untouched and run.swords[2].phase == SwordState.Phase.ULTIMATE)
+	var states: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.WARDEN, SwordDefs.WARDEN], [CENTER + Vector2(300.0, 0.0)])
+	states.swords[1].phase = SwordState.Phase.WINDUP
+	states.swords[1].timer = 0.1
+	states.swords[2].phase = SwordState.Phase.RECOVER
+	states.swords[2].timer = 0.2
+	states.apply(GameCommand.converge(CENTER + Vector2(300.0, 0.0)))
+	var all_windup: bool = true
+	for each: SwordState in states.swords:
+		all_windup = all_windup and each.phase == SwordState.Phase.WINDUP and each.boost == 1.5 and _near(each.timer, each.windup * 0.6, 0.0001)
+	_ok("an idle sword, one already winding up (the windup starts again, shorter) and one recovering all take it", all_windup)
+	_ok("whatever its automatic attack's cooldown says: a sword that still has 99 s to wait takes the command", states.swords[0].cooldown_left == 99.0 and states.swords[0].phase == SwordState.Phase.WINDUP)
+	_steps(states, 12)
+	_ok("a commanded strike restarts the sword's automatic cooldown from its own (%.2f s)" % states.swords[0].cooldown, states.swords[0].phase == SwordState.Phase.STRIKE and _near(states.swords[0].cooldown_left, states.swords[0].cooldown - 2.0 * GameRun.TICK_DT, 0.01))
+	var ult: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS], [CENTER + Vector2(300.0, 0.0)])
+	ult.apply(GameCommand.converge(CENTER + Vector2(300.0, 0.0)))
+	ult.apply(GameCommand.ultimate(0, CENTER + Vector2(300.0, 0.0)))
+	ult.apply(GameCommand.ultimate(2, CENTER + Vector2(300.0, 0.0)))
+	_ok("an ultimate pressed while the sword winds up for a commanded attack takes over (the shared cooldown does not gate it, nor it the cooldown)", ult.swords[0].phase == SwordState.Phase.ULTIMATE and ult.swords[2].phase == SwordState.Phase.ULTIMATE and ult.swords[1].phase == SwordState.Phase.WINDUP and ult.converge_cooldown_left == 2.5 and ult.swords[0].boost == 1.0)
+	var after: GameRun = _lone_run([SwordDefs.WARDEN, SwordDefs.WARDEN, SwordDefs.WARDEN], [])
+	after.apply(GameCommand.ultimate(1, CENTER + Vector2(200.0, 0.0)))
+	after.apply(GameCommand.converge(CENTER + Vector2(300.0, 0.0)))
+	_ok("a Converge right after an ultimate is accepted by the other two swords while the whirling one carries on", after.swords[1].phase == SwordState.Phase.ULTIMATE and after.swords[0].phase == SwordState.Phase.WINDUP and after.swords[2].phase == SwordState.Phase.WINDUP and after.converge_cooldown_left == 2.5)
+	var fight: GameRun = GameRun.new(RenderRateScenario.scenario(RenderRateScenario.CONVERGE))
+	var kinds: Array[String] = []
+	for each: SwordState in fight.swords:
+		kinds.append(String(each.spec.type_id))
+	_ok("the default loadout's three slots hold Viper Flurry, Maelstrom and Cataclysm for Q, E and R (%s)" % [kinds], kinds == ["fang", "blade", "colossus"] and [0, 1, 2].all(func(slot: int) -> bool: return fight.swords[slot].ultimate_ready())
+		and SwordDefs.ultimate_name(fight.swords[0].spec.type_id) == "Viper Flurry" and SwordDefs.ultimate_name(fight.swords[1].spec.type_id) == "Maelstrom" and SwordDefs.ultimate_name(fight.swords[2].spec.type_id) == "Cataclysm")
 
 
 func _check_restart_and_ranges() -> void:
-	pass
+	print("converge: restart and the attack-range toggle")
+	var run: GameRun = _lone_run([SwordDefs.WARDEN], [CENTER + Vector2(200.0, 0.0)])
+	run.apply(GameCommand.converge(CENTER + Vector2(200.0, 0.0)))
+	run.apply(GameCommand.toggle_ranges())
+	run.apply(GameCommand.restart())
+	_ok("a restart clears the Converge cooldown and the commanded sword (a fresh run) but keeps the range display, like the prototype's session flag", run.converge_cooldown_left == 0.0 and run.swords[0].phase == SwordState.Phase.IDLE and run.swords[0].boost == 1.0 and run.show_ranges)
+	run.apply(GameCommand.toggle_ranges())
+	_ok("Tab or G toggles it back off", not run.show_ranges)
+	run.apply(GameCommand.pause())
+	run.apply(GameCommand.toggle_ranges())
+	_ok("the toggle is ignored while paused", not run.show_ranges)
+	run.apply(GameCommand.resume())
+	run.hurt_player(1000, CENTER + Vector2(30.0, 0.0))
+	run.apply(GameCommand.toggle_ranges())
+	_ok("and while dead", not run.show_ranges)
 
 
 func _check_input_translation() -> void:
-	pass
+	print("converge: the mouse and keys that command it")
+	var translator: InputTranslator = InputTranslator.new()
+	translator.to_world = func(viewport_point: Vector2) -> Vector2: return viewport_point + Vector2(1000.0, 500.0)
+	var left: Array[GameCommand] = translator.handle_event(_mouse_button(1, Vector2(30.0, 40.0)))
+	_ok("a left click is a Converge at the cursor's world position (not a stale pointer): (1030, 540)", left.size() == 1 and left[0].kind == GameCommand.Kind.CONVERGE and left[0].point == Vector2(1030.0, 540.0) and not left[0].at_nearest)
+	var right: Array[GameCommand] = translator.handle_event(_mouse_button(3, Vector2(-5.0, 7.0)))
+	_ok("so is a right click", right.size() == 1 and right[0].kind == GameCommand.Kind.CONVERGE and right[0].point == Vector2(995.0, 507.0))
+	_ok("a middle click, a button release and the wheel are not", translator.handle_event(_mouse_button(2, Vector2(1.0, 1.0))).is_empty() and translator.handle_event(_mouse_button(1, Vector2(1.0, 1.0), false)).is_empty())
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel.pressed = true
+	_ok("the wheel (a press of its own button) does not command Converge", translator.handle_event(wheel).is_empty())
+	var emulated: InputEventMouseButton = _mouse_button(1, Vector2(9.0, 9.0))
+	emulated.device = InputEvent.DEVICE_ID_EMULATION
+	_ok("a click the engine made up from a touch is not a Converge (the touch UI of issue #20 aims its own)", translator.handle_event(emulated).is_empty())
+	var tab: Array[GameCommand] = translator.handle_event(_key(KEY_TAB))
+	var g_key: Array[GameCommand] = translator.handle_event(_key(KEY_G))
+	_ok("Tab and G are the attack-range toggle", tab.size() == 1 and tab[0].kind == GameCommand.Kind.TOGGLE_RANGES and g_key.size() == 1 and g_key[0].kind == GameCommand.Kind.TOGGLE_RANGES)
+	var echo: InputEventKey = _key(KEY_TAB)
+	echo.echo = true
+	_ok("a held Tab does not flicker the display", translator.handle_event(echo).is_empty())
+	var ultimates: Array[GameCommand.Kind] = []
+	for code: Key in [KEY_Q, KEY_E]:
+		for command: GameCommand in translator.handle_event(_key(code)):
+			ultimates.append(command.kind)
+	_ok("Q and E are still the slot ultimates (a click never starts one, a key never commands Converge)", ultimates == [GameCommand.Kind.ULTIMATE, GameCommand.Kind.ULTIMATE])
+	var converge_touch: GameCommand = GameCommand.converge_at_nearest()
+	_ok("the touch command exists for issue #20 and carries no point", converge_touch.kind == GameCommand.Kind.CONVERGE and converge_touch.at_nearest)
+
+
+# ------------------------------------------------------ real Main scene
+## A real click as the engine delivers it: the pointer moves there, the button goes down and comes up, through the viewport's own
+## input path (`_input`, the HUD's controls, then `_unhandled_input`). `local` says `at` is already a viewport (canvas) position.
+func _click(viewport: Viewport, at: Vector2, button: int = 1, local: bool = false) -> void:
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = at
+	motion.global_position = at
+	viewport.push_input(motion, local)
+	for pressed: bool in [true, false]:
+		var event: InputEventMouseButton = _mouse_button(button, at, pressed)
+		event.global_position = at
+		viewport.push_input(event, local)
+
+
+func _main_with(scenario: RunScenario, sword_scene: String = "", parent: Node = null) -> Main:
+	var main: Main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
+	main.scenario = scenario
+	if not sword_scene.is_empty():
+		main.sword_visual = load(sword_scene)
+	(parent if parent != null else _tree.root).add_child(main)
+	main.set_physics_process(false)
+	return main
+
+
+func _tick_main(main: Main, count: int) -> void:
+	for i: int in count:
+		main._physics_process(GameRun.TICK_DT)
+
+
+## A normal start in the real scene with a few standing enemies, no waves and no randomness in what it does.
+func _arena_scenario(enemy_points: Array = []) -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 16
+	scenario.waves_enabled = false
+	scenario.sword_start_cooldowns = [99.0, 99.0, 99.0]
+	var placements: Array[EnemyPlacement] = []
+	for at: Variant in enemy_points:
+		var placement: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, CENTER + (at as Vector2))
+		placement.speed_scale = 0.0
+		placement.hp = 900.0
+		placements.append(placement)
+	scenario.initial_enemies = placements
+	return scenario
 
 
 func _check_main_scene() -> void:
-	pass
+	print("converge: the normal start and a click in the real Main scene")
+	var normal: Main = _main_with(null)
+	await _tree.process_frame
+	var names: Array[String] = []
+	var types: Array[String] = []
+	var elements: Array[String] = []
+	for slot: int in 3:
+		names.append(normal._hud._ult_names[slot].text)
+		types.append(normal._hud._ult_types[slot].text)
+		elements.append(normal._hud._ult_elements[slot].text)
+	_ok("launched with no encounter, the scene's run is the normal start: Fang, Warden and Colossus on the cards (%s / %s)" % [names, elements],
+		normal.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and names == ["Viper Flurry", "Maelstrom", "Cataclysm"] and types[0].begins_with("Fang sword") and types[1].begins_with("Warden sword") and types[2].begins_with("Colossus sword")
+		and elements == ["POISON", "ICE", "FIRE"])
+	normal.queue_free()
+	await _tree.process_frame
+
+	# The headless window is 64x64; give it the game's real size so pointer positions map onto the HUD as on a 1280x720 screen.
+	var window_size: Vector2i = _tree.root.size
+	_tree.root.size = Vector2i(1280, 720)
+	var main: Main = _main_with(_arena_scenario([Vector2(260.0, -20.0), Vector2(-300.0, 40.0)]))
+	await _tree.process_frame
+	await _tree.process_frame
+	var hud: Hud = main._hud
+	var viewport: Viewport = main.get_viewport()
+	main._sfx.unlock()
+	main._sfx.played.clear()
+	_tick_main(main, 3)
+	var half: Vector2 = viewport.get_visible_rect().size * 0.5
+	_ok("the HUD shows Converge ready before any click", hud.converge_status() == "converge ready" and hud.converge_bar_fraction() == 1.0)
+	var pause_at: Vector2 = hud._pause_button.get_global_rect().get_center()
+	_click(viewport, pause_at)
+	_ok("a click on the HUD's Pause button pauses and is not also a Converge (the HUD takes it before the arena does)", main.run.paused and main.run.converge_cooldown_left == 0.0 and main.run.cue_count(SimCue.Kind.CONVERGE) == 0)
+	_click(viewport, hud._pause_button.get_global_rect().get_center())
+	_ok("and a second click on it resumes", not main.run.paused and main.run.cue_count(SimCue.Kind.CONVERGE) == 0)
+	_click(viewport, half + Vector2(250.0, -20.0))
+	var sword: SwordState = main.run.swords[0]
+	_ok("a left click on the arena commands Converge at the cursor's world point (%s): every sword winds up at once, boosted" % sword.aim,
+		main.run.cue_count(SimCue.Kind.CONVERGE) == 1 and main.run.converge_cooldown_left == 2.5 and sword.phase == SwordState.Phase.WINDUP and sword.boost == 1.5
+		and main.run.swords.all(func(each: SwordState) -> bool: return each.phase == SwordState.Phase.WINDUP)
+		and main.run.swords[0].aim.is_equal_approx(main.run.camera + Vector2(250.0, -20.0)))
+	_ok("it is heard (a chime) and shown (the HUD counts the cooldown down)", main._sfx.played.has("chime") and hud.converge_status() == "converge 2.5s" and hud.converge_bar_fraction() == 0.0, "%s %s" % [main._sfx.played, hud.converge_status()])
+	main._sfx.played.clear()
+	_click(viewport, half + Vector2(-300.0, 40.0), 3)
+	_ok("a right click during the cooldown is refused: no second command, no sound", main.run.cue_count(SimCue.Kind.CONVERGE) == 1 and not main._sfx.played.has("chime"))
+	_tick_main(main, 40)
+	await _tree.process_frame
+	var left: float = main.run.converge_cooldown_left
+	_ok("the HUD counts the seconds down as the run does (%s with %.2f s left, bar %.2f)" % [hud.converge_status(), left, hud.converge_bar_fraction()],
+		left > 0.5 and left < 2.4 and hud.converge_status() == "converge %.1fs" % left and _near(hud.converge_bar_fraction(), 1.0 - left / 2.5, 0.001))
+	_tick_main(main, 130)
+	_ok("when it is over the HUD says ready again", hud.converge_status() == "converge ready" and hud.converge_bar_fraction() == 1.0)
+	_click(viewport, half + Vector2(-300.0, 40.0), 3)
+	_ok("and the right button commands it again", main.run.cue_count(SimCue.Kind.CONVERGE) == 2)
+	main.run.apply(GameCommand.pause())
+	_click(viewport, half)
+	_ok("a click while paused does nothing", main.run.cue_count(SimCue.Kind.CONVERGE) == 2)
+	main.run.apply(GameCommand.resume())
+	main._input(_key(KEY_Q))
+	main._input(_key(KEY_E))
+	main._input(_key(KEY_R))
+	_ok("Q, E and R still start the slots' ultimates in the default loadout (Viper Flurry, Maelstrom, Cataclysm): %d started" % main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED), main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 3 and main.run.swords.all(func(each: SwordState) -> bool: return each.phase == SwordState.Phase.ULTIMATE))
+	main.run.hurt_player(1000, CENTER + Vector2(40.0, 0.0))
+	main.run.converge_cooldown_left = 0.0
+	_click(viewport, half + Vector2(100.0, 0.0))
+	_ok("once dead a click commands nothing", main.run.dead and main.run.cue_count(SimCue.Kind.CONVERGE) == 2)
+	main.queue_free()
+	await _tree.process_frame
+	_tree.root.size = window_size
 
 
+## Clicks and the view: the cursor's world point is the camera's centre plus the cursor's offset from the middle of the visible
+## area, whatever the window's shape, and after the view changes under a running scene.
 func _check_aim_across_views() -> void:
-	pass
+	print("converge: aiming stays camera-relative across window sizes and view changes")
+	var sizes: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1084, 720), Vector2i(1000, 563), Vector2i(1920, 1080), Vector2i(800, 1280), Vector2i(1280, 1024)]
+	var window: Window = Window.new()
+	window.size = sizes[0]
+	window.content_scale_size = Vector2i(1280, 720)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	_tree.root.add_child(window)
+	var scenario: RunScenario = _arena_scenario()
+	scenario.start_position = Vector2(1500.0, 1000.0)
+	var main: Main = _main_with(scenario, "", window)
+	await _tree.process_frame
+	var worst: float = 0.0
+	var failures: Array[String] = []
+	for size: Vector2i in sizes:
+		window.size = size
+		await _tree.process_frame
+		await _tree.process_frame
+		main.run.converge_cooldown_left = 0.0
+		var view: Vector2 = window.get_visible_rect().size
+		var offsets: Array[Vector2] = [Vector2.ZERO, Vector2(300.0, -100.0), Vector2(-250.0, 200.0), Vector2(0.0, -view.y * 0.5), Vector2(view.x * 0.5 - 1.0, view.y * 0.5 - 1.0), Vector2(-view.x * 0.5, -view.y * 0.5)]
+		for offset: Vector2 in offsets:
+			main.run.converge_cooldown_left = 0.0
+			for sword: SwordState in main.run.swords:
+				sword.phase = SwordState.Phase.IDLE
+			main.run.take_cues()
+			_click(window, view * 0.5 + offset, 1, true)
+			var want: Vector2 = main.run.camera + offset
+			var to_player: Vector2 = want - main.run.position
+			if to_player.length() > SwordDefs.CONVERGE_RANGE:
+				want = main.run.position + to_player.normalized() * SwordDefs.CONVERGE_RANGE
+			var got: Vector2 = main.run.swords[1].aim
+			# What the engine itself draws there: the inverse of the viewport's canvas transform (the camera's own).
+			main._camera.reset_physics_interpolation()
+			main._camera.force_update_scroll()
+			var drawn: Vector2 = window.get_canvas_transform().affine_inverse() * (view * 0.5 + offset)
+			var engine_gap: float = (drawn - (main.run.camera + offset)).length()
+			worst = maxf(worst, engine_gap)
+			if got.distance_to(want) > 0.01 or engine_gap > 1.0:
+				failures.append("%s offset %s: aimed %s wanted %s, engine says %s" % [size, offset, got, want, drawn])
+	_ok("at six window sizes (visible areas 1280x720, 1280x850, 1280x720, 1280x720, 1280x2048, 1280x1024) a click at the middle, in each quadrant and at the corners aims at the camera's centre plus its offset, pulled back to 460 px, and the point agrees with the camera's own transform within %.2f px" % worst, failures.is_empty(), "; ".join(failures))
+	_tick_main(main, 60)
+	main.run.position = Vector2(700.0, 500.0)
+	main.run.velocity = Vector2.ZERO
+	_tick_main(main, 240)
+	await _tree.process_frame
+	main.run.converge_cooldown_left = 0.0
+	_click(window, window.get_visible_rect().size * 0.5 + Vector2(120.0, 60.0), 1, true)
+	_ok("after the player and the camera moved far away the point follows the camera (%s near %s)" % [main.run.swords[1].aim, main.run.camera + Vector2(120.0, 60.0)], main.run.swords[1].aim.distance_to(main.run.camera + Vector2(120.0, 60.0)) < 0.01 and main.run.camera.distance_to(Vector2(1500.0, 1000.0)) > 500.0)
+	main.queue_free()
+	window.queue_free()
+	await _tree.process_frame
 
 
 func _check_hud_and_effects() -> void:
-	pass
+	print("converge: the HUD, the ring, the chime and the attack-range display")
+	var main: Main = _main_with(_arena_scenario([Vector2(260.0, -20.0)]))
+	await _tree.process_frame
+	var effects: EffectsLayer = main._presenter._effects
+	main._sfx.unlock()
+	var rings_before: int = effects._rings.size()
+	main._input(_mouse_button(1, main.get_viewport().get_visible_rect().size * 0.5 + Vector2(200.0, 0.0)))
+	main._unhandled_input(_mouse_button(1, main.get_viewport().get_visible_rect().size * 0.5 + Vector2(200.0, 0.0)))
+	_ok("a Converge draws a ring closing on its point (%d new ring) and plays the chime" % (effects._rings.size() - rings_before), effects._rings.size() == rings_before + 1 and main._sfx.played.has("chime"))
+	_tick_main(main, 2)
+	await _tree.process_frame
+	_ok("ranges are off by default: no ring is drawn", main.run.show_ranges == false and effects.draw_counts.get(&"range_ring", 0) == 0)
+	main._input(_key(KEY_TAB))
+	_tick_main(main, 2)
+	await _tree.process_frame
+	var shown: int = effects.draw_counts.get(&"range_ring", 0)
+	_ok("Tab shows one ring per sword around the player (%d drawn over the frames since)" % shown, main.run.show_ranges and shown >= 3 and shown % 3 == 0)
+	main._input(_key(KEY_G))
+	_tick_main(main, 2)
+	var after_g: int = effects.draw_counts.get(&"range_ring", 0)
+	await _tree.process_frame
+	_ok("G hides them again", not main.run.show_ranges and effects.draw_counts.get(&"range_ring", 0) == after_g)
+	main._input(_key(KEY_G))
+	_tick_main(main, 1)
+	await _tree.process_frame
+	var before_dead: int = effects.draw_counts.get(&"range_ring", 0)
+	main.run.hurt_player(1000, CENTER + Vector2(40.0, 0.0))
+	_tick_main(main, 2)
+	await _tree.process_frame
+	await _tree.process_frame
+	_ok("a dead player's rings are not drawn", main.run.dead and main.run.show_ranges and effects.draw_counts.get(&"range_ring", 0) == before_dead)
+	var hint: String = main._hud._hint_label.text
+	_ok("the controls hint names the click and Tab / G and fits the view (%s)" % [main._hud._hint_label.get_global_rect()], hint.contains("Click: Converge") and hint.contains("Tab / G") and main.get_viewport().get_visible_rect().grow(0.5).encloses(main._hud._hint_label.get_global_rect()))
+	main.queue_free()
+	await _tree.process_frame
+	var window: Window = Window.new()
+	window.size = Vector2i(1084, 720)
+	window.content_scale_size = Vector2i(1280, 720)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	_tree.root.add_child(window)
+	var hud: Hud = Hud.new()
+	window.add_child(hud)
+	var run: GameRun = GameRun.new(RunScenario.new())
+	await _tree.process_frame
+	run.try_converge(CENTER)
+	hud.show_state(false, false)
+	hud.show_run(run)
+	await _tree.process_frame
+	var visible_rect: Rect2 = window.get_visible_rect()
+	_ok("the Converge label and bar lie inside a 1084x720 window's view (%s, %s)" % [hud._converge_label.get_global_rect(), hud._converge_track.get_global_rect()], visible_rect.grow(0.5).encloses(hud._converge_label.get_global_rect()) and visible_rect.grow(0.5).encloses(hud._converge_track.get_global_rect()) and not hud._converge_label.get_global_rect().intersects(hud._dash_label.get_global_rect()))
+	window.queue_free()
+	await _tree.process_frame
 
 
 func _check_visual_independence() -> void:
-	pass
+	print("converge: swapping the sword visual leaves the default-loadout fight unchanged")
+	var hosts: Array[Main] = []
+	for use_alt: bool in [false, true]:
+		hosts.append(_main_with(RenderRateScenario.scenario(RenderRateScenario.CONVERGE), "res://tests/alt_sword.tscn" if use_alt else ""))
+	await _tree.process_frame
+	var seen_phases: Dictionary = {}
+	var results: Array[Dictionary] = []
+	for host_index: int in hosts.size():
+		var main: Main = hosts[host_index]
+		for tick_index: int in 700:
+			for command: GameCommand in RenderRateScenario.commands_at(main.run.tick, RenderRateScenario.CONVERGE):
+				main.run.apply(command)
+			_tick_main(main, 1)
+			if host_index == 1:
+				for child: Node in main._presenter.get_children():
+					if child is AltSwordVisual:
+						seen_phases[(child as AltSwordVisual).last_phase] = true
+		results.append(main.run.snapshot())
+	_ok("a stretched, rotated replacement sword visual changes nothing about the commanded strikes, the ultimates or the conditions", results[0] == results[1])
+	_ok("the replacement visual was told the windup, strike and ultimate phases (%s)" % [seen_phases.keys()], seen_phases.has(SwordState.Phase.WINDUP) and seen_phases.has(SwordState.Phase.STRIKE) and seen_phases.has(SwordState.Phase.ULTIMATE))
+	for main: Main in hosts:
+		main.queue_free()
+	await _tree.process_frame
 
 
+# -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
-	pass
+	if not RenderRateScenario.probes_enabled():
+		return
+	print("converge: identical outcomes at low and high render rates")
+	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.CONVERGE)
+	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
+	_ok("the scripted fight does something worth comparing (Converges %d, ultimates %d, slams %d, beats %d, hits %d, kills %d, frozen %d, alive %s)" % [int(headless["converge_cues"]), int(headless["ultimate_cues"]), int(headless["colossus_slam_cues"]), int(headless["beat_cues"]), int(headless["hit_cues"]), int(headless["kills"]), int(headless["frozen_cues"]), not bool(headless["dead"])],
+		int(headless["converge_cues"]) == 4 and int(headless["ultimate_cues"]) == 4 and int(headless["colossus_slam_cues"]) >= 5 and int(headless["beat_cues"]) >= 5 and int(headless["hit_cues"]) >= 40 and int(headless["kills"]) >= 5 and int(headless["frozen_cues"]) >= 1 and not bool(headless["dead"]))
+	var executable: String = OS.get_executable_path()
+	var project: String = ProjectSettings.globalize_path("res://")
+	var frames: Dictionary[int, int] = {}
+	for rate: int in PROBE_FRAME_RATES:
+		var output: Array = []
+		var arguments: PackedStringArray = ["--headless", "--path", project, "--fixed-fps", str(rate), "--script", PROBE_SCRIPT, "--", "--probe=rate-converge"]
+		var code: int = OS.execute(executable, arguments, output, true)
+		var line: String = _probe_line(output)
+		_ok("the engine played the converge fight at %d fps (exit %d)" % [rate, code], code == 0 and not line.is_empty(), "%s" % [output])
+		if line.is_empty():
+			continue
+		var result: Dictionary = JSON.parse_string(line)
+		frames[rate] = int(result["frames"])
+		var comparable: Dictionary = result.duplicate()
+		for key: String in ["frames", "visuals", "enemies"]:
+			comparable.erase(key)
+		_ok("at %d fps the real Main scene ends the fight exactly like the bare simulation: same Converges, ultimates, doses, kills, positions, phases and recharges" % rate, comparable == expected_digest, _first_difference(comparable, expected_digest))
+	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
+		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
+
+
+func _probe_line(output: Array) -> String:
+	for chunk: Variant in output:
+		for line: String in String(chunk).split("\n"):
+			if line.begins_with("PROBE {"):
+				return line.trim_prefix("PROBE ")
+	return ""
+
+
+func _first_difference(a: Dictionary, b: Dictionary) -> String:
+	for key: Variant in a:
+		if JSON.stringify(a[key]) != JSON.stringify(b.get(key)):
+			return "%s: %s vs %s" % [key, a[key], b.get(key)]
+	return ""
