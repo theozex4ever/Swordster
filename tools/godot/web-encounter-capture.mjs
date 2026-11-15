@@ -211,8 +211,8 @@ if (scenario === "crowd") {
     await hold(code, k, vk, 500);
     await shot(`warden-07-round-${String(round).padStart(2, "0")}`);
   }
-  await key("KeyC", "c", 67); // the next dev encounter after the warden one is the normal run
-  await sleep(1200); await shot("warden-08-next-dev-encounter-normal");
+  await key("KeyC", "c", 67); // the next dev encounter after the warden one is the pike encounter
+  await sleep(1200); await shot("warden-08-next-dev-encounter-pike");
 } else if (scenario === "pike") {
   // The pike encounter: watch the Pikes thrust through the column, then press E with the cursor above the
   // player (a Skewer north: aim line, launch, the carried foes ringed, the release at the wall and its
@@ -245,8 +245,8 @@ if (scenario === "crowd") {
     await hold(code, k, vk, 500);
     await shot(`pike-07-round-${String(round).padStart(2, "0")}`);
   }
-  await key("KeyC", "c", 67); // the next dev encounter after the pike one is the normal run
-  await sleep(1200); await shot("pike-08-next-dev-encounter-normal");
+  await key("KeyC", "c", 67); // the next dev encounter after the pike one is the colossus encounter
+  await sleep(1200); await shot("pike-08-next-dev-encounter-colossus");
 } else if (scenario === "colossus") {
   // The colossus encounter, driven only by browser key and mouse events. The software-rendered page takes seconds per
   // screenshot while the game runs on, so the three Cataclysms are pressed in quick succession (Q poison east over the
@@ -268,8 +268,8 @@ if (scenario === "crowd") {
   await key("KeyQ", "q", 81); // slot one is recharging (14 s): refused, with a "recharging Ns" tag
   console.log(`Q while recharging at ${stamp()}s`);
   await watch("06-q-refused", 100);
-  await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the normal run
-  await sleep(1200); await shot("colossus-07-next-dev-encounter-normal");
+  await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the drops encounter
+  await sleep(1200); await shot("colossus-07-next-dev-encounter-drops");
 } else if (scenario === "converge") {
   // The normal start (no encounter): the default loadout, Fang (poison), Warden (ice), Colossus (fire). The page is software
   // rendered, so the game is PAUSED with P (a key the game itself handles) to take each screenshot. The view is 1280x720 and
