@@ -1369,7 +1369,7 @@ func _check_main_scene() -> void:
 	var effects: EffectsLayer = main._presenter._effects
 	_tick_main(main, 8)
 	await _tree.process_frame
-	_ok("while it rises the card shows ACTIVE and the layer draws the ring it will crush from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and _state_name(sword) == "ult_rise" and sword.altitude > 40.0 and effects.draw_counts.get(&"cataclysm_ring", 0) > 0)
+	_ok("while it rises the card shows ACTIVE and the layer draws the ring it will crush from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and _state_name(sword) == "ult_rise" and sword.altitude > 40.0 and effects.draw_counts.get(&"cataclysm_ring_fill", 0) > 0 and effects.draw_counts.get(&"cataclysm_ring_rim", 0) > 0 and effects.draw_counts.get(&"cataclysm_ring_closing", 0) > 0)
 	var slam_seen: bool = false
 	var field_seen: bool = false
 	var highest: float = 0.0
@@ -1378,9 +1378,9 @@ func _check_main_scene() -> void:
 		await _tree.process_frame
 		highest = maxf(highest, sword.altitude)
 		slam_seen = slam_seen or main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM) > 0
-		field_seen = field_seen or effects.draw_counts.get(&"field", 0) > 0
-	_ok("it climbs to %.0f px, lands (%d slam cue), leaves a field the layer draws (%d draws, %d fields in the run) and the field is announced (%d cue)" % [highest, main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM), effects.draw_counts.get(&"field", 0), main.run.fields.size(), main.run.cue_count(SimCue.Kind.FIELD_CREATED)],
-		highest > 300.0 and slam_seen and field_seen and main.run.fields.size() == 1 and main.run.cue_count(SimCue.Kind.FIELD_CREATED) == 1 and effects.draw_counts.get(&"slam_telegraph", 0) > 0 or effects.draw_counts.get(&"slam_telegraph", 0) == 0 and slam_seen)
+		field_seen = field_seen or (effects.draw_counts.get(&"field_fill", 0) > 0 and effects.draw_counts.get(&"field_rim", 0) > 0)
+	_ok("it climbs to %.0f px, lands (%d slam cue), leaves a field the layer draws (%d draws, %d fields in the run) and the field is announced (%d cue)" % [highest, main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM), effects.draw_counts.get(&"field_rim", 0), main.run.fields.size(), main.run.cue_count(SimCue.Kind.FIELD_CREATED)],
+		highest > 300.0 and slam_seen and field_seen and main.run.fields.size() == 1 and main.run.cue_count(SimCue.Kind.FIELD_CREATED) == 1)
 	var cataclysm_visual: PlaceholderSwordVisual = main._presenter._sword_visuals[sword.get_instance_id()] as PlaceholderSwordVisual
 	_ok("the Colossus visual hangs where the simulation says (its drawn lift %.1f = the sword's altitude %.1f)" % [cataclysm_visual._lift, sword.altitude], _near(cataclysm_visual._lift, sword.altitude, 0.001))
 	_ok("the encounter legend counts what happened (slams %d, fields %d, live %d): %s" % [main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM), main.run.cue_count(SimCue.Kind.FIELD_CREATED), main.run.fields.size(), hud._encounter_label.text.get_slice("\n", 0)],
@@ -1424,7 +1424,7 @@ func _check_main_scene() -> void:
 	for i: int in 240:
 		_tick_main(main, 1)
 		await _tree.process_frame
-		telegraph_seen = telegraph_seen or effects.draw_counts.get(&"slam_telegraph", 0) > 0
+		telegraph_seen = telegraph_seen or (effects.draw_counts.get(&"slam_telegraph_fill", 0) > 0 and effects.draw_counts.get(&"slam_telegraph_rim", 0) > 0 and effects.draw_counts.get(&"slam_telegraph_closing", 0) > 0)
 	_ok("while the Colossi wind up and fall, the layer draws the ring they will crush (drawn: %s)" % [effects.draw_counts], telegraph_seen)
 	await _tree.create_timer(0.1).timeout
 	main._sfx.played.clear()

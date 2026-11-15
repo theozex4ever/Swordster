@@ -36,8 +36,11 @@ var _embers: Array[Dictionary] = []
 var _wedges: Array[Dictionary] = []
 var _last_sweep_angle: Dictionary = {}
 ## How many times each kind of Warden or Pike effect has been drawn (`telegraph`, `fan`, `maelstrom`,
-## `thrust_telegraph`, `skewer_aim`, `skewer_carry`, `slam_telegraph`, `cataclysm_ring`, `field`);
-## checks read it to prove the layer really draws what the sword's state asks for.
+## and the Pike's strokes `thrust_telegraph_band`, `thrust_telegraph_line`, `skewer_aim_band`,
+## `skewer_aim_line`, `skewer_carry_ring`, `skewer_carry_line`); the Pike's strokes go through `_stroke`
+## and `_stroke_ring`, which count and draw in one call, so a stroke cannot be counted without being
+## drawn nor drawn without being counted. Checks read it to prove the layer really draws what the
+## sword's state asks for. A Colossus's strokes are `slam_telegraph_*`, `cataclysm_ring_*` (`_fill`, `_rim`, `_closing`) and `field_*` (`_fill`, `_rim`), drawn through `_disc` and `_rim`.
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -331,8 +334,7 @@ func _draw() -> void:
 			if sword.spec.type_id == SwordDefs.WARDEN:
 				_draw_maelstrom(sword, tint)
 			if sword.spec.type_id == SwordDefs.COLOSSUS:
-				draw_counts[&"cataclysm_ring"] = draw_counts.get(&"cataclysm_ring", 0) + 1
-				_draw_impact_ring(sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)
+				_draw_impact_ring(&"cataclysm_ring", sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
 	for ember: Dictionary in _embers:
@@ -376,44 +378,65 @@ func _draw_sweep_telegraph(sword: SwordState) -> void:
 ## The ring a Colossus's slam is about to crush, closing in as the windup runs out and full while the
 ## blade falls (it follows the target during the windup and stays on the impact point afterwards).
 func _draw_slam_telegraph(sword: SwordState) -> void:
-	draw_counts[&"slam_telegraph"] = draw_counts.get(&"slam_telegraph", 0) + 1
 	var winding: bool = sword.phase == SwordState.Phase.WINDUP
-	_draw_impact_ring(sword.aim if winding else sword.impact, sword.slam_radius(), sword.windup_progress() if winding else 1.0, _sword_color(sword.spec))
+	_draw_impact_ring(&"slam_telegraph", sword.aim if winding else sword.impact, sword.slam_radius(), sword.windup_progress() if winding else 1.0, _sword_color(sword.spec))
 
 
 ## An impact marker (the prototype's `draw_impact`): the area as a faint disc with a bright rim, and a
 ## ring that closes from the rim toward the centre as `progress` goes 0 to 1.
-func _draw_impact_ring(at: Vector2, radius: float, progress: float, tint: Color) -> void:
-	draw_circle(at, radius, Color(tint, 0.05 + 0.08 * progress))
-	draw_arc(at, radius, 0.0, TAU, 48, Color(tint, 0.3 + 0.5 * progress), 2.0)
-	draw_arc(at, maxf(8.0, radius * (1.0 - 0.85 * progress)), 0.0, TAU, 32, Color(tint, 0.25 + 0.55 * progress), 3.0)
+func _draw_impact_ring(kind: StringName, at: Vector2, radius: float, progress: float, tint: Color) -> void:
+	_disc(StringName(String(kind) + "_fill"), at, radius, Color(tint, 0.05 + 0.08 * progress))
+	_rim(StringName(String(kind) + "_rim"), at, radius, Color(tint, 0.3 + 0.5 * progress), 2.0, 48)
+	_rim(StringName(String(kind) + "_closing"), at, maxf(8.0, radius * (1.0 - 0.85 * progress)), Color(tint, 0.25 + 0.55 * progress), 3.0, 32)
 
 
 ## A Cataclysm's elemental ground: a flattened ellipse (the arena is seen from an angle) of the field's
 ## element, faint fill and a pulsing rim, fading out over its last third of life (prototype `draw`).
 func _draw_field(field: FieldState) -> void:
-	draw_counts[&"field"] = draw_counts.get(&"field", 0) + 1
 	var fade: float = field.fade()
 	var tint: Color = element_color(field.element)
 	var pulse: float = 0.5 + 0.2 * sin(_run.gameplay_time * 6.0 + field.position.x)
 	draw_set_transform(field.position, 0.0, Vector2(1.0, 0.6))
-	draw_circle(Vector2.ZERO, field.radius, Color(tint, 0.16 * fade))
-	draw_arc(Vector2.ZERO, field.radius, 0.0, TAU, 48, Color(tint, pulse * fade), 2.0)
+	_disc(&"field_fill", Vector2.ZERO, field.radius, Color(tint, 0.16 * fade))
+	_rim(&"field_rim", Vector2.ZERO, field.radius, Color(tint, pulse * fade), 2.0, 48)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## The line a Pike is about to thrust along: from where the sword hangs, past the aim point by the
 ## thrust's overshoot, brightening as the windup runs out. Follows the target like the thrust.
 func _draw_thrust_telegraph(sword: SwordState) -> void:
-	draw_counts[&"thrust_telegraph"] = draw_counts.get(&"thrust_telegraph", 0) + 1
 	var u: float = sword.windup_progress()
 	var heading: Vector2 = (sword.aim - sword.position).normalized()
 	var tint: Color = _sword_color(sword.spec)
 	var reach: float = (sword.aim - sword.position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT
 	var from: Vector2 = sword.position + heading * sword.length * SwordDefs.PIKE_TIP_FRACTION
 	var to: Vector2 = sword.position + heading * reach
-	draw_line(from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
-	draw_line(from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+	_stroke(&"thrust_telegraph_band", from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
+	_stroke(&"thrust_telegraph_line", from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## Draws a filled disc and counts it under `kind` in one step (see `draw_counts`).
+func _disc(kind: StringName, centre: Vector2, radius: float, color: Color) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_circle(centre, radius, color)
+
+
+## Draws a full circle's outline with `points` segments and counts it under `kind` in one step.
+func _rim(kind: StringName, centre: Vector2, radius: float, color: Color, width: float, points: int) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_arc(centre, radius, 0.0, TAU, points, color, width)
+
+
+## Draws a line and counts it under `kind` in one step (see `draw_counts`).
+func _stroke(kind: StringName, from: Vector2, to: Vector2, color: Color, width: float) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_line(from, to, color, width)
+
+
+## Draws a full circle's outline and counts it under `kind` in one step (see `draw_counts`).
+func _stroke_ring(kind: StringName, centre: Vector2, radius: float, color: Color, width: float) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_arc(centre, radius, 0.0, TAU, 20, color, width)
 
 
 ## A Skewer: while it aims, the line it will fly along (the prototype's: from the player out to the
@@ -421,17 +444,15 @@ func _draw_thrust_telegraph(sword: SwordState) -> void:
 ## enemy it carries and a short line back to the point.
 func _draw_skewer(sword: SwordState, tint: Color) -> void:
 	if not sword.skewer_flying:
-		draw_counts[&"skewer_aim"] = draw_counts.get(&"skewer_aim", 0) + 1
 		var u: float = sword.skewer_aim_progress()
 		var end: Vector2 = _run.position + sword.dir * SwordDefs.PIKE_ULT_RANGE
-		draw_line(_run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
-		draw_line(_run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+		_stroke(&"skewer_aim_band", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+		_stroke(&"skewer_aim_line", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
 		return
 	var tip: Vector2 = sword.position + sword.dir * sword.length * SwordDefs.PIKE_ULT_TIP_FRACTION
 	for enemy: EnemyState in sword.skewer_carried:
-		draw_counts[&"skewer_carry"] = draw_counts.get(&"skewer_carry", 0) + 1
-		draw_arc(enemy.position, enemy.radius + 7.0, 0.0, TAU, 20, Color(tint, 0.85), 3.0)
-		draw_line(enemy.position, tip, Color(tint, 0.4), 2.0)
+		_stroke_ring(&"skewer_carry_ring", enemy.position, enemy.radius + 7.0, Color(tint, 0.85), 3.0)
+		_stroke(&"skewer_carry_line", enemy.position, tip, Color(tint, 0.4), 2.0)
 
 
 ## A running Maelstrom: the range it pulls from (dashed), spinning arcs inside the reach of its
