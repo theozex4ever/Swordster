@@ -1,8 +1,8 @@
 class_name SwordDefs
 extends RefCounted
 ## Immutable sword-type and rarity constants copied from game/main.py
-## `SWORD_TYPES` (lines 79-113) and `RARITIES` (126-130). Fang, Warden and Pike exist so
-## far; Colossus lands with its own slice. The ultimate constants
+## `SWORD_TYPES` (lines 79-113) and `RARITIES` (126-130). All four sword types exist: Fang,
+## Warden, Pike and Colossus. The ultimate constants
 ## (`SWORD_TYPES[..]["ult"]`) sit beside each type's own and, like the type's base
 ## numbers, are read through per-type accessors (`base_*`, `ultimate_*`): a small
 ## `match` each, not an ability framework.
@@ -15,6 +15,9 @@ extends RefCounted
 const FANG: StringName = &"fang"
 const WARDEN: StringName = &"blade"
 const PIKE: StringName = &"lance"
+## Colossus is `SWORD_TYPES["colossus"]`, so its id is the prototype's own key (displayed "Colossus";
+## its ultimate is "Cataclysm").
+const COLOSSUS: StringName = &"colossus"
 
 ## Rarity: damage, cooldown, range and size multipliers (Common, Rare, Mythic).
 const RARITY_DAMAGE: Array[float] = [1.0, 1.3, 1.75]
@@ -211,6 +214,93 @@ const PIKE_ULT_RECOVER_TIME: float = 0.35
 const PIKE_ULT_RECOVER_SPEED_RANGE: float = 420.0
 const PIKE_ULT_RECOVER_SPEED_WALL: float = 300.0
 
+## Colossus: far / slow / crushing slam (prototype `SWORD_TYPES["colossus"]`). The slam's timing and
+## geometry live inline in the prototype's colossus branches of `Sword.acquire` / `update` / `strike`
+## and in `Game.slam`.
+const COLOSSUS_LENGTH: float = 88.0
+const COLOSSUS_WIDTH: float = 15.0
+const COLOSSUS_RANGE: float = 330.0
+const COLOSSUS_COOLDOWN: float = 2.1
+const COLOSSUS_DAMAGE: float = 50.0
+const COLOSSUS_KNOCK: float = 650.0
+const COLOSSUS_WINDUP: float = 0.55
+const COLOSSUS_HITSTOP: float = 0.13
+const COLOSSUS_SHAKE: float = 0.6
+## The slam's radius (before the rarity's size factor) and, in the same type table, the radius
+## within which `acquire` counts neighbours when it picks the target with the biggest cluster. That count
+## uses the radius WITHOUT the rarity's size factor, the slam itself uses it (prototype quirk, mirrored).
+const COLOSSUS_AOE: float = 118.0
+## Altitude and fall. The prototype keeps a height `z` and a fall speed `vz` for every sword and, for
+## Colossus alone, they decide WHEN the slam lands (`z <= 0`), so they are gameplay state here
+## (`SwordState.altitude`, `fall_speed`); the visual only draws them (ADR 0003).
+## At rest (idle or recovering) the altitude eases toward `REST_BASE + REST_LENGTH x length + sin(time x REST_BOB_RATE
+## + slot x REST_BOB_SLOT) x REST_BOB` at REST_RATE per second; a new sword hangs at START_ALTITUDE.
+const COLOSSUS_START_ALTITUDE: float = 30.0
+const COLOSSUS_REST_BASE: float = 34.0
+const COLOSSUS_REST_LENGTH: float = 0.15
+const COLOSSUS_REST_BOB_RATE: float = 2.2
+const COLOSSUS_REST_BOB_SLOT: float = 2.1
+const COLOSSUS_REST_BOB: float = 7.0
+const COLOSSUS_REST_RATE: float = 5.0
+## The dead player's swords sink at this many px/s.
+const COLOSSUS_SINK_RATE: float = 120.0
+## Windup: the sword springs onto the aim point (SPRING_K / SPRING_C), rises toward WINDUP_ALTITUDE at
+## WINDUP_RATE per second and turns upright (PI/2 plus a tremble) at TURN_RATE.
+const COLOSSUS_WINDUP_SPRING_K: float = 120.0
+const COLOSSUS_WINDUP_SPRING_C: float = 18.0
+const COLOSSUS_WINDUP_ALTITUDE: float = 200.0
+const COLOSSUS_WINDUP_RATE: float = 7.0
+const COLOSSUS_WINDUP_TREMBLE_RATE: float = 30.0
+const COLOSSUS_WINDUP_TREMBLE: float = 0.03
+const COLOSSUS_WINDUP_TURN_RATE: float = 10.0
+## The fall: the impact point is fixed when the strike starts; the sword closes `min(1, dt x GLIDE_RATE)`
+## of the way to it each tick while it drops with a fall speed that starts at STRIKE_FALL_SPEED and
+## grows by STRIKE_GRAVITY per second; the slam lands on the first tick the altitude reaches 0.
+const COLOSSUS_GLIDE_RATE: float = 30.0
+const COLOSSUS_STRIKE_FALL_SPEED: float = 300.0
+const COLOSSUS_STRIKE_GRAVITY: float = 9000.0
+## The slam (`Game.slam`): every enemy within `aoe + radius` of the point is struck (the dead included:
+## `hit_enemy` ignores them but they still count as "hit anything") for `damage x boost x power x fall`,
+## where `fall` = 1 - FALLOFF x clamp(distance / aoe, 0, 1), with `knock x fall` and a heavy blow; every orb within
+## `aoe` of the point is cleared. Hitstop and shake are the sword type's if anything was in the area, else
+## EMPTY_HITSTOP / EMPTY_SHAKE, with a kick straight down.
+const COLOSSUS_SLAM_FALLOFF: float = 0.45
+const COLOSSUS_SLAM_EMPTY_HITSTOP: float = 0.04
+const COLOSSUS_SLAM_EMPTY_SHAKE: float = 0.35
+## Stuck in the floor, then recovery.
+const COLOSSUS_STUCK_TIME: float = 0.32
+const COLOSSUS_STUCK_TREMBLE_RATE: float = 60.0
+const COLOSSUS_STUCK_TREMBLE: float = 0.08
+const COLOSSUS_RECOVER_TIME: float = 0.4
+const COLOSSUS_RECOVER_VELOCITY: Vector2 = Vector2(0.0, -60.0)
+
+## Colossus's ultimate, Cataclysm (prototype `SWORD_TYPES["colossus"]["ult"]`: cd 14.0, range 480, aoe 1.8,
+## targeted) and the numbers inline in `Sword.ultimate` / `Sword.update_ult`. Its area is the type's
+## radius x AOE_FACTOR x the rarity's size factor.
+const COLOSSUS_ULT_NAME: String = "Cataclysm"
+const COLOSSUS_ULT_COOLDOWN: float = 14.0
+const COLOSSUS_ULT_RANGE: float = 480.0
+const COLOSSUS_ULT_AOE_FACTOR: float = 1.8
+## RISE_TIME seconds of rising (spring onto the point, altitude toward RISE_ALTITUDE at RISE_RATE, trembling),
+## then it falls from FALL_SPEED with FALL_GRAVITY and lands at the first tick the altitude reaches 0:
+## a slam of DAMAGE_FACTOR x damage, STACKS doses of the element, a field and an extra shake.
+const COLOSSUS_ULT_RISE_TIME: float = 0.75
+const COLOSSUS_ULT_RISE_ALTITUDE: float = 420.0
+const COLOSSUS_ULT_RISE_RATE: float = 5.0
+const COLOSSUS_ULT_TREMBLE_RATE: float = 40.0
+const COLOSSUS_ULT_TREMBLE: float = 0.04
+const COLOSSUS_ULT_FALL_SPEED: float = 600.0
+const COLOSSUS_ULT_FALL_GRAVITY: float = 12000.0
+const COLOSSUS_ULT_DAMAGE_FACTOR: float = 2.2
+const COLOSSUS_ULT_STACKS: int = 3
+const COLOSSUS_ULT_SHAKE: float = 0.4
+const COLOSSUS_ULT_STUCK_TIME: float = 0.6
+## The elemental field Cataclysm leaves (`Field`): radius FIELD_RADIUS_FACTOR x the area, FIELD_LIFE seconds,
+## the sword's element at the sword's damage as its power, applied every FIELD_PERIOD seconds.
+const COLOSSUS_FIELD_RADIUS_FACTOR: float = 1.1
+const COLOSSUS_FIELD_LIFE: float = 5.0
+const COLOSSUS_FIELD_PERIOD: float = 0.5
+
 ## Flash of an enemy hit by a heavy blow (a normal hit flashes 0.11).
 const HEAVY_HIT_FLASH: float = 0.2
 const NORMAL_HIT_FLASH: float = 0.11
@@ -224,6 +314,8 @@ static func base_length(type_id: StringName) -> float:
 			return WARDEN_LENGTH
 		PIKE:
 			return PIKE_LENGTH
+		COLOSSUS:
+			return COLOSSUS_LENGTH
 		_:
 			return FANG_LENGTH
 
@@ -234,6 +326,8 @@ static func base_range(type_id: StringName) -> float:
 			return WARDEN_RANGE
 		PIKE:
 			return PIKE_RANGE
+		COLOSSUS:
+			return COLOSSUS_RANGE
 		_:
 			return FANG_RANGE
 
@@ -244,6 +338,8 @@ static func base_cooldown(type_id: StringName) -> float:
 			return WARDEN_COOLDOWN
 		PIKE:
 			return PIKE_COOLDOWN
+		COLOSSUS:
+			return COLOSSUS_COOLDOWN
 		_:
 			return FANG_COOLDOWN
 
@@ -254,6 +350,8 @@ static func base_damage(type_id: StringName) -> float:
 			return WARDEN_DAMAGE
 		PIKE:
 			return PIKE_DAMAGE
+		COLOSSUS:
+			return COLOSSUS_DAMAGE
 		_:
 			return FANG_DAMAGE
 
@@ -264,6 +362,8 @@ static func base_knock(type_id: StringName) -> float:
 			return WARDEN_KNOCK
 		PIKE:
 			return PIKE_KNOCK
+		COLOSSUS:
+			return COLOSSUS_KNOCK
 		_:
 			return FANG_KNOCK
 
@@ -274,6 +374,8 @@ static func base_windup(type_id: StringName) -> float:
 			return WARDEN_WINDUP
 		PIKE:
 			return PIKE_WINDUP
+		COLOSSUS:
+			return COLOSSUS_WINDUP
 		_:
 			return FANG_WINDUP
 
@@ -284,6 +386,8 @@ static func base_hitstop(type_id: StringName) -> float:
 			return WARDEN_HITSTOP
 		PIKE:
 			return PIKE_HITSTOP
+		COLOSSUS:
+			return COLOSSUS_HITSTOP
 		_:
 			return FANG_HITSTOP
 
@@ -294,6 +398,8 @@ static func base_shake(type_id: StringName) -> float:
 			return WARDEN_SHAKE
 		PIKE:
 			return PIKE_SHAKE
+		COLOSSUS:
+			return COLOSSUS_SHAKE
 		_:
 			return FANG_SHAKE
 
@@ -307,6 +413,8 @@ static func ultimate_name(type_id: StringName) -> String:
 			return PIKE_ULT_NAME
 		FANG:
 			return FANG_ULT_NAME
+		COLOSSUS:
+			return COLOSSUS_ULT_NAME
 		_:
 			return String(type_id)
 
@@ -320,6 +428,8 @@ static func ultimate_cooldown(type_id: StringName) -> float:
 			return PIKE_ULT_COOLDOWN
 		FANG:
 			return FANG_ULT_COOLDOWN
+		COLOSSUS:
+			return COLOSSUS_ULT_COOLDOWN
 		_:
 			return 0.0
 
@@ -335,18 +445,20 @@ static func ultimate_range(type_id: StringName) -> float:
 			return PIKE_ULT_RANGE
 		FANG:
 			return FANG_ULT_RANGE
+		COLOSSUS:
+			return COLOSSUS_ULT_RANGE
 		_:
 			return 0.0
 
 
 ## Skill-shot ultimates (Pike's Skewer) fire toward the aim point instead of
-## landing on it, so their aim point is not clamped. Fang's and Warden's land.
+## landing on it, so their aim point is not clamped. Fang's, Warden's and Colossus's land.
 static func ultimate_is_shot(type_id: StringName) -> bool:
 	return type_id == PIKE
 
 
 static func is_supported(type_id: StringName) -> bool:
-	return type_id == FANG or type_id == WARDEN or type_id == PIKE
+	return type_id == FANG or type_id == WARDEN or type_id == PIKE or type_id == COLOSSUS
 
 
 static func display_name(type_id: StringName) -> String:
@@ -355,6 +467,8 @@ static func display_name(type_id: StringName) -> String:
 			return "Warden"
 		PIKE:
 			return "Pike"
+		COLOSSUS:
+			return "Colossus"
 		FANG:
 			return "Fang"
 		_:

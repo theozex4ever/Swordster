@@ -39,6 +39,8 @@ func _run_all() -> void:
 	await warden.run_all()
 	var pike: PikeSkewerChecks = PikeSkewerChecks.new(_check, self)
 	await pike.run_all()
+	var colossus: ColossusCataclysmChecks = ColossusCataclysmChecks.new(_check, self)
+	await colossus.run_all()
 	if _failed == 0 and _total > 0:
 		print("CHECKS PASSED: %d" % _total)
 		quit(0)

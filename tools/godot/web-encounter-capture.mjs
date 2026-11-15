@@ -10,7 +10,10 @@
 // Maelstroms at the cursor and Q the flurry, all as browser key and mouse events), pike (issue #14: the
 // pike encounter, with three Pikes; the thrusts are watched, then E starts a Skewer with the cursor
 // above the player (north: the column is carried into the wall and slammed), Q and R fire the other
-// slots east and west, and a press while recharging is refused, all as browser key and mouse events).
+// slots east and west, and a press while recharging is refused, all as browser key and mouse events), colossus (issue #15:
+// the colossus encounter, with three Colossus swords (poison, ice, fire); the slams are watched, then Q, E and R drop a
+// Cataclysm of each element with the cursor east, west and north of the player, and a press while recharging is refused,
+// all as browser key and mouse events, so the three elemental fields can be seen).
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -89,7 +92,7 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus
 const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
@@ -109,8 +112,17 @@ if (scenario === "pike") {
   await key("KeyE", "e", 69);
   console.log("E (Skewer north, slot two) right after engine start, cursor (640, 60)");
 }
-await sleep(scenario === "wall" || scenario === "pike" ? 500 : 5000);
-if (scenario !== "wall" && scenario !== "pike") await click(640, 360); // focus the canvas and unlock audio
+if (scenario === "colossus") {
+  // The Colossi start winding up on the cluster the moment the engine runs: react to the engine's first console line,
+  // focus the page and press Q (slot one, poison) with the cursor east of the player over the cluster at once.
+  for (let i = 0; i < 600 && !consoleLines.some((l) => l.includes("Build configuration")); i++) await sleep(20);
+  await click(640, 360);
+  await move(640 + 330, 360 - 10);
+  await key("KeyQ", "q", 81);
+  console.log("Q (Cataclysm east, slot one, poison) right after engine start, cursor (970, 350)");
+}
+await sleep(scenario === "wall" || scenario === "pike" || scenario === "colossus" ? 500 : 5000);
+if (scenario !== "wall" && scenario !== "pike" && scenario !== "colossus") await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
 
@@ -217,6 +229,37 @@ if (scenario === "crowd") {
   }
   await key("KeyC", "c", 67); // the next dev encounter after the pike one is the normal run
   await sleep(1200); await shot("pike-08-next-dev-encounter-normal");
+} else if (scenario === "colossus") {
+  // The colossus encounter: watch the first Cataclysm rise, fall and leave its poison field over the cluster, then E (slot two,
+  // ice) with the cursor west of the player and R (slot three, fire) north of him, so all three fields stand at once, and Q again
+  // while it recharges (refused). The view is 1280x720 and centred on the player, so the cursor at (640 + dx, 360 + dy) aims
+  // dx, dy pixels from him.
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  let shotIndex = 0;
+  await shot("colossus-01-q-rise-or-fall");
+  for (const wait of [150, 200, 250, 300, 400, 500]) { await sleep(wait); await shot(`colossus-02-q-${wait}-${shotIndex++}`); }
+  await move(640 - 220, 360 + 40); await key("KeyE", "e", 69);
+  console.log(`E (Cataclysm west, slot two, ice) at ${stamp()}s, cursor (420, 400)`);
+  for (const wait of [200, 300, 400, 500, 600]) { await sleep(wait); await shot(`colossus-03-e-${wait}-${shotIndex++}`); }
+  await move(640, 360 - 250); await key("KeyR", "r", 82);
+  console.log(`R (Cataclysm north, slot three, fire) at ${stamp()}s, cursor (640, 110)`);
+  for (const wait of [200, 300, 400, 500, 800]) { await sleep(wait); await shot(`colossus-04-r-${wait}-${shotIndex++}`); }
+  await key("KeyQ", "q", 81); // slot one is recharging (14 s): refused, with a "recharging Ns" tag
+  console.log(`Q while recharging at ${stamp()}s`);
+  await sleep(120); await shot("colossus-05-q-refused");
+  const moves = [["KeyD", "d", 68], ["KeyS", "s", 83], ["KeyA", "a", 65], ["KeyW", "w", 87]];
+  for (let round = 0; round < Number(process.env.ROUNDS ?? 6); round++) {
+    const [code, k, vk] = moves[round % 4];
+    await hold(code, k, vk, 500);
+    await shot(`colossus-06-round-${String(round).padStart(2, "0")}`);
+  }
+  await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the normal run
+  await sleep(1200); await shot("colossus-07-next-dev-encounter-normal");
 } else if (scenario === "conditions") {
   // Walk about in the conditions encounter so the swords keep fighting, press the three
   // ultimates now and then, and take a page screenshot every half second or so. CAST=1

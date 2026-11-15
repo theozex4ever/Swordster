@@ -10,7 +10,9 @@ extends RefCounted
 ## burning deaths spreading, brutes freezing for less), "warden" (issue #13: a Fang and two
 ## Wardens sweeping standing packs and whirling Maelstroms through them) and "pike" (issue #14: three
 ## Pikes thrusting through standing columns and Skewers carrying them into the walls, the range limit
-## and a corner, with refused presses and an orb parried). The probe (`frame_rate_probe.gd`)
+## and a corner, with refused presses and an orb parried) and "colossus" (issue #15: three Colossi crushing
+## standing packs, four Cataclysms (two on one spot) leaving poison, ice and fire fields over them, orbs cleared
+## by slams, refused presses). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
@@ -22,6 +24,7 @@ const FLURRY: String = "flurry"
 const CONDITIONS: String = "conditions"
 const WARDEN: String = "warden"
 const PIKE: String = "pike"
+const COLOSSUS: String = "colossus"
 const TOTAL_TICKS: int = 900
 ## Simulation ticks (ticks already completed) before which each command is issued.
 const SHOVE_TICKS: Array[int] = [0, 200, 420, 520, 560, 640, 700]
@@ -108,6 +111,24 @@ const PIKE_COMMANDS: Array[Vector3] = [
 	Vector3(840.0, 0.0, 3.0), Vector3(850.0, 1.0, 4.0), Vector3(860.0, 2.0, 0.0),
 ]
 const PIKE_AIMS: Array[Vector2] = [Vector2(0.0, -300.0), Vector2(300.0, 0.0), Vector2(300.0, -300.0), Vector2(-300.0, 0.0), Vector2(0.0, 300.0)]
+## The colossus script: the player stands still while three Colossi (a Mythic poison, a Rare ice and a Common
+## fire sword, so the recharges differ) crush standing packs. Cataclysms are commanded at these ticks: (tick, slot,
+## aim index). Slot zero's second comes after its recharge (Mythic, 10.36 s stretched by every slam's hitstop: ready on
+## tick 787), and two presses at ticks the slot is still recharging are refused. Fragile foes die to slams and
+## fields, sturdy ones outlast them; two pinned spitters keep firing orbs across the packs.
+const COLOSSUS_PACK_EAST: Array[Vector2] = [Vector2(250.0, -10.0), Vector2(290.0, 30.0), Vector2(230.0, 50.0), Vector2(275.0, -55.0), Vector2(310.0, -20.0), Vector2(215.0, -30.0)]
+const COLOSSUS_PACK_WEST: Array[Vector2] = [Vector2(-240.0, 60.0), Vector2(-280.0, 20.0), Vector2(-225.0, 100.0), Vector2(-265.0, 75.0), Vector2(-300.0, 55.0)]
+const COLOSSUS_PACK_NORTH: Array[Vector2] = [Vector2(20.0, -270.0), Vector2(-40.0, -290.0), Vector2(60.0, -300.0), Vector2(10.0, -320.0)]
+const COLOSSUS_BRUTES: Array[Vector2] = [Vector2(260.0, 110.0), Vector2(-120.0, -250.0)]
+const COLOSSUS_SPITTERS: Array[Vector2] = [Vector2(420.0, -120.0), Vector2(-430.0, 140.0)]
+const COLOSSUS_SPITTER_COOLDOWNS: Array[float] = [0.3, 0.9]
+const COLOSSUS_FRAGILE_HP: float = 70.0
+const COLOSSUS_STURDY_HP: float = 700.0
+const COLOSSUS_COMMANDS: Array[Vector3] = [
+	Vector3(40.0, 0.0, 0.0), Vector3(100.0, 1.0, 1.0), Vector3(160.0, 2.0, 2.0), Vector3(300.0, 0.0, 0.0), Vector3(350.0, 1.0, 1.0),
+	Vector3(800.0, 0.0, 0.0),
+]
+const COLOSSUS_AIMS: Array[Vector2] = [Vector2(260.0, 10.0), Vector2(-255.0, 60.0), Vector2(20.0, -285.0)]
 ## The first SPITTER_PINNED shooters stand their ground (their shots keep flying
 ## along the husk spokes the swords strike); the rest move as spitters do.
 const SPITTER_PINNED: int = 8
@@ -128,6 +149,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _warden_scenario()
 	if name == PIKE:
 		return _pike_scenario()
+	if name == COLOSSUS:
+		return _colossus_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	var reference: Dictionary = JSON.parse_string(file.get_as_text())
 	var crowd: Dictionary = reference["crowd_encounter"]
@@ -249,6 +272,41 @@ static func _pike_scenario() -> RunScenario:
 	return scenario
 
 
+static func _colossus_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 15
+	scenario.waves_enabled = false
+	var specs: Array[SwordSpec] = []
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 2, &"poison"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 1, &"ice"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"fire"))
+	scenario.loadout = specs
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	var placements: Array[EnemyPlacement] = []
+	var index: int = 0
+	for pack: Array[Vector2] in [COLOSSUS_PACK_EAST, COLOSSUS_PACK_WEST, COLOSSUS_PACK_NORTH]:
+		for offset: Vector2 in pack:
+			var kind: StringName = EnemyDefs.RUNNER if index % 4 == 3 else EnemyDefs.HUSK
+			var post: EnemyPlacement = EnemyPlacement.make(kind, GameRun.WORLD.get_center() + offset)
+			post.speed_scale = 0.0
+			post.hp = COLOSSUS_FRAGILE_HP if index % 3 == 1 else COLOSSUS_STURDY_HP
+			placements.append(post)
+			index += 1
+	for offset: Vector2 in COLOSSUS_BRUTES:
+		var brute: EnemyPlacement = EnemyPlacement.make(EnemyDefs.BRUTE, GameRun.WORLD.get_center() + offset)
+		brute.speed_scale = 0.0
+		brute.hp = COLOSSUS_STURDY_HP
+		placements.append(brute)
+	for i: int in COLOSSUS_SPITTERS.size():
+		var shooter: EnemyPlacement = EnemyPlacement.make(EnemyDefs.SPITTER, GameRun.WORLD.get_center() + COLOSSUS_SPITTERS[i])
+		shooter.shoot_cooldown = COLOSSUS_SPITTER_COOLDOWNS[i]
+		shooter.speed_scale = 0.0
+		shooter.hp = 5000.0
+		placements.append(shooter)
+	scenario.initial_enemies = placements
+	return scenario
+
+
 ## A standing post; health 0 leaves the enemy kind's own (so the blow of a Skewer kills it).
 static func _pike_post(kind: StringName, at: Vector2, hp: float = PIKE_HP) -> EnemyPlacement:
 	var post: EnemyPlacement = EnemyPlacement.make(kind, at)
@@ -289,6 +347,12 @@ static func _conditions_scenario() -> RunScenario:
 ## Commands to issue once `completed_ticks` ticks have run.
 static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
+	if name == COLOSSUS:
+		for i: int in COLOSSUS_COMMANDS.size():
+			var entry: Vector3 = COLOSSUS_COMMANDS[i]
+			if completed_ticks == int(entry.x):
+				commands.append(GameCommand.ultimate(int(entry.y), GameRun.WORLD.get_center() + COLOSSUS_AIMS[int(entry.z)]))
+		return commands
 	if name == PIKE:
 		for i: int in PIKE_COMMANDS.size():
 			var entry: Vector3 = PIKE_COMMANDS[i]
@@ -369,6 +433,11 @@ static func digest(run: GameRun) -> Dictionary:
 		"burst_cues": run.cue_count(SimCue.Kind.MAELSTROM_BURST),
 		"skewer_launch_cues": run.cue_count(SimCue.Kind.SKEWER_LAUNCHED),
 		"skewer_release_cues": run.cue_count(SimCue.Kind.SKEWER_RELEASED),
+		"colossus_slam_cues": run.cue_count(SimCue.Kind.COLOSSUS_SLAM),
+		"field_created_cues": run.cue_count(SimCue.Kind.FIELD_CREATED),
+		"field_pulse_cues": run.cue_count(SimCue.Kind.FIELD_PULSED),
+		"orbs_cleared": run.projectiles_cleared,
+		"fields": run.fields.map(func(field: FieldState) -> String: return "%s:%.3f:%.3f:%.3f:%.3f" % [field.element, field.position.x, field.position.y, field.life, field.tick_left]),
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
 		"frozen_cues": run.cue_count(SimCue.Kind.ENEMY_FROZEN),
 		"shatter_cues": run.cue_count(SimCue.Kind.ENEMY_SHATTERED),
@@ -383,5 +452,5 @@ static func digest(run: GameRun) -> Dictionary:
 static func _ultimate_state(run: GameRun) -> Array[String]:
 	var shown: Array[String] = []
 	for sword: SwordState in run.swords:
-		shown.append("%d:%.3f:%.3f,%.3f" % [sword.phase, sword.ultimate_cooldown_left, sword.position.x, sword.position.y])
+		shown.append("%d:%.3f:%.3f,%.3f:%.3f:%.3f" % [sword.phase, sword.ultimate_cooldown_left, sword.position.x, sword.position.y, sword.altitude, sword.fall_speed])
 	return shown

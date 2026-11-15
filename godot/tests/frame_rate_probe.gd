@@ -8,7 +8,7 @@ extends SceneTree
 ## orbs-and-parries fight, `--probe=rate-flurry` the Viper Flurry fight, `--probe=rate-conditions`
 ## the fight of burning, poisoned and freezing packs, `--probe=rate-warden` the fight of sweeping
 ## Wardens and Maelstroms, `--probe=rate-pike` the fight of thrusting Pikes and Skewers slamming
-## columns into walls. With `--probe=launch` it instead reports which
+## columns into walls, `--probe=rate-colossus` the fight of crushing Colossi and Cataclysms leaving elemental fields. With `--probe=launch` it instead reports which
 ## scenario a Main scene picks when it is given none (the launch-option path).
 ##
 ##   godot --headless --path godot --fixed-fps 20 --script res://tests/frame_rate_probe.gd -- --probe=rate
@@ -37,7 +37,9 @@ func _initialize() -> void:
 		_script_name = RenderRateScenario.WARDEN
 	if mode == "rate-pike":
 		_script_name = RenderRateScenario.PIKE
-	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden" or mode == "rate-pike":
+	if mode == "rate-colossus":
+		_script_name = RenderRateScenario.COLOSSUS
+	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden" or mode == "rate-pike" or mode == "rate-colossus":
 		_main.scenario = RenderRateScenario.scenario(_script_name)
 	root.add_child(_main)
 	if mode == "launch":

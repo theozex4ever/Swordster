@@ -60,6 +60,18 @@ const PIKE_ROW_POINTS: Array[Vector2] = [
 	Vector2(1310.0, 140.0), Vector2(1300.0, 90.0), Vector2(1250.0, 250.0),
 ]
 
+## The colossus encounter's wave: clustering husks and runners (a slam and a Cataclysm catch many at
+## once and the fields tick over them), two brutes, and two spitters whose orbs a slam clears.
+const COLOSSUS_WAVE: Array[StringName] = [
+	&"husk", &"husk", &"runner", &"husk", &"brute", &"husk", &"spitter", &"husk", &"runner", &"husk", &"spitter", &"husk", &"brute", &"husk", &"runner", &"husk",
+]
+## The colossus encounter's first cluster: seven husks standing together east of the player, which the
+## first slam's cluster targeting goes for.
+const COLOSSUS_CLUSTER_POINTS: Array[Vector2] = [
+	Vector2(1620.0, 880.0), Vector2(1660.0, 925.0), Vector2(1600.0, 940.0), Vector2(1655.0, 860.0),
+	Vector2(1700.0, 905.0), Vector2(1625.0, 995.0), Vector2(1690.0, 975.0),
+]
+
 ## The dev encounters the C key / dev button cycles through, in order. The empty
 ## name is the normal run (or whatever custom scenario the run was made with).
 const ENCOUNTER_NORMAL: StringName = &""
@@ -68,7 +80,8 @@ const ENCOUNTER_SPITTERS: StringName = &"spitters"
 const ENCOUNTER_CONDITIONS: StringName = &"conditions"
 const ENCOUNTER_WARDEN: StringName = &"warden"
 const ENCOUNTER_PIKE: StringName = &"pike"
-const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]
+const ENCOUNTER_COLOSSUS: StringName = &"colossus"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]
 
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
@@ -161,6 +174,18 @@ static func pike_fixture_loadout() -> Array[SwordSpec]:
 	return specs
 
 
+## DEVELOPMENT FIXTURE for issue #15, not the final default loadout: three Colossus swords (one per sword
+## slot, poison / ice / fire) so the crushing slam and the Cataclysm's three elemental fields can be played
+## before the final default (issue #16) is set. The prototype's own default is Fang / Warden / Colossus with
+## poison / ice / fire.
+static func colossus_fixture_loadout() -> Array[SwordSpec]:
+	var specs: Array[SwordSpec] = []
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"poison"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"ice"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"fire"))
+	return specs
+
+
 ## The crowd encounter: DEVELOPMENT FIXTURE for issue #9. One wave of five
 ## husks, five runners and two brutes (interleaved so the arrival reads), played
 ## with the three-Fang fixture loadout and the dev shove enabled. The prototype
@@ -249,6 +274,25 @@ static func pike_encounter() -> RunScenario:
 	return scenario
 
 
+## The colossus encounter: DEVELOPMENT FIXTURE for issue #15. A cluster of seven husks stands east of the
+## player and a wave of husks, runners, brutes and two spitters follows, against three Colossus swords with
+## poison, ice and fire: the slams crush clusters and clear orbs, and Q / E / R each drop a Cataclysm (at the
+## cursor, up to 480 px away) that leaves a field of its sword's element, so all three can be watched
+## ticking their conditions at once. The composition is a fixture, not a wave-generation rule (issue
+## #18); the normal run is unchanged.
+static func colossus_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_COLOSSUS
+	scenario.loadout = colossus_fixture_loadout()
+	var placements: Array[EnemyPlacement] = []
+	for point: Vector2 in COLOSSUS_CLUSTER_POINTS:
+		placements.append(EnemyPlacement.make(EnemyDefs.HUSK, point))
+	scenario.initial_enemies = placements
+	scenario.wave_kinds = COLOSSUS_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
 ## Display name of an encounter for the dev button and legend.
 static func encounter_title(name: StringName) -> String:
 	match name:
@@ -262,6 +306,8 @@ static func encounter_title(name: StringName) -> String:
 			return "Warden"
 		ENCOUNTER_PIKE:
 			return "Pike"
+		ENCOUNTER_COLOSSUS:
+			return "Colossus"
 		_:
 			return "Normal"
 

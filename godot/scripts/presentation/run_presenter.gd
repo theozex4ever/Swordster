@@ -62,6 +62,7 @@ func _sync_swords(run: GameRun) -> void:
 			visual.setup(sword.spec)
 			_sword_visuals[key] = visual
 		visual.apply_pose(sword.position, sword.angle, sword.phase)
+		visual.apply_altitude(sword.altitude)
 		if fresh:
 			visual.snap()
 	_drop_missing(_sword_visuals, live)

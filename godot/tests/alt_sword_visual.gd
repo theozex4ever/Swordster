@@ -6,6 +6,8 @@ extends SwordVisual
 var last_angle: float = 0.0
 var last_phase: int = -1
 var pose_calls: int = 0
+## The height the simulation last reported (a Colossus's altitude); this visual only records it.
+var last_altitude: float = 0.0
 var configured_with: SwordSpec = null
 
 
@@ -22,3 +24,7 @@ func _on_pose(angle: float, phase: int) -> void:
 	last_angle = angle
 	last_phase = phase
 	pose_calls += 1
+
+
+func _on_altitude(height: float) -> void:
+	last_altitude = height

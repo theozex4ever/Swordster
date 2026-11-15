@@ -50,7 +50,7 @@ var _ult_bars: Array[ColorRect] = []
 var _ult_badges: Array[ColorRect] = []
 ## Each card's element tag (FIRE / ICE / POISON), in the element's colour.
 var _ult_elements: Array[Label] = []
-## Each card's sword type line ("Fang", "Warden", "Pike"), under the recharge bar.
+## Each card's sword type line ("Fang", "Warden", "Pike", "Colossus"), under the recharge bar.
 var _ult_types: Array[Label] = []
 
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 78.0)
@@ -338,6 +338,9 @@ func _show_encounter(run: GameRun) -> void:
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_PIKE:
 		_encounter_label.text = "PIKE ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   skewers launched %d, wall slams %d\nPikes thrust through whole lines. Q / E / R: Skewer fires toward the cursor, carries what it spears and slams it into a wall (aim north).   %s" % [
 			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), run.cue_count(SimCue.Kind.WALL_SLAM), switch_hint]
+	elif run.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS:
+		_encounter_label.text = "COLOSSUS ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d spitter, %d brute\nslams %d, Cataclysm fields %d (live %d)   Q / E / R: Cataclysm at the cursor, up to 480 px\nColossi crush the biggest cluster and clear orbs.   %s" % [
+			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.SPITTER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.COLOSSUS_SLAM), run.cue_count(SimCue.Kind.FIELD_CREATED), run.fields.size(), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:
 		var frozen: int = 0
 		var burning: int = 0
