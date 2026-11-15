@@ -13,7 +13,10 @@
 // slots east and west, and a press while recharging is refused, all as browser key and mouse events), colossus (issue #15:
 // the colossus encounter, with three Colossus swords (poison, ice, fire); the slams are watched, then Q, E and R drop a
 // Cataclysm of each element with the cursor east, west and north of the player, and a press while recharging is refused,
-// all as browser key and mouse events, so the three elemental fields can be seen).
+// all as browser key and mouse events, so the three elemental fields can be seen), drops (issue #17: the drops
+// encounter; a swap key with nothing lying about is refused, then the player walks about as the armed foes die and press
+// 1, 2 and 3 as browser key events, the page paused with P for every screenshot, so the drops, the pickup card, the swaps and
+// the refusals can be seen).
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -92,7 +95,7 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus | drops
 const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
@@ -121,8 +124,15 @@ if (scenario === "colossus") {
   await key("KeyQ", "q", 81);
   console.log("Q (Cataclysm east, slot one, poison) right after engine start, cursor (970, 350)");
 }
-await sleep(scenario === "wall" || scenario === "pike" || scenario === "colossus" ? 500 : 5000);
-if (scenario !== "wall" && scenario !== "pike" && scenario !== "colossus") await click(640, 360); // focus the canvas and unlock audio
+if (scenario === "drops") {
+  // Nothing lies about yet: press 1 right after the engine starts (the click focuses the canvas first), which is refused.
+  for (let i = 0; i < 600 && !consoleLines.some((l) => l.includes("Build configuration")); i++) await sleep(20);
+  await click(640, 360);
+  await key("Digit1", "1", 49);
+  console.log("1 (swap into slot one) right after engine start, with nothing lying about: refused");
+}
+await sleep(scenario === "wall" || scenario === "pike" || scenario === "colossus" || scenario === "drops" ? 500 : 5000);
+if (scenario !== "wall" && scenario !== "pike" && scenario !== "colossus" && scenario !== "drops") await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
 
@@ -252,6 +262,37 @@ if (scenario === "crowd") {
   await watch("06-q-refused", 100);
   await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the normal run
   await sleep(1200); await shot("colossus-07-next-dev-encounter-normal");
+} else if (scenario === "drops") {
+  // The drops encounter, driven only by browser key events. The software-rendered page takes seconds per screenshot while the
+  // game runs on, so the game is PAUSED with P (a key the game itself handles) for every screenshot: paused, a drop's card,
+  // a swap's ring and name and a refusal stand still. The player walks about (WASD) so the armed foes keep coming to the
+  // swords and their drops lie around him; each round a swap key (1, 2, 3 in turn) is pressed, which swaps the nearest drop in
+  // reach into that slot or, with none in reach, is refused.
+  const pause = async () => { await key("KeyP", "p", 80); await sleep(300); };
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  let shotIndex = 0;
+  const watch = async (label, ms) => { await sleep(ms); await pause(); await shot(`drops-${label}-${shotIndex++}`); await pause(); };
+  await watch("01-refused-nothing-lying", 0);
+  await sleep(Number(process.env.FIGHT_MS ?? 7000));
+  await watch("02-first-drops", 0);
+  const moves = [["KeyD", "d", 68], ["KeyS", "s", 83], ["KeyA", "a", 65], ["KeyW", "w", 87]];
+  const swaps = [["Digit1", "1", 49], ["Digit2", "2", 50], ["Digit3", "3", 51]];
+  for (let round = 0; round < Number(process.env.ROUNDS ?? 20); round++) {
+    const [code, k, vk] = moves[round % 4];
+    await hold(code, k, vk, 450);
+    await watch(`round-${String(round).padStart(2, "0")}-before`, 0);
+    const [sc, sk, svk] = swaps[round % 3];
+    await key(sc, sk, svk);
+    console.log(`swap key ${sk} at ${stamp()}s`);
+    await watch(`round-${String(round).padStart(2, "0")}-swap-${sk}`, 60);
+  }
+  await key("KeyC", "c", 67); // the next dev encounter after the drops one is the normal run
+  await sleep(1200); await shot("drops-99-next-dev-encounter-normal");
 } else if (scenario === "conditions") {
   // Walk about in the conditions encounter so the swords keep fighting, press the three
   // ultimates now and then, and take a page screenshot every half second or so. CAST=1
