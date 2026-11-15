@@ -7,9 +7,10 @@ Flurry** on Q / E / R (each sword slot's ultimate, aimed at the cursor), a **cro
 encounter** with runners and brutes, crowd bowling and wall slams, a **spitter
 encounter** with ranged foes, enemy orbs and sword parries, **elemental conditions**
 (burn, poison, chill and freeze on every blow) and **Warden**, the sword of sweeping
-arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), on top of the
-delivery-proof arena, exported to Windows and Web from one Linux command. Pike and
-Colossus with their ultimates, Converge, drops and swaps, and further waves arrive in
+arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), and **Pike**,
+the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), on top of the
+delivery-proof arena, exported to Windows and Web from one Linux command. Colossus
+with its ultimate, Converge, drops and swaps, and further waves arrive in
 later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
@@ -17,7 +18,8 @@ and keeps working. Reference values, tolerances and deliberate exceptions:
 [spitters, projectiles and parries](../docs/reference/spitters-projectiles-parries.md) (#10) and
 [Viper Flurry](../docs/reference/viper-flurry.md) (#12) and
 [elemental conditions](../docs/reference/elemental-conditions.md) (#11) and
-[Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13).
+[Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13) and
+[Pike and Skewer](../docs/reference/pike-skewer.md) (#14).
 
 ### Viper Flurry (Q / E / R)
 
@@ -29,7 +31,8 @@ damage), then recovers. The ultimate recharges for 9 s (shorter for Rare and Myt
 swords) from the moment it starts; the cards at the bottom left show READY, ACTIVE or
 the seconds left, with the sword type under the bar. Three Fang swords are still the normal run's
 fixture loadout, so every slot holds Viper Flurry there; the warden encounter below equips a Fang
-and two Wardens, whose slots hold Maelstrom. The other sword types' ultimates arrive with their slices.
+and two Wardens, whose slots hold Maelstrom, and the pike encounter equips three Pikes, whose slots hold
+Skewer. Colossus's ultimate arrives with its slice.
 
 ### Warden and Maelstrom
 
@@ -48,6 +51,24 @@ after the conditions encounter) is one wave of husks, runners and two brutes aga
 Warden (ice, E) and Warden (fire, R). This mixed loadout is a development fixture, not the final default
 loadout (issue #16); the normal run is unchanged.
 
+### Pike and Skewer
+
+Slice #14 ([reference](../docs/reference/pike-skewer.md)). **Pike** (the prototype's `lance`) is the
+sword of long piercing thrusts: it prefers a foe more than 130 px from you (within 430 px), winds up
+for 0.32 s (a line shows where it will cut), then thrusts at 2400 px/s along a fixed line a little
+past its target. Every foe on that line is hit once per thrust (24 damage, 380 knockback), the sword
+does not stop at the first, and it knocks enemy orbs out of the air. Its ultimate, **Skewer** (10 s
+recharge), is a skill shot: aim with the cursor and press Q / E / R, the heading is the line from you
+to the cursor whatever the distance. After a 0.38 s aim the sword launches along it for 950 px at
+2600 px/s; every foe it touches is struck once for 2.2x damage with two doses of its element and
+**impaled**: carried along with the sword, stunned. The Skewer lets go of what it carries at the end of its
+range (flung at 750 px/s) or when its tip reaches a wall (1100 px/s: the stunned foe **slams** into the
+wall and bowls others). To fight with it: the **pike encounter** (`Swordster.exe -- --encounter=pike`,
+`index.html?encounter=pike`, or the dev button / `C` after the warden encounter) stands you 700 px south
+of the north wall with a column of foes strung out toward it, against three Pikes (poison, ice, fire):
+aim north. This is a development fixture, not the final default loadout (issue #16); the normal run is
+unchanged.
+
 ### The crowd encounter
 
 A development fixture for slice #9: one wave of five husks, five runners and two
@@ -55,7 +76,7 @@ brutes against the three-Fang fixture loadout, with a **shove** that flings near
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
 are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
 `C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
-conditions → warden → normal; shove with the **Shove** button or `F`. To start in it:
+conditions → warden → pike → normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
@@ -264,6 +285,12 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   `tools/reference/capture_warden_maelstrom.py`) tick by tick on the real simulation: sweep geometry and
   coverage at hundreds of probe points, hit-once tracking, parries, the pull, beats, burst, recovery,
   recharge, refusals, pause/death, conditions, plus the HUD, effects and render-rate fights.
+- `godot/tests/pike_skewer_checks.gd` (issue #14) replays the Python prototype's captured Pike and
+  Skewer cases (`godot/tests/reference/pike_skewer.json`, regenerated by
+  `tools/reference/capture_pike_skewer.py`) tick by tick on the real simulation: targeting preference,
+  thrust geometry at 228 probe points, piercing without gaps, parries, the Skewer's aim, flight, impalement,
+  carry and release at the range and at every wall and corner, enemies that die or leave the run while
+  impaled, conditions, plus the HUD, effects and a render-rate fight with wall slams.
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one; a crash or timeout is reported as inconclusive, not as caught.
@@ -386,7 +413,7 @@ Sound effects are baked WAVs; the recipe is `tools/godot/gen_audio.py`.
 ## Controls
 
 W A S D or arrow keys move · Space or Shift dash · Q / E / R trigger the ultimate of
-sword slot one / two / three at the mouse (Viper Flurry for a Fang, Maelstrom for a Warden) · P or Esc pause/resume ·
+sword slot one / two / three at the mouse (Viper Flurry for a Fang, Maelstrom for a Warden, Skewer for a Pike) · P or Esc pause/resume ·
 R also restarts once the death screen is up (while alive it is only the slot-three
 ultimate) · touch (no ultimate buttons yet, issue #20): drag in the left part of the screen to move, on-screen
 Dash, Pause and Restart buttons (Restart always works, also after surviving the

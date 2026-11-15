@@ -44,6 +44,10 @@ lists the cases that ran with the prototype's own `afflict`):
   (a poison, ice and fire Warden sweeping one enemy for 340 ticks, and a poison Warden sweeping a
   pack of three) and `maelstrom_conditions` (the three elements through a Maelstrom on a husk, a
   brute and a runner). Their traces carry every condition field per tick.
+- **On, though it is a corpse case,** for `maelstrom_corpses.two_whirls` (two fire Wardens whirling
+  on one tick; `setup.conditions == true`, listed in `fixture_scope.afflict_enabled_cases` as
+  `maelstrom_corpses`): the fire doses the first burst leaves are part of what the case compares.
+  The other `maelstrom_corpses` case, `corpse_beat`, runs with conditions off.
 
 Other controls (asserted by the capture, recorded as `fixture_scope`):
 

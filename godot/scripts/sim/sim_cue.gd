@@ -49,6 +49,11 @@ enum Kind {
 	## A Maelstrom's finishing burst (`position` = its centre, `radius` = the reach it struck
 	## within, `amount` = how many enemies were inside it, corpses included, `element` = the sword's element).
 	MAELSTROM_BURST,
+	## A Skewer left the aim and launched (`position` = where the sword flew from, `direction` = its heading).
+	SKEWER_LAUNCHED,
+	## A Skewer ended and let go of what it carried (`position` = its tip, `direction` = its heading,
+	## `amount` = how many enemies it flung, `critical` = it ended at a wall rather than at its range).
+	SKEWER_RELEASED,
 }
 
 var kind: Kind = Kind.DASH

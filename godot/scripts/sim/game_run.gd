@@ -171,7 +171,7 @@ var _cues: Array[SimCue] = []
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
 ## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
-## order (normal, crowd, spitters, conditions, warden): the one the run was made with keeps its own
+## order (normal, crowd, spitters, conditions, warden, pike): the one the run was made with keeps its own
 ## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
 var _encounter_scenarios: Array[RunScenario] = []
 
@@ -184,6 +184,7 @@ func _init(scenario_value: RunScenario = null) -> void:
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_SPITTERS else RunScenario.spitter_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS else RunScenario.conditions_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
 	]
 	if scenario.seed < 0:
 		rng.randomize()
@@ -252,7 +253,7 @@ func try_ultimate(slot: int, point: Vector2) -> UltimateResult:
 	if not SwordDefs.ultimate_is_shot(type_id) and to_point.length() > SwordDefs.ultimate_range(type_id):
 		target = position + to_point.normalized() * SwordDefs.ultimate_range(type_id)
 	var origin: Vector2 = sword.position
-	sword.begin_ultimate(target)
+	sword.begin_ultimate(self, target)
 	var cue: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, SimMath.norm(sword.position - origin, rng, Vector2.RIGHT, true), slot)
 	cue.origin = origin
 	add_cue(cue)
@@ -418,7 +419,7 @@ func _update_projectiles(dt: float) -> void:
 ## centre is within its radius plus `pad` of the segment `from`-`to` is destroyed
 ## with a spark cue, and gameplay freezes briefly. Swords pass the segment their
 ## attack swept this tick (Fang: previous position to tip; Warden: each sub-arc;
-## Pike: tail to tip). Returns how many were parried. It does not check what the
+## Pike: tail to tip, for the thrust and again for the Skewer). Returns how many were parried. It does not check what the
 ## sword hit this tick: the caller decides whether this tick parries.
 func parry_projectiles(from: Vector2, to: Vector2, pad: float) -> int:
 	var parried: int = 0

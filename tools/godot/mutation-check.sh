@@ -644,9 +644,11 @@ mutate flurry-keeps-target         scripts/sim/sword_state.gd "	boost = 1.0
 	target = null
 	ultimate_victim = null" "	boost = 1.0
 	ultimate_victim = null"
-mutate flurry-survives-death       scripts/sim/sword_state.gd "		phase = Phase.IDLE
+mutate flurry-survives-death                        scripts/sim/sword_state.gd "		phase = Phase.IDLE
 		ultimate_victim = null
+		skewer_carried.clear()
 		return" "		ultimate_victim = null
+		skewer_carried.clear()
 		return"
 mutate flurry-render-rate-dependent scripts/sim/sword_state.gd "	ultimate_time_left -= dt
 	ultimate_beat -= dt" "	ultimate_time_left -= dt * (1.0 + float(Engine.get_process_frames() % 2))
@@ -830,7 +832,7 @@ mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if condi
 mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
 	return self" "	return self"
 mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
-mutate conditions-encounter-not-in-cycle  scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN]"
+mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]"
 mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
 mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
 			return RunScenario.conditions_encounter()" "		\"conditions\":
@@ -869,7 +871,9 @@ mutate warden-tip-short                             scripts/sim/sword_defs.gd "W
 mutate warden-tangent-weight                        scripts/sim/sword_defs.gd "WARDEN_TANGENT_WEIGHT: float = 0.6" "WARDEN_TANGENT_WEIGHT: float = 0.0"
 mutate warden-recover-time                          scripts/sim/sword_defs.gd "WARDEN_RECOVER_TIME: float = 0.3" "WARDEN_RECOVER_TIME: float = 0.6"
 mutate warden-recover-speed                         scripts/sim/sword_defs.gd "WARDEN_RECOVER_SPEED: float = 300.0" "WARDEN_RECOVER_SPEED: float = 0.0"
-mutate warden-display-name                          scripts/sim/sword_defs.gd "\"Warden\" if type_id == WARDEN else" "\"Blade\" if type_id == WARDEN else"
+mutate warden-display-name                          scripts/sim/sword_defs.gd "		WARDEN:
+			return \"Warden\"" "		WARDEN:
+			return \"Blade\""
 mutate maelstrom-name                               scripts/sim/sword_defs.gd "WARDEN_ULT_NAME: String = \"Maelstrom\"" "WARDEN_ULT_NAME: String = \"Whirl\""
 mutate maelstrom-recharge                           scripts/sim/sword_defs.gd "WARDEN_ULT_COOLDOWN: float = 11.0" "WARDEN_ULT_COOLDOWN: float = 6.0"
 mutate maelstrom-range                              scripts/sim/sword_defs.gd "WARDEN_ULT_RANGE: float = 400.0" "WARDEN_ULT_RANGE: float = 250.0"
@@ -992,10 +996,12 @@ mutate maelstrom-reach-ignores-rarity-size          scripts/sim/sword_state.gd "
 mutate maelstrom-reach-without-the-blade            scripts/sim/sword_state.gd "	return maelstrom_radius() + length * SwordDefs.WARDEN_ULT_REACH_TAIL" "	return maelstrom_radius()"
 mutate maelstrom-keeps-the-old-hit-set              scripts/sim/sword_state.gd "	ultimate_point = point
 	sweep_hits.clear()
-	match spec.type_id:" "	ultimate_point = point
-	match spec.type_id:"
-mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "	return maelstrom_reach() if spec.type_id == SwordDefs.WARDEN else SwordDefs.FANG_ULT_RADIUS" "	return SwordDefs.FANG_ULT_RADIUS"
-mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]" "ENCOUNTER_CONDITIONS]"
+	skewer_carried.clear()" "	ultimate_point = point
+	skewer_carried.clear()"
+mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "		SwordDefs.WARDEN:
+			return maelstrom_reach()" "		SwordDefs.WARDEN:
+			return SwordDefs.FANG_ULT_RADIUS"
+mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE]"
 mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 " "		RunScenario.new(),
 "
@@ -1010,8 +1016,8 @@ mutate warden-dev-button-title                      scripts/sim/run_scenario.gd 
 			return \"Warden\"
 " ""
 mutate warden-legend-lost                           scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN:" "	elif false:"
-mutate sword-card-type-lost                         scripts/hud.gd "		_ult_types[slot].text = \"%s sword\" % SwordDefs.display_name(sword.spec.type_id)" "		_ult_types[slot].text = \"\""
-mutate sword-card-name-always-flurry                scripts/sim/sword_defs.gd "	return WARDEN_ULT_NAME if type_id == WARDEN else FANG_ULT_NAME if type_id == FANG else String(type_id)" "	return FANG_ULT_NAME"
+mutate sword-card-type-lost                         scripts/hud.gd "		_ult_types[slot].text = \"%s sword%s\" % [SwordDefs.display_name(sword.spec.type_id), \"  skill shot\" if SwordDefs.ultimate_is_shot(sword.spec.type_id) else \"\"]" "		_ult_types[slot].text = \"\""
+mutate sword-card-name-always-flurry                scripts/sim/sword_defs.gd "			return WARDEN_ULT_NAME" "			return FANG_ULT_NAME"
 mutate sweep-fan-lost                               scripts/presentation/effects_layer.gd "		_add_sweep_wedges(run)
 " ""
 mutate sweep-telegraph-lost                         scripts/presentation/effects_layer.gd "			_draw_sweep_telegraph(sword)
@@ -1033,6 +1039,267 @@ mutate maelstrom-burst-sound-lost                   scripts/audio/sfx_bank.gd "	
 mutate maelstrom-beat-sound-always                  scripts/audio/sfx_bank.gd "			if cue.amount > 0:
 				play(\"strike\")" "			play(\"strike\")"
 mutate warden-visual-needle                         scripts/presentation/placeholder_sword_visual.gd "	_warden = spec.type_id == SwordDefs.WARDEN" "	_warden = false"
+# --- Pike and Skewer (slice #14)
+mutate pike-key-renamed                             scripts/sim/sword_defs.gd "const PIKE: StringName = &\"lance\"" "const PIKE: StringName = &\"pike\""
+mutate pike-display-name                            scripts/sim/sword_defs.gd "		PIKE:
+			return \"Pike\"" "		PIKE:
+			return \"Lance\""
+mutate pike-length                                  scripts/sim/sword_defs.gd "PIKE_LENGTH: float = 74.0" "PIKE_LENGTH: float = 60.0"
+mutate pike-range                                   scripts/sim/sword_defs.gd "PIKE_RANGE: float = 430.0" "PIKE_RANGE: float = 380.0"
+mutate pike-cooldown                                scripts/sim/sword_defs.gd "PIKE_COOLDOWN: float = 1.35" "PIKE_COOLDOWN: float = 1.0"
+mutate pike-damage                                  scripts/sim/sword_defs.gd "PIKE_DAMAGE: float = 24.0" "PIKE_DAMAGE: float = 25.0"
+mutate pike-knockback                               scripts/sim/sword_defs.gd "PIKE_KNOCK: float = 380.0" "PIKE_KNOCK: float = 300.0"
+mutate pike-windup                                  scripts/sim/sword_defs.gd "PIKE_WINDUP: float = 0.32" "PIKE_WINDUP: float = 0.2"
+mutate pike-thrust-speed                            scripts/sim/sword_defs.gd "PIKE_SPEED: float = 2400.0" "PIKE_SPEED: float = 2000.0"
+mutate pike-hitstop                                 scripts/sim/sword_defs.gd "PIKE_HITSTOP: float = 0.06" "PIKE_HITSTOP: float = 0.0"
+mutate pike-shake                                   scripts/sim/sword_defs.gd "PIKE_SHAKE: float = 0.2" "PIKE_SHAKE: float = 0.0"
+mutate pike-far-minimum                             scripts/sim/sword_defs.gd "PIKE_FAR_MIN: float = 130.0" "PIKE_FAR_MIN: float = 100.0"
+mutate pike-windup-standoff-length                  scripts/sim/sword_defs.gd "PIKE_WINDUP_STANDOFF_LENGTH: float = 0.5" "PIKE_WINDUP_STANDOFF_LENGTH: float = 1.0"
+mutate pike-windup-standoff-extra                   scripts/sim/sword_defs.gd "PIKE_WINDUP_STANDOFF_EXTRA: float = 120.0" "PIKE_WINDUP_STANDOFF_EXTRA: float = 80.0"
+mutate pike-windup-spring                           scripts/sim/sword_defs.gd "PIKE_WINDUP_SPRING_K: float = 150.0" "PIKE_WINDUP_SPRING_K: float = 100.0"
+mutate pike-windup-damping                          scripts/sim/sword_defs.gd "PIKE_WINDUP_SPRING_C: float = 20.0" "PIKE_WINDUP_SPRING_C: float = 12.0"
+mutate pike-windup-turn-rate                        scripts/sim/sword_defs.gd "PIKE_WINDUP_TURN_RATE: float = 16.0" "PIKE_WINDUP_TURN_RATE: float = 8.0"
+mutate pike-overshoot                               scripts/sim/sword_defs.gd "PIKE_STRIKE_OVERSHOOT: float = 170.0" "PIKE_STRIKE_OVERSHOOT: float = 120.0"
+mutate pike-tail-fraction                           scripts/sim/sword_defs.gd "PIKE_TAIL_FRACTION: float = 0.3" "PIKE_TAIL_FRACTION: float = 0.0"
+mutate pike-tip-fraction                            scripts/sim/sword_defs.gd "PIKE_TIP_FRACTION: float = 0.65" "PIKE_TIP_FRACTION: float = 0.4"
+mutate pike-hit-pad                                 scripts/sim/sword_defs.gd "PIKE_HIT_PAD: float = 7.0" "PIKE_HIT_PAD: float = 2.0"
+mutate pike-parry-pad                               scripts/sim/sword_defs.gd "PIKE_PARRY_PAD: float = 8.0" "PIKE_PARRY_PAD: float = 4.0"
+mutate pike-recover-time                            scripts/sim/sword_defs.gd "PIKE_RECOVER_TIME: float = 0.35" "PIKE_RECOVER_TIME: float = 0.2"
+mutate pike-recover-speed                           scripts/sim/sword_defs.gd "PIKE_RECOVER_SPEED: float = 420.0" "PIKE_RECOVER_SPEED: float = 200.0"
+mutate skewer-name                                  scripts/sim/sword_defs.gd "PIKE_ULT_NAME: String = \"Skewer\"" "PIKE_ULT_NAME: String = \"Impale\""
+mutate skewer-recharge                              scripts/sim/sword_defs.gd "PIKE_ULT_COOLDOWN: float = 10.0" "PIKE_ULT_COOLDOWN: float = 8.0"
+mutate skewer-range                                 scripts/sim/sword_defs.gd "PIKE_ULT_RANGE: float = 950.0" "PIKE_ULT_RANGE: float = 800.0"
+mutate skewer-speed                                 scripts/sim/sword_defs.gd "PIKE_ULT_SPEED: float = 2600.0" "PIKE_ULT_SPEED: float = 2200.0"
+mutate skewer-aim-time                              scripts/sim/sword_defs.gd "PIKE_ULT_AIM_TIME: float = 0.38" "PIKE_ULT_AIM_TIME: float = 0.2"
+mutate skewer-aim-standoff                          scripts/sim/sword_defs.gd "PIKE_ULT_AIM_STANDOFF: float = 40.0" "PIKE_ULT_AIM_STANDOFF: float = 20.0"
+mutate skewer-aim-spring                            scripts/sim/sword_defs.gd "PIKE_ULT_AIM_SPRING_K: float = 200.0" "PIKE_ULT_AIM_SPRING_K: float = 100.0"
+mutate skewer-aim-damping                           scripts/sim/sword_defs.gd "PIKE_ULT_AIM_SPRING_C: float = 24.0" "PIKE_ULT_AIM_SPRING_C: float = 14.0"
+mutate skewer-launch-ahead                          scripts/sim/sword_defs.gd "PIKE_ULT_LAUNCH_AHEAD: float = 10.0" "PIKE_ULT_LAUNCH_AHEAD: float = 40.0"
+mutate skewer-launch-shake                          scripts/sim/sword_defs.gd "PIKE_ULT_LAUNCH_SHAKE: float = 0.2" "PIKE_ULT_LAUNCH_SHAKE: float = 0.4"
+mutate skewer-tail-fraction                         scripts/sim/sword_defs.gd "PIKE_ULT_TAIL_FRACTION: float = 0.3" "PIKE_ULT_TAIL_FRACTION: float = 0.0"
+mutate skewer-tip-fraction                          scripts/sim/sword_defs.gd "PIKE_ULT_TIP_FRACTION: float = 0.65" "PIKE_ULT_TIP_FRACTION: float = 0.4"
+mutate skewer-hit-pad                               scripts/sim/sword_defs.gd "PIKE_ULT_HIT_PAD: float = 18.0" "PIKE_ULT_HIT_PAD: float = 7.0"
+mutate skewer-damage-factor                         scripts/sim/sword_defs.gd "PIKE_ULT_DAMAGE_FACTOR: float = 2.2" "PIKE_ULT_DAMAGE_FACTOR: float = 1.0"
+mutate skewer-doses                                 scripts/sim/sword_defs.gd "PIKE_ULT_STACKS: int = 2" "PIKE_ULT_STACKS: int = 1"
+mutate skewer-hit-shake                             scripts/sim/sword_defs.gd "PIKE_ULT_HIT_SHAKE: float = 0.12" "PIKE_ULT_HIT_SHAKE: float = 0.0"
+mutate skewer-carry-stun                            scripts/sim/sword_defs.gd "PIKE_ULT_CARRY_STUN: float = 0.5" "PIKE_ULT_CARRY_STUN: float = 0.1"
+mutate skewer-parry-pad                             scripts/sim/sword_defs.gd "PIKE_ULT_PARRY_PAD: float = 14.0" "PIKE_ULT_PARRY_PAD: float = 8.0"
+mutate skewer-wall-margin-too-wide                  scripts/sim/sword_defs.gd "PIKE_ULT_WALL_MARGIN: float = 10.0" "PIKE_ULT_WALL_MARGIN: float = 20.0"
+mutate skewer-wall-margin-none                      scripts/sim/sword_defs.gd "PIKE_ULT_WALL_MARGIN: float = 10.0" "PIKE_ULT_WALL_MARGIN: float = 0.0"
+mutate skewer-release-speed-range                   scripts/sim/sword_defs.gd "PIKE_ULT_RELEASE_SPEED_RANGE: float = 750.0" "PIKE_ULT_RELEASE_SPEED_RANGE: float = 500.0"
+mutate skewer-release-speed-wall                    scripts/sim/sword_defs.gd "PIKE_ULT_RELEASE_SPEED_WALL: float = 1100.0" "PIKE_ULT_RELEASE_SPEED_WALL: float = 900.0"
+mutate skewer-release-stun                          scripts/sim/sword_defs.gd "PIKE_ULT_RELEASE_STUN: float = 0.6" "PIKE_ULT_RELEASE_STUN: float = 0.3"
+mutate skewer-recover-time                          scripts/sim/sword_defs.gd "PIKE_ULT_RECOVER_TIME: float = 0.35" "PIKE_ULT_RECOVER_TIME: float = 0.6"
+mutate skewer-recover-speed-range                   scripts/sim/sword_defs.gd "PIKE_ULT_RECOVER_SPEED_RANGE: float = 420.0" "PIKE_ULT_RECOVER_SPEED_RANGE: float = 100.0"
+mutate skewer-recover-speed-wall                    scripts/sim/sword_defs.gd "PIKE_ULT_RECOVER_SPEED_WALL: float = 300.0" "PIKE_ULT_RECOVER_SPEED_WALL: float = 600.0"
+mutate skewer-is-clamped-like-an-area-ultimate      scripts/sim/sword_defs.gd "static func ultimate_is_shot(type_id: StringName) -> bool:
+	return type_id == PIKE" "static func ultimate_is_shot(type_id: StringName) -> bool:
+	return false"
+mutate skewer-point-collapses-to-the-player          scripts/sim/game_run.gd "	var target: Vector2 = point" "	var target: Vector2 = position"
+mutate pike-far-preference-lost                     scripts/sim/sword_state.gd "				prefer_far = true" "				prefer_far = false"
+mutate pike-far-boundary-inclusive                  scripts/sim/sword_state.gd "and far > SwordDefs.PIKE_FAR_MIN:" "and far >= SwordDefs.PIKE_FAR_MIN:"
+mutate pike-far-filter-keeps-the-boundary           scripts/sim/sword_state.gd "if prefer_far and dist <= SwordDefs.PIKE_FAR_MIN:" "if prefer_far and dist < SwordDefs.PIKE_FAR_MIN:"
+mutate pike-far-preference-picks-farthest           scripts/sim/sword_state.gd "		if dist < attack_range + enemy.radius and dist < best_dist:
+			best = enemy
+			best_dist = dist" "		if dist < attack_range + enemy.radius and (dist < best_dist or (prefer_far and dist > best_dist)):
+			best = enemy
+			best_dist = dist"
+mutate pike-far-preference-ignores-range            scripts/sim/sword_state.gd "if far < attack_range + enemy.radius and far > SwordDefs.PIKE_FAR_MIN:" "if far > SwordDefs.PIKE_FAR_MIN:"
+mutate pike-windup-aims-from-the-sword              scripts/sim/sword_state.gd "_spring(aim - to_aim * (length * SwordDefs.PIKE_WINDUP_STANDOFF_LENGTH" "_spring(aim - (aim - position).normalized() * (length * SwordDefs.PIKE_WINDUP_STANDOFF_LENGTH"
+mutate pike-strike-line-from-the-player             scripts/sim/sword_state.gd "			dir = SimMath.norm(aim - position, run.rng)
+			timer = ((aim - position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT)" "			dir = SimMath.norm(aim - run.position, run.rng)
+			timer = ((aim - position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT)"
+mutate pike-strike-ignores-the-distance             scripts/sim/sword_state.gd "timer = ((aim - position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT) / SwordDefs.PIKE_SPEED" "timer = (300.0 + SwordDefs.PIKE_STRIKE_OVERSHOOT) / SwordDefs.PIKE_SPEED"
+mutate pike-thrust-hit-set-lost                     scripts/sim/sword_state.gd "			sweep_hits[enemy] = true
+			run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)" "			run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)"
+mutate pike-thrust-stops-at-the-first-hit           scripts/sim/sword_state.gd "			run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)" "			run.hit_enemy(enemy, damage * boost, dir, knock, self)
+			timer = 0.0
+			break
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)"
+mutate pike-thrust-only-sweeps-the-end              scripts/sim/sword_state.gd "var tail: Vector2 = previous - dir * length * SwordDefs.PIKE_TAIL_FRACTION" "var tail: Vector2 = position - dir * length * SwordDefs.PIKE_TAIL_FRACTION"
+mutate pike-thrust-parry-lost                       scripts/sim/sword_state.gd "	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)
+" ""
+mutate pike-thrust-parry-only-without-a-hit         scripts/sim/sword_state.gd "	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)
+" "	if sweep_hits.is_empty():
+		run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)
+"
+mutate pike-thrust-ignores-the-boost                scripts/sim/sword_state.gd "run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)" "run.hit_enemy(enemy, damage, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)"
+mutate pike-thrust-no-knockback                     scripts/sim/sword_state.gd "run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)" "run.hit_enemy(enemy, damage * boost, dir, 0.0, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)"
+mutate pike-thrust-recovery-lost                    scripts/sim/sword_state.gd "		velocity = dir * SwordDefs.PIKE_RECOVER_SPEED
+" "		velocity = Vector2.ZERO
+"
+mutate pike-thrust-never-ends                       scripts/sim/sword_state.gd "	if timer <= 0.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_RECOVER_TIME" "	if timer <= -9.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_RECOVER_TIME"
+mutate skewer-heading-from-the-sword                scripts/sim/sword_state.gd "dir = SimMath.norm(point - run.position, run.rng, run.facing, true)" "dir = SimMath.norm(point - position, run.rng, run.facing, true)"
+mutate skewer-heading-without-the-facing-fallback   scripts/sim/sword_state.gd "dir = SimMath.norm(point - run.position, run.rng, run.facing, true)" "dir = SimMath.norm(point - run.position, run.rng, Vector2.RIGHT, true)"
+mutate skewer-aim-clock-not-started                 scripts/sim/sword_state.gd "			ultimate_time_left = SwordDefs.PIKE_ULT_AIM_TIME
+
+
+func begin(" "			ultimate_time_left = 0.0
+
+
+func begin("
+mutate skewer-restart-keeps-flying                  scripts/sim/sword_state.gd "	skewer_carried.clear()
+	skewer_flying = false
+	match spec.type_id:" "	skewer_carried.clear()
+	match spec.type_id:"
+mutate skewer-aim-sword-turns-slowly                scripts/sim/sword_state.gd "		angle = atan2(dir.y, dir.x)
+		if ultimate_time_left <= 0.0:" "		angle = SimMath.ang_lerp(angle, atan2(dir.y, dir.x), 0.1)
+		if ultimate_time_left <= 0.0:"
+mutate skewer-launches-from-the-sword               scripts/sim/sword_state.gd "position = run.position + dir * SwordDefs.PIKE_ULT_LAUNCH_AHEAD" "position = position + dir * SwordDefs.PIKE_ULT_LAUNCH_AHEAD"
+mutate skewer-flight-time-not-from-range            scripts/sim/sword_state.gd "ultimate_time_left = SwordDefs.PIKE_ULT_RANGE / SwordDefs.PIKE_ULT_SPEED" "ultimate_time_left = 0.5"
+mutate skewer-launch-shake-lost                     scripts/sim/sword_state.gd "			run.add_shake(SwordDefs.PIKE_ULT_LAUNCH_SHAKE, dir, true)
+" ""
+mutate skewer-launch-cue-lost                       scripts/sim/sword_state.gd "			run.add_cue(SimCue.make(SimCue.Kind.SKEWER_LAUNCHED, position, dir))
+" ""
+mutate skewer-flight-step-wrong                     scripts/sim/sword_state.gd "var step: Vector2 = dir * SwordDefs.PIKE_ULT_SPEED * dt" "var step: Vector2 = dir * SwordDefs.PIKE_ULT_SPEED * 0.02"
+mutate skewer-only-sweeps-the-end                   scripts/sim/sword_state.gd "var tail: Vector2 = previous - dir * length * SwordDefs.PIKE_ULT_TAIL_FRACTION" "var tail: Vector2 = position - dir * length * SwordDefs.PIKE_ULT_TAIL_FRACTION"
+mutate skewer-hit-set-lost                          scripts/sim/sword_state.gd "		if sweep_hits.has(enemy):
+			continue
+		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_ULT_HIT_PAD:" "		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_ULT_HIT_PAD:"
+mutate skewer-hit-loop-skips-corpses                scripts/sim/sword_state.gd "		if sweep_hits.has(enemy):
+			continue
+		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_ULT_HIT_PAD:" "		if sweep_hits.has(enemy) or enemy.dead:
+			continue
+		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_ULT_HIT_PAD:"
+mutate skewer-blow-ignores-the-damage-factor        scripts/sim/sword_state.gd "run.hit_enemy(enemy, damage * SwordDefs.PIKE_ULT_DAMAGE_FACTOR, dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)" "run.hit_enemy(enemy, damage, dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)"
+mutate skewer-blow-has-knockback                    scripts/sim/sword_state.gd "run.hit_enemy(enemy, damage * SwordDefs.PIKE_ULT_DAMAGE_FACTOR, dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)" "run.hit_enemy(enemy, damage * SwordDefs.PIKE_ULT_DAMAGE_FACTOR, dir, knock, self, true, SwordDefs.PIKE_ULT_STACKS)"
+mutate skewer-blow-is-not-heavy                     scripts/sim/sword_state.gd "dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)" "dir, 0.0, self, false, SwordDefs.PIKE_ULT_STACKS)"
+mutate skewer-blow-shake-lost                       scripts/sim/sword_state.gd "			run.add_shake(SwordDefs.PIKE_ULT_HIT_SHAKE, dir, true)
+" ""
+mutate skewer-never-impales                         scripts/sim/sword_state.gd "			if not enemy.dead:
+				skewer_carried.append(enemy)" "			if false:
+				skewer_carried.append(enemy)"
+mutate skewer-carry-keeps-the-dead                  scripts/sim/sword_state.gd "		if _in_play(run, enemy):
+			still_carried.append(enemy)" "		if run.enemies.has(enemy):
+			still_carried.append(enemy)"
+mutate skewer-carry-keeps-the-removed               scripts/sim/sword_state.gd "		if _in_play(run, enemy):
+			still_carried.append(enemy)" "		if not enemy.dead:
+			still_carried.append(enemy)"
+mutate skewer-carry-no-longer-moves                 scripts/sim/sword_state.gd "		enemy.position += step
+		enemy.velocity = Vector2.ZERO" "		enemy.velocity = Vector2.ZERO"
+mutate skewer-carry-keeps-velocity                  scripts/sim/sword_state.gd "		enemy.velocity = Vector2.ZERO
+		enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_CARRY_STUN)" "		enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_CARRY_STUN)"
+mutate skewer-carry-stun-lost                       scripts/sim/sword_state.gd "		enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_CARRY_STUN)
+" ""
+mutate skewer-parry-lost                            scripts/sim/sword_state.gd "	run.parry_projectiles(tail, tip, SwordDefs.PIKE_ULT_PARRY_PAD)
+" ""
+mutate skewer-parries-during-the-aim                scripts/sim/sword_state.gd "		_spring(run.position - dir * SwordDefs.PIKE_ULT_AIM_STANDOFF," "		run.parry_projectiles(position, position + dir * 400.0, 40.0)
+		_spring(run.position - dir * SwordDefs.PIKE_ULT_AIM_STANDOFF,"
+mutate skewer-ends-only-at-the-range                scripts/sim/sword_state.gd "if ultimate_time_left <= 0.0 or at_wall:" "if ultimate_time_left <= 0.0:"
+mutate skewer-ends-only-at-a-wall                   scripts/sim/sword_state.gd "if ultimate_time_left <= 0.0 or at_wall:" "if at_wall:"
+mutate skewer-wall-test-uses-the-whole-arena        scripts/sim/sword_state.gd "var margin: float = SwordDefs.PIKE_ULT_WALL_MARGIN" "var margin: float = 0.0"
+mutate skewer-release-speed-swapped                 scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL)"
+mutate skewer-release-lost                          scripts/sim/sword_state.gd "			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+" ""
+mutate skewer-release-stun-lost                     scripts/sim/sword_state.gd "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+" ""
+mutate skewer-release-keeps-carrying                scripts/sim/sword_state.gd "		skewer_carried.clear()
+		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_ULT_RECOVER_TIME" "		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_ULT_RECOVER_TIME"
+mutate skewer-recovery-velocity-swapped             scripts/sim/sword_state.gd "velocity = -dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_WALL if at_wall else dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_RANGE" "velocity = dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_WALL if at_wall else -dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_RANGE"
+mutate skewer-release-cue-lost                      scripts/sim/sword_state.gd "		run.add_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall))
+" ""
+mutate skewer-release-cue-never-a-wall              scripts/sim/sword_state.gd "SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall)" "SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, false)"
+mutate skewer-release-cue-counts-nobody             scripts/sim/sword_state.gd "SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall)" "SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, 0, at_wall)"
+mutate skewer-death-keeps-carrying                  scripts/sim/sword_state.gd "		ultimate_victim = null
+		skewer_carried.clear()
+		return" "		ultimate_victim = null
+		return"
+mutate skewer-area-radius-nonzero                   scripts/sim/sword_state.gd "		SwordDefs.PIKE:
+			return 0.0" "		SwordDefs.PIKE:
+			return 100.0"
+mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]"
+mutate pike-encounter-slot-lost                     scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
+" "		RunScenario.new(),
+"
+mutate pike-fixture-wrong-element                   scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &\"ice\"))"
+mutate pike-fixture-has-no-pikes                    scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
+mutate pike-encounter-no-brutes                     scripts/sim/run_scenario.gd "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\"," "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\","
+mutate pike-encounter-column-moved                  scripts/sim/run_scenario.gd "Vector2(1290.0, 330.0), Vector2(1325.0, 270.0)" "Vector2(1290.0, 630.0), Vector2(1325.0, 570.0)"
+mutate pike-encounter-not-the-default               scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.pike_fixture_loadout()"
+mutate pike-launch-option-lost                      scripts/launch_options.gd "		\"pike\":
+			return RunScenario.pike_encounter()" "		\"pike\":
+			return null"
+mutate pike-dev-button-title                        scripts/sim/run_scenario.gd "		ENCOUNTER_PIKE:
+			return \"Pike\"
+" ""
+mutate pike-legend-lost                             scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_PIKE:" "	elif false:"
+mutate pike-legend-counts-nothing                   scripts/hud.gd "run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), run.cue_count(SimCue.Kind.WALL_SLAM), switch_hint]" "0, 0, switch_hint]"
+mutate skill-shot-tag-lost                          scripts/hud.gd "\"  skill shot\" if SwordDefs.ultimate_is_shot(sword.spec.type_id) else \"\"" "\"\""
+mutate thrust-telegraph-lost                        scripts/presentation/effects_layer.gd "			_draw_thrust_telegraph(sword)
+" "			pass
+"
+mutate skewer-drawing-lost                          scripts/presentation/effects_layer.gd "			_draw_skewer(sword, _sword_color(sword.spec))
+" "			pass
+"
+mutate skewer-launch-ring-lost                      scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 6.0, 44.0, 0.2, launch_tint, 3.0)
+" "			pass
+"
+mutate skewer-release-ring-lost                     scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 10.0, 60.0 + float(cue.amount) * 8.0, 0.3, Color(1.0, 0.92, 0.7, 0.95), 4.0)
+" "			pass
+"
+mutate skewer-release-text-lost                     scripts/presentation/effects_layer.gd "				_add_text(cue.position + Vector2(0.0, -30.0), \"%s x%d\" % [\"SLAM\" if cue.critical else \"FLUNG\", cue.amount], Color(1.0, 0.92, 0.7), 0.7, 24)
+" "				pass
+"
+mutate skewer-start-draws-a-landing-ring            scripts/presentation/effects_layer.gd "	if not SwordDefs.ultimate_is_shot(sword.spec.type_id):
+		_add_ring(" "	if true:
+		_add_ring("
+mutate skewer-launch-sound-lost                     scripts/audio/sfx_bank.gd "		SimCue.Kind.SKEWER_LAUNCHED:
+			play(\"strike\")" "		SimCue.Kind.SKEWER_LAUNCHED:
+			pass"
+mutate skewer-release-sound-always                  scripts/audio/sfx_bank.gd "			if cue.amount > 0:
+				play(\"hit\")" "			play(\"hit\")"
+mutate pike-visual-needle                           scripts/presentation/placeholder_sword_visual.gd "	_pike = spec.type_id == SwordDefs.PIKE" "	_pike = false"
+
+# The Pike's strokes are counted by the same call that draws them (`_stroke`, `_stroke_ring`), so removing the
+# real draw call removes the count too: each of these takes out one stroke the layer draws, not a counter.
+mutate skewer-aim-band-not-drawn                    scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_band\", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+" ""
+mutate skewer-aim-line-not-drawn                    scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_line\", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+" ""
+mutate skewer-aim-both-strokes-not-drawn            scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_band\", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+		_stroke(&\"skewer_aim_line\", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+" ""
+mutate skewer-carry-ring-not-drawn                  scripts/presentation/effects_layer.gd "		_stroke_ring(&\"skewer_carry_ring\", enemy.position, enemy.radius + 7.0, Color(tint, 0.85), 3.0)
+" ""
+mutate skewer-carry-line-not-drawn                  scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_carry_line\", enemy.position, tip, Color(tint, 0.4), 2.0)
+" ""
+mutate thrust-telegraph-band-not-drawn              scripts/presentation/effects_layer.gd "	_stroke(&\"thrust_telegraph_band\", from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
+" ""
+mutate thrust-telegraph-line-not-drawn              scripts/presentation/effects_layer.gd "	_stroke(&\"thrust_telegraph_line\", from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+" ""
+
+# The release is compared whole on every fixture (the carried enemies' velocity, health and stun and the slam
+# on the release tick), so each part of it is a mutation of its own: the release speeds along a diagonal and a
+# straight wall, damage on release, and the slam.
+mutate skewer-release-diagonal-wall-speed-halved    scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if at_wall and absf(dir.x) > 0.5 and absf(dir.y) > 0.5 else 1.0)"
+mutate skewer-release-straight-wall-speed-halved    scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if at_wall and (absf(dir.x) > 0.99 or absf(dir.y) > 0.99) else 1.0)"
+mutate skewer-release-diagonal-range-speed-halved   scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if not at_wall and absf(dir.x) > 0.5 and absf(dir.y) > 0.5 else 1.0)"
+mutate skewer-release-deals-damage                  scripts/sim/sword_state.gd "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+" "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+			enemy.hp -= 1.0
+"
+mutate skewer-release-heals                         scripts/sim/sword_state.gd "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+" "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+			enemy.hp += 1.0
+"
+mutate skewer-release-slam-never-at-wall-speed      scripts/sim/enemy_state.gd "	if slammed and stun > 0.0 and speed_before > GameRun.WALL_SLAM_MIN_SPEED:" "	if slammed and stun > 0.0 and speed_before > GameRun.WALL_SLAM_MIN_SPEED and speed_before < SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL - 1.0:"
+mutate skewer-release-slam-a-tick-late              scripts/sim/sword_state.gd "			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+" "			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+			enemy.position -= dir * 60.0
+"
 
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"

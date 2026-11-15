@@ -7,8 +7,10 @@ extends RefCounted
 ## (issue #10: orbs fired, parried and dodged) and "flurry" (issue #12: Viper
 ## Flurry commanded from every sword slot, repeated and refused) and "conditions"
 ## (issue #11: three elemental swords burning, poisoning and freezing standing packs,
-## burning deaths spreading, brutes freezing for less) and "warden" (issue #13: a Fang and two
-## Wardens sweeping standing packs and whirling Maelstroms through them). The probe (`frame_rate_probe.gd`)
+## burning deaths spreading, brutes freezing for less), "warden" (issue #13: a Fang and two
+## Wardens sweeping standing packs and whirling Maelstroms through them) and "pike" (issue #14: three
+## Pikes thrusting through standing columns and Skewers carrying them into the walls, the range limit
+## and a corner, with refused presses and an orb parried). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
@@ -22,6 +24,7 @@ const SPITTERS: String = "spitters"
 const FLURRY: String = "flurry"
 const CONDITIONS: String = "conditions"
 const WARDEN: String = "warden"
+const PIKE: String = "pike"
 const TOTAL_TICKS: int = 900
 ## Set in the environment by run_checks.gd's --fail-fast once a check has failed.
 const STOPPED_ENV: String = "SWORDSTER_CHECKS_STOPPED"
@@ -88,6 +91,28 @@ const WARDEN_AIMS: Array[Vector2] = [
 	Vector2(220.0, 20.0), Vector2(-210.0, 10.0), Vector2(180.0, -40.0), Vector2(0.0, 250.0), Vector2(-250.0, 0.0),
 	Vector2(260.0, 0.0), Vector2(-200.0, 30.0), Vector2(230.0, 10.0), Vector2(-220.0, 20.0),
 ]
+## The pike script: the player stands still 400 px from the north and east walls while three Pikes
+## (poison, ice, fire) thrust at standing columns and Skewers are commanded: north, east and
+## north-east (a corner) carry a column into a wall; west and south run to the range limit; and two
+## presses at ticks the slot is still recharging are refused. Standing husks, runners and brutes have
+## enough health to survive the blow and the slam; pinned spitters keep firing orbs the thrusts and
+## Skewers cross. Commands: (tick, slot, aim index); the aim is an offset from the player.
+const PIKE_PLAYER: Vector2 = Vector2(2200.0, 400.0)
+const PIKE_HP: float = 400.0
+const PIKE_SPITTER_HP: float = 5000.0
+const PIKE_NORTH: Array[Vector2] = [Vector2(0.0, -130.0), Vector2(14.0, -190.0), Vector2(-12.0, -250.0), Vector2(6.0, -310.0), Vector2(-4.0, -355.0)]
+const PIKE_NORTH_KINDS: Array[StringName] = [&"husk", &"runner", &"husk", &"brute", &"husk"]
+const PIKE_EAST: Array[Vector2] = [Vector2(140.0, 6.0), Vector2(205.0, -10.0), Vector2(270.0, 12.0), Vector2(340.0, -4.0)]
+const PIKE_NORTH_EAST: Array[Vector2] = [Vector2(150.0, -150.0), Vector2(210.0, -205.0), Vector2(268.0, -262.0), Vector2(318.0, -300.0)]
+const PIKE_WEST: Array[Vector2] = [Vector2(-170.0, 4.0), Vector2(-260.0, -8.0), Vector2(-350.0, 10.0), Vector2(-430.0, 0.0)]
+const PIKE_SOUTH: Array[Vector2] = [Vector2(6.0, 160.0), Vector2(-10.0, 240.0), Vector2(4.0, 320.0), Vector2(-6.0, 400.0)]
+const PIKE_SPITTERS: Array[Vector2] = [Vector2(-300.0, 220.0), Vector2(-250.0, 300.0), Vector2(-360.0, 120.0)]
+const PIKE_SPITTER_COOLDOWNS: Array[float] = [0.4, 1.0, 1.6]
+const PIKE_COMMANDS: Array[Vector3] = [
+	Vector3(40.0, 0.0, 0.0), Vector3(60.0, 1.0, 1.0), Vector3(80.0, 2.0, 2.0), Vector3(150.0, 1.0, 3.0), Vector3(160.0, 2.0, 3.0),
+	Vector3(840.0, 0.0, 3.0), Vector3(850.0, 1.0, 4.0), Vector3(860.0, 2.0, 0.0),
+]
+const PIKE_AIMS: Array[Vector2] = [Vector2(0.0, -300.0), Vector2(300.0, 0.0), Vector2(300.0, -300.0), Vector2(-300.0, 0.0), Vector2(0.0, 300.0)]
 ## The first SPITTER_PINNED shooters stand their ground (their shots keep flying
 ## along the husk spokes the swords strike); the rest move as spitters do.
 const SPITTER_PINNED: int = 8
@@ -106,6 +131,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _conditions_scenario()
 	if name == WARDEN:
 		return _warden_scenario()
+	if name == PIKE:
+		return _pike_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	var reference: Dictionary = JSON.parse_string(file.get_as_text())
 	var crowd: Dictionary = reference["crowd_encounter"]
@@ -199,6 +226,43 @@ static func _warden_scenario() -> RunScenario:
 	return scenario
 
 
+static func _pike_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 14
+	scenario.waves_enabled = false
+	scenario.loadout = RunScenario.pike_fixture_loadout()
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	scenario.start_position = PIKE_PLAYER
+	var placements: Array[EnemyPlacement] = []
+	for i: int in PIKE_NORTH.size():
+		placements.append(_pike_post(PIKE_NORTH_KINDS[i], PIKE_PLAYER + PIKE_NORTH[i]))
+	for offset: Vector2 in PIKE_EAST:
+		placements.append(_pike_post(EnemyDefs.HUSK, PIKE_PLAYER + offset))
+	for offset: Vector2 in PIKE_NORTH_EAST:
+		placements.append(_pike_post(EnemyDefs.RUNNER, PIKE_PLAYER + offset))
+	for offset: Vector2 in PIKE_WEST:
+		placements.append(_pike_post(EnemyDefs.HUSK, PIKE_PLAYER + offset, 0.0))
+	for offset: Vector2 in PIKE_SOUTH:
+		placements.append(_pike_post(EnemyDefs.BRUTE if offset.y > 300.0 else EnemyDefs.HUSK, PIKE_PLAYER + offset, 0.0))
+	for i: int in PIKE_SPITTERS.size():
+		var shooter: EnemyPlacement = EnemyPlacement.make(EnemyDefs.SPITTER, PIKE_PLAYER + PIKE_SPITTERS[i])
+		shooter.shoot_cooldown = PIKE_SPITTER_COOLDOWNS[i]
+		shooter.speed_scale = 0.0
+		shooter.hp = PIKE_SPITTER_HP
+		placements.append(shooter)
+	scenario.initial_enemies = placements
+	return scenario
+
+
+## A standing post; health 0 leaves the enemy kind's own (so the blow of a Skewer kills it).
+static func _pike_post(kind: StringName, at: Vector2, hp: float = PIKE_HP) -> EnemyPlacement:
+	var post: EnemyPlacement = EnemyPlacement.make(kind, at)
+	post.speed_scale = 0.0
+	if hp > 0.0:
+		post.hp = hp
+	return post
+
+
 static func _conditions_scenario() -> RunScenario:
 	var scenario: RunScenario = RunScenario.new()
 	scenario.seed = 11
@@ -230,6 +294,12 @@ static func _conditions_scenario() -> RunScenario:
 ## Commands to issue once `completed_ticks` ticks have run.
 static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
+	if name == PIKE:
+		for i: int in PIKE_COMMANDS.size():
+			var entry: Vector3 = PIKE_COMMANDS[i]
+			if completed_ticks == int(entry.x):
+				commands.append(GameCommand.ultimate(int(entry.y), PIKE_PLAYER + PIKE_AIMS[int(entry.z)]))
+		return commands
 	if name == WARDEN:
 		for i: int in WARDEN_COMMANDS.size():
 			var entry: Vector3 = WARDEN_COMMANDS[i]
@@ -302,6 +372,8 @@ static func digest(run: GameRun) -> Dictionary:
 		"ultimate_cues": run.cue_count(SimCue.Kind.ULTIMATE_STARTED),
 		"beat_cues": run.cue_count(SimCue.Kind.MAELSTROM_BEAT),
 		"burst_cues": run.cue_count(SimCue.Kind.MAELSTROM_BURST),
+		"skewer_launch_cues": run.cue_count(SimCue.Kind.SKEWER_LAUNCHED),
+		"skewer_release_cues": run.cue_count(SimCue.Kind.SKEWER_RELEASED),
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
 		"frozen_cues": run.cue_count(SimCue.Kind.ENEMY_FROZEN),
 		"shatter_cues": run.cue_count(SimCue.Kind.ENEMY_SHATTERED),
