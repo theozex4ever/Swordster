@@ -925,9 +925,10 @@ func _check_skewer_parry() -> void:
 	_ok("an orb at each of %d points (behind the player, along the line, off to the side, at and past the range) is parried on the prototype's tick or left alone: %s" % [cells.size(), wrong.slice(0, 4)], wrong.is_empty() and parried > 8 and parried < cells.size() - 8)
 	var aim: Dictionary = _ref["skewer_parry"]["orb_during_aim"]
 	var run_a: GameRun = _run_of_setup(aim["setup"])
+	var aim_orb: ProjectileState = run_a.projectiles[0]
 	run_a.apply(GameCommand.ultimate(0, _point(aim["setup"]["point"])))
 	_steps(run_a, int(aim["setup"]["ticks"]))
-	_ok("while the Skewer only aims, an orb beside the sword is left alone", (not run_a.projectiles[0].is_resolved()) == bool(aim["alive"]) and bool(aim["alive"]))
+	_ok("while the Skewer only aims, an orb beside the sword is left alone", (not aim_orb.is_resolved()) == bool(aim["alive"]) and bool(aim["alive"]))
 
 
 func _check_conditions() -> void:

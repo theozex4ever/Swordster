@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // Plays the exported Web build's dev encounters in headless Chromium and writes
 // page screenshots. Evidence for issues #9 (crowd, wall) and #10 (spitters); not
-// part of the build. SCENARIO=crowd|wall|spitters|normal|flurry|conditions|warden (issue #11: the
+// part of the build. SCENARIO=crowd|wall|spitters|normal|flurry|conditions|warden|pike (issue #11: the
 // conditions encounter, with the player walking about and Q, E and R pressed as browser key
 // events so burning, poisoned, chilled and frozen foes and fire spreading can be seen); flurry (issue #12: the mouse
 // is moved and Q, E and R are pressed as browser key events; the flurry scenario
 // starts in the crowd encounter so there is something to dart between), warden (issue #13: the
 // warden encounter, with Fang / Warden / Warden; the sweeps are watched, then E and R start
-// Maelstroms at the cursor and Q the flurry, all as browser key and mouse events).
+// Maelstroms at the cursor and Q the flurry, all as browser key and mouse events), pike (issue #14: the
+// pike encounter, with three Pikes; the thrusts are watched, then E starts a Skewer with the cursor
+// above the player (north: the column is carried into the wall and slammed), Q and R fire the other
+// slots east and west, and a press while recharging is refused, all as browser key and mouse events).
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -86,7 +89,7 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike
 const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
@@ -171,6 +174,41 @@ if (scenario === "crowd") {
   }
   await key("KeyC", "c", 67); // the next dev encounter after the warden one is the normal run
   await sleep(1200); await shot("warden-08-next-dev-encounter-normal");
+} else if (scenario === "pike") {
+  // The pike encounter: watch the Pikes thrust through the column, then press E with the cursor above the
+  // player (a Skewer north: aim line, launch, the carried foes ringed, the release at the wall and its
+  // slams), Q to the east and R to the west (to the range limit), and E again while it recharges
+  // (refused). The view is 1280x720 and centred on the player, so the cursor at (640 + dx, 360 + dy)
+  // aims dx, dy pixels from him.
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  let shotIndex = 0;
+  await sleep(600); await shot("pike-01-arrival");
+  for (const wait of [350, 350, 350]) { await sleep(wait); await shot(`pike-02-thrusts-${wait}-${shotIndex++}`); }
+  await move(640, 360 - 300); await key("KeyE", "e", 69);
+  console.log(`E (Skewer north, slot two) at ${stamp()}s, cursor (640, 60)`);
+  for (const wait of [80, 200, 200, 200, 200, 250, 300, 400]) { await sleep(wait); await shot(`pike-03-e-${wait}-${shotIndex++}`); }
+  await key("KeyE", "e", 69); // slot two is recharging (10 s): refused, with a "recharging Ns" tag
+  console.log(`E while recharging at ${stamp()}s`);
+  await sleep(120); await shot("pike-04-e-refused");
+  await move(640 + 300, 360); await key("KeyQ", "q", 81);
+  console.log(`Q (Skewer east, slot one) at ${stamp()}s, cursor (940, 360)`);
+  for (const wait of [200, 250, 300, 400]) { await sleep(wait); await shot(`pike-05-q-${wait}-${shotIndex++}`); }
+  await move(640 - 300, 360); await key("KeyR", "r", 82);
+  console.log(`R (Skewer west, slot three) at ${stamp()}s, cursor (340, 360)`);
+  for (const wait of [200, 250, 300, 400]) { await sleep(wait); await shot(`pike-06-r-${wait}-${shotIndex++}`); }
+  const moves = [["KeyD", "d", 68], ["KeyS", "s", 83], ["KeyA", "a", 65], ["KeyW", "w", 87]];
+  for (let round = 0; round < Number(process.env.ROUNDS ?? 8); round++) {
+    const [code, k, vk] = moves[round % 4];
+    await hold(code, k, vk, 500);
+    await shot(`pike-07-round-${String(round).padStart(2, "0")}`);
+  }
+  await key("KeyC", "c", 67); // the next dev encounter after the pike one is the normal run
+  await sleep(1200); await shot("pike-08-next-dev-encounter-normal");
 } else if (scenario === "conditions") {
   // Walk about in the conditions encounter so the swords keep fighting, press the three
   // ultimates now and then, and take a page screenshot every half second or so. CAST=1
