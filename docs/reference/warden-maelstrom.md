@@ -154,7 +154,7 @@ It is ported exactly (the same arithmetic on the same values), not corrected.
 | Start | no blink: the sword begins from where it hangs, its spin starting at its bearing from the centre |
 | Reach of the blades | `radius x size + 0.7 x length`: 137.8 px (Common), 148.8 (Rare), 162.6 (Mythic) |
 | Pull | every enemy with `8 < distance < reach + 120` moves `170 x knock factor` px/s straight toward the centre (a brute 0.35, a runner 1.3), directly on its position |
-| Beats | the first after 0.15 s, then every 0.2 s: everything within `reach + radius` takes 0.6 x damage (10 / 13 / 18), heavy (flash 0.2, no hitstop, no hit shake), knockback 40 along the tangent, one dose of the element; if any was struck, shake +0.08 |
+| Beats | the first after 0.15 s, then every 0.2 s: everything within `reach + radius` takes 0.6 x damage (10 / 13 / 18), heavy (flash 0.2, no hitstop, no hit shake), knockback 40 along the tangent, one dose of the element; if any enemy was inside the reach (**a corpse killed earlier in the same tick counts**, as `hit_any` is set whether or not `hit_enemy` did anything), shake +0.08 and the beat's sound |
 | Burst | when the clock ends: everything within `reach + 30 + radius` takes 1.6 x damage (27 / 35 / 48), heavy, knockback 520 away from the centre, **two** doses of the element; shake +0.35, hitstop 0.06 s |
 | Recovery | 0.3 s at 500 px/s along the spin's tangent, then idle |
 | Parries | none: an orb inside the whirl survives it |
@@ -163,6 +163,21 @@ Captured (Common, a husk 60 px from the centre): the first beat on tick 10, then
 and 127 (ten beats, each for 10 with the enemy's flash at 0.1833 and shake 0.08), the burst on tick 133 for 27 (shake 0.35,
 hitstop 0.06), recovery from tick 133, idle on tick 156, the recharge 8.783 s at the burst and 8.467 s at idle. The crit case
 doubles every blow (20, 54); Rare and Mythic hit for 13 / 35 and 18 / 48 and reach farther.
+
+**Corpses.** The prototype's whirl iterates `g.enemies` for the pull, the beats and the burst, and an enemy killed
+earlier in the same update stays in that list until the end of the update (after enemy movement and the crowd
+separation). So a corpse is still pulled (which changes its collisions with the living) and a corpse inside the reach still sets off a beat's sound
+and 0.08 shake; `hit_enemy` itself returns at once for the dead, so it is never damaged or rewarded again. The port
+iterates the same way and skips nobody in these three loops, and the sweep does not skip the dead either (its hit
+set is private and discarded). Captured with two Common fire Wardens whirling around one point, conditions on, a
+5 hp and a 28 hp husk 60 and 94 px from it, the first Maelstrom's clock set to half a tick so its burst falls on the
+next tick: the burst kills the first husk and leaves the second at 1 hp, the second whirl pulls the corpse, and the
+second husk dies later to a beat of the second whirl (2 kills, 6 motes). The review of the first head, which skipped the dead in the
+pull, found its second husk taking an extra bowling hit (-2 hp, 2 kills on that tick, against 1 kill in the
+prototype). A second case kills a husk in the tick of a beat: the corpse is pulled 2.8333 px, the cue reports
+it and the shake is 0.08.
+Asserted by `warden: enemies that die or leave the run are handled safely`; the mutations
+`maelstrom-pull-skips-corpses`, `maelstrom-beat-skips-corpses` and `maelstrom-burst-skips-corpses` fail it.
 
 Asserted by `warden: Maelstrom's whirl, beats, burst and recovery, tick by tick` (four cases, 175
 ticks each), `warden: the pull, who is struck by the beats and the burst` (seven enemies of three
@@ -228,7 +243,7 @@ accumulator and position of every enemy compared on every tick).
   damage over time, deaths and spread; contacts; removal of the dead; projectiles; motes; counters and the
   wave director.
 - **Cues.** `SWORD_STRIKE` at the start of a sweep (sound), `ULTIMATE_STARTED` (slot in `amount`),
-  `MAELSTROM_BEAT` (`amount` = enemies struck, `radius` = reach, `element`) and `MAELSTROM_BURST`; each
+  `MAELSTROM_BEAT` (`amount` = enemies inside the reach, corpses included as in the prototype, `radius` = reach, `element`) and `MAELSTROM_BURST` (`amount` likewise); each
   blow is an ordinary `ENEMY_HIT`.
 - **HUD.** Each slot card shows the key badge, the ultimate's name (Viper Flurry / Maelstrom), READY /
   ACTIVE / seconds left, the recharge bar, the element tag and, new in this slice, the sword type under the
@@ -238,7 +253,7 @@ accumulator and position of every enemy compared on every tick).
   a needle). During the windup a faint band shows the arc about to be cut and brightens as the windup runs
   out; the sweep leaves a fading fan along the arc it cut; a Maelstrom outlines the reach of the blades, a
   dashed ring at the pull range, spinning arcs and a short tick on every enemy being dragged, a ring at every
-  beat and a burst of rings and sparks at the end; the blade keeps its afterimages. A beat that struck something
+  beat and a burst of rings and sparks at the end; the blade keeps its afterimages. A beat that had something inside its reach
   and the burst are heard (`strike`).
 
 ## Deliberate exceptions
@@ -261,30 +276,29 @@ Each is a scope or correctness decision of slice #13, not a rebalance.
    the port samples at the prototype's 60 FPS spacing, as the other slices do. The two samples leave gaps in
    the arc (a point can be skipped between them; the arc-coverage case records exactly which); no extra
    sample was added, as that would change which enemies are hit.
-4. **A corpse is neither pulled nor struck, and its beat shakes nothing (hardening).** The prototype's whirl
-   iterates every enemy including one killed earlier in the same update (it is removed at the end of the
-   update): such a corpse is pulled, "struck" (a no-op) and counts toward a beat's shake. The port skips a dead
-   enemy in the pull, the beats and the burst, so a beat that struck nothing live makes no shake. The sweep
-   also skips corpses (the prototype's `hit_enemy` returns at once for them). Unobservable except for that
-   shake. Asserted by `warden: enemies that die or leave the run are handled safely`; the mutations
-   `maelstrom-pulls-corpses`, `maelstrom-beat-strikes-corpses`, `maelstrom-burst-strikes-corpses` and
-   `sweep-hits-corpses` fail it.
-5. **Enemies that leave the run, alive, are never reached.** The sweep and the whirl iterate `run.enemies`
+4. **Enemies that leave the run, alive, are never reached.** The sweep and the whirl iterate `run.enemies`
    only, and the sword's attack target is dropped by the guard of #12 (exception 10 there), so a removed enemy
    takes no damage and causes no kill, mote, cue or shake (spec decision 7). Same reachable behaviour as the
    prototype. Asserted by the same check.
-6. **The hit set is per attack and per sword.** It is cleared when an attack begins and when an ultimate
+5. **The hit set is per attack and per sword.** It is cleared when an attack begins and when an ultimate
    begins (the prototype clears `hit` in `begin` and `ultimate`), kept as a dictionary keyed by the enemy.
-7. **Hit feedback is the sword type's own.** `GameRun.hit_enemy` now reads the sword's hitstop and shake
+6. **Hit feedback is the sword type's own.** `GameRun.hit_enemy` now reads the sword's hitstop and shake
    (prototype `sword.t["hitstop"]`, `["shake"]`) instead of Fang's constants; `null` (no sword) falls back to
    Fang's. Fang's own numbers equal them, so nothing about Fang changes.
-8. **Cosmetics are not a gate.** The prototype's lift (`z`), trails, element sparks, the floating
+7. **Cosmetics are not a gate.** The prototype's lift (`z`), trails, element sparks, the floating
    "MAELSTROM" text style and its sounds beyond "whoosh" and "slash" are not reproduced; the placeholder
    drawing follows the logical pose (`sweep_*`, `ultimate_*`). The refusal text is "recharging Ns" as in #12.
-9. **No touch ultimate buttons and no Converge.** Touch aiming (`ultimate_at_nearest`) works for a Warden but
+8. **No touch ultimate buttons and no Converge.** Touch aiming (`ultimate_at_nearest`) works for a Warden but
    the on-screen buttons are issue #20, and Converge's fast windup (`begin(..., fast=True)`) is issue #16.
-10. **A Warden rolls its own element.** Maelstrom's beats and burst use the sword's element and power like every
-    other blow (`afflict(enemy, element, damage, stacks)`); no new element rule was introduced.
+9. **A Warden rolls its own element.** Maelstrom's beats and burst use the sword's element and power like every
+   other blow (`afflict(enemy, element, damage, stacks)`); no new element rule was introduced.
+10. **A known float32-versus-float64 boundary at the pull's strict 8 px cutoff (not fixed, no gameplay change).**
+    The pull acts only when `8 < distance`. The prototype computes in float64 and the port's `Vector2` in float32,
+    so an enemy held against a wall or another body exactly at that cutoff can fall on either side of it. A
+    wall/overlap fixture of the reviewer's showed it: the enemy rests at 8.000836 px from the centre in the
+    prototype (pulled again next tick) and at 7.999664 px in the port (not pulled), while its health matched over
+    all 220 ticks. The ordinary cases never rest at the cutoff and match exactly; no exact fix is cheap (it would
+    need float64 positions throughout the simulation), so none was attempted and no check covers this fixture.
 
 ## Validation
 

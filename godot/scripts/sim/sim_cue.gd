@@ -44,10 +44,10 @@ enum Kind {
 	## alongside ENEMY_KILLED.
 	FIRE_SPREAD,
 	## One beat of a Maelstrom (`position` = its centre, `radius` = the blades' reach, `amount` =
-	## how many enemies it struck, `element` = the sword's element).
+	## how many enemies were inside the reach, a corpse included as in the prototype, `element` = the sword's element).
 	MAELSTROM_BEAT,
 	## A Maelstrom's finishing burst (`position` = its centre, `radius` = the reach it struck
-	## within, `amount` = how many enemies it struck, `element` = the sword's element).
+	## within, `amount` = how many enemies were inside it, corpses included, `element` = the sword's element).
 	MAELSTROM_BURST,
 }
 

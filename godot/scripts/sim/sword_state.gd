@@ -300,7 +300,7 @@ func _update_sweep(run: GameRun, dt: float) -> void:
 		var guard: Vector2 = sweep_pivot + SimMath.polar(sample, length * SwordDefs.WARDEN_GUARD)
 		var tip: Vector2 = sweep_pivot + SimMath.polar(sample, length * SwordDefs.WARDEN_TIP)
 		for enemy: EnemyState in run.enemies:
-			if enemy.dead or sweep_hits.has(enemy):
+			if sweep_hits.has(enemy):
 				continue
 			if SimMath.seg_dist(enemy.position, guard, tip) < enemy.radius + SwordDefs.WARDEN_HIT_PAD:
 				sweep_hits[enemy] = true
@@ -398,9 +398,11 @@ func _update_viper_flurry(run: GameRun, dt: float) -> void:
 ## is dragged toward the centre, a beat every WARDEN_ULT_BEAT seconds strikes everything inside
 ## the blades' reach (heavy blows, one dose of the element each), and when the time is up a
 ## finishing burst strikes a little farther out for more (two doses), then the sword recovers.
-## Enemies are taken in the run's order; a corpse (dead earlier this tick) is neither pulled
-## nor struck, and counts for no beat (docs/reference/warden-maelstrom.md, exception 4). Nothing
-## in the whirl parries projectiles (the prototype's does not either).
+## Enemies are taken in the run's order and the dead are not skipped, exactly as in the
+## prototype: a corpse (killed earlier this tick, removed at the end of the update) is still
+## pulled, which changes the crowd's collisions, and a corpse inside the reach still counts for
+## the beat's sound and shake (`hit_enemy` itself ignores the dead). Nothing in the whirl
+## parries projectiles (the prototype's does not either).
 func _update_maelstrom(run: GameRun, dt: float) -> void:
 	var centre: Vector2 = ultimate_point
 	ultimate_time_left -= dt
@@ -411,8 +413,6 @@ func _update_maelstrom(run: GameRun, dt: float) -> void:
 	velocity = (position - previous) / maxf(dt, 1e-4)
 	angle = ultimate_spin
 	for enemy: EnemyState in run.enemies:
-		if enemy.dead:
-			continue
 		var to_centre: Vector2 = centre - enemy.position
 		var dist: float = to_centre.length()
 		if SwordDefs.WARDEN_ULT_PULL_MIN < dist and dist < maelstrom_pull_range():
@@ -422,8 +422,6 @@ func _update_maelstrom(run: GameRun, dt: float) -> void:
 		ultimate_beat = SwordDefs.WARDEN_ULT_BEAT
 		var struck: int = 0
 		for enemy: EnemyState in run.enemies:
-			if enemy.dead:
-				continue
 			var off: Vector2 = enemy.position - centre
 			if off.length() < reach + enemy.radius:
 				run.hit_enemy(enemy, damage * SwordDefs.WARDEN_ULT_TICK_FACTOR, Vector2(-off.y, off.x), SwordDefs.WARDEN_ULT_TICK_KNOCK, self, true)
@@ -435,8 +433,6 @@ func _update_maelstrom(run: GameRun, dt: float) -> void:
 		var caught: int = 0
 		var burst_reach: float = maelstrom_burst_reach()
 		for enemy: EnemyState in run.enemies:
-			if enemy.dead:
-				continue
 			var off: Vector2 = enemy.position - centre
 			if off.length() < burst_reach + enemy.radius:
 				run.hit_enemy(enemy, damage * SwordDefs.WARDEN_ULT_BURST_FACTOR, off, SwordDefs.WARDEN_ULT_BURST_KNOCK, self, true, SwordDefs.WARDEN_ULT_BURST_STACKS)

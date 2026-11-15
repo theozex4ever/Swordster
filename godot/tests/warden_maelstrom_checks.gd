@@ -43,7 +43,9 @@ func run_all() -> void:
 	_ref = JSON.parse_string(file.get_as_text())
 	_ok("warden reference file parses", not _ref.is_empty())
 	_check_reference_scope()
-	_check_definitions()
+	if not _check_definitions():
+		print("warden: the sword type's identity is wrong; the remaining checks build fixtures from it and are skipped")
+		return
 	_check_sweep()
 	_check_acquire()
 	_check_arc_coverage()
@@ -284,7 +286,7 @@ func _check_reference_scope() -> void:
 	_ok("every enemy in the capture was unarmed (arming and drops are issue #17) and only husks, runners and brutes were used", int(scope["armed_enemies"]) == 0 and scope["kinds"] == ["brute", "husk", "runner"])
 	_ok("only Warden swords took part, Converge was not used (issue #16), no waves ran (issue #18)", scope["swords_used"] == ["blade"] and not bool(scope["converge_used"]) and not bool(scope["waves_enabled"]))
 	var with_conditions: Array = scope["afflict_enabled_cases"]
-	_ok("the prototype's afflict was OFF everywhere except the condition cases %s" % [with_conditions], bool(scope["afflict_disabled_everywhere_else"]) and with_conditions == ["maelstrom_fire", "maelstrom_ice", "maelstrom_poison", "sweep_fire", "sweep_ice", "sweep_pack", "sweep_poison"])
+	_ok("the prototype's afflict was OFF everywhere except the condition cases %s" % [with_conditions], bool(scope["afflict_disabled_everywhere_else"]) and with_conditions == ["maelstrom_corpses", "maelstrom_fire", "maelstrom_ice", "maelstrom_poison", "sweep_fire", "sweep_ice", "sweep_pack", "sweep_poison"])
 	var flags_ok: bool = true
 	for label: String in ["poison", "ice", "fire"]:
 		flags_ok = flags_ok and bool(_ref["sweep_conditions"][label]["setup"]["conditions"]) and bool(_ref["maelstrom_conditions"][label]["setup"]["conditions"])
@@ -294,12 +296,16 @@ func _check_reference_scope() -> void:
 	_ok("each case's fixture says whether conditions are on: the condition cases on, the physical cases off", flags_ok)
 
 
-func _check_definitions() -> void:
+## Returns false when the sword type's identity is wrong; every later check builds its fixtures from
+## the prototype's key, so they must not run (a renamed key would only crash them).
+func _check_definitions() -> bool:
 	print("warden: identity, constants and rarity numbers against the prototype")
 	var table: Dictionary = _ref["table"]
 	var inline: Dictionary = table["inline"]
-	_ok("the sword type keeps the prototype's internal key `%s` and the display name %s" % [String(SwordDefs.WARDEN), SwordDefs.display_name(SwordDefs.WARDEN)],
-		String(SwordDefs.WARDEN) == String(table["kind"]) and SwordDefs.display_name(SwordDefs.WARDEN) == String(table["name"]) and SwordDefs.is_supported(SwordDefs.WARDEN) and SwordDefs.display_name(SwordDefs.FANG) == "Fang")
+	var identity_ok: bool = String(SwordDefs.WARDEN) == String(table["kind"]) and SwordDefs.display_name(SwordDefs.WARDEN) == String(table["name"]) and SwordDefs.is_supported(SwordDefs.WARDEN) and SwordDefs.display_name(SwordDefs.FANG) == "Fang"
+	_ok("the sword type keeps the prototype's internal key `%s` and the display name %s" % [String(SwordDefs.WARDEN), SwordDefs.display_name(SwordDefs.WARDEN)], identity_ok)
+	if not identity_ok:
+		return false
 	_ok("base length, range, cooldown, damage, knockback, windup, hitstop and shake",
 		SwordDefs.base_length(SwordDefs.WARDEN) == float(table["length"]) and SwordDefs.base_range(SwordDefs.WARDEN) == float(table["range"]) and SwordDefs.base_cooldown(SwordDefs.WARDEN) == float(table["cooldown"])
 		and SwordDefs.base_damage(SwordDefs.WARDEN) == float(table["damage"]) and SwordDefs.base_knock(SwordDefs.WARDEN) == float(table["knock"]) and SwordDefs.base_windup(SwordDefs.WARDEN) == float(table["windup"])
@@ -340,6 +346,7 @@ func _check_definitions() -> void:
 	for kind: String in ["husk", "runner", "brute"]:
 		radii_ok = radii_ok and EnemyDefs.of(StringName(kind)).radius == float((table["radius"] as Dictionary)[kind]) and _near(EnemyDefs.of(StringName(kind)).knock, float((table["knock_mult"] as Dictionary)[kind]), 0.0001)
 	_ok("the enemy radii and knock factors the geometry depends on match the prototype", radii_ok)
+	return true
 
 
 # --------------------------------------------------------- the sweep
@@ -936,34 +943,50 @@ func _check_removed_and_corpses() -> void:
 	run3.enemies.erase(gone3)
 	_steps(run3, 120)
 	_ok("an enemy removed from the run in the middle of Maelstrom is not pulled, struck or burst afterwards (hp %.0f stays, moved %.2f px)" % [gone3.hp, gone3.position.distance_to(at_then)], gone3.hp == hp_then and hp_then < PROBE_HP and gone3.position == at_then and run3.kills == 0)
-	# A corpse (killed earlier in the same tick) is not pulled or struck, and its beat shakes nothing.
-	# The whirl is centred 60 px from the enemy so the pull would move it; it dies just before a beat.
-	var off_centre: Array = [{"kind": "husk", "x": CENTER.x + 310.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}]
-	var run4: GameRun = _lone_scenario(warden, off_centre)
-	run4.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
+	# A corpse (killed earlier in the same tick, removed only at its end) is still in the run when the whirl
+	# acts, exactly as in the prototype: it is pulled, a no-op blow lands on it and, inside the reach, it
+	# still sets off the beat's sound and shake. The reference holds the prototype's outcome.
+	var beat: Dictionary = _ref["maelstrom_corpses"]["corpse_beat"]
+	var run4: GameRun = _run_of_setup(beat["setup"])
+	run4.apply(GameCommand.ultimate(0, _point(beat["setup"]["point"])))
 	var corpse: EnemyState = run4.enemies[0]
-	_steps(run4, 9)
+	_steps(run4, int(beat["setup"]["ticks_before"]))
 	run4.trauma = 0.0
 	run4.kill(corpse, Vector2.UP)
-	var position_dead: Vector2 = corpse.position
 	var hp_dead4: float = corpse.hp
+	var position_dead: Vector2 = corpse.position
+	run4.take_cues()
 	run4.step()
 	var beats: Array[SimCue] = run4.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BEAT)
-	_ok("an enemy killed by something else in the tick of a beat is not struck again or pulled, and the beat reports nothing struck and shakes nothing (kills %d, beats %d, struck %d, trauma %.3f, moved %.2f px)" % [run4.kills, beats.size(), beats[0].amount if not beats.is_empty() else -1, run4.trauma, corpse.position.distance_to(position_dead)],
-		run4.kills == 1 and corpse.position == position_dead and corpse.hp == hp_dead4 and beats.size() == 1 and beats[0].amount == 0 and run4.trauma < SwordDefs.WARDEN_ULT_TICK_SHAKE and run4.motes.size() == 3)
-	var run6: GameRun = _lone_scenario(warden, off_centre)
-	run6.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
-	var corpse6: EnemyState = run6.enemies[0]
-	while run6.swords[1].ultimate_time_left > GameRun.TICK_DT * 0.5:
-		run6.step()
-	var hp_dead: float = 0.0
-	run6.kill(corpse6, Vector2.UP)
-	hp_dead = corpse6.hp
-	run6.take_cues()
-	run6.step()
-	var bursts: Array[SimCue] = run6.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BURST)
-	_ok("an enemy killed by something else in the tick of the finishing burst is not struck by it (burst struck %d, health %.0f unchanged, one kill)" % [bursts[0].amount if not bursts.is_empty() else -1, corpse6.hp],
-		run6.swords[1].phase == SwordState.Phase.RECOVER and bursts.size() == 1 and bursts[0].amount == 0 and corpse6.hp == hp_dead and run6.kills == 1)
+	_ok("a corpse inside the reach in the tick of a beat: the beat's cue still reports it (so its sound plays) and its shake lands (cue amount %d, trauma %.4f, want %.4f), the corpse is not struck again (health unchanged, one kill, three motes)" % [beats[0].amount if not beats.is_empty() else -1, run4.trauma, float(beat["trauma"])],
+		beats.size() == 1 and beats[0].amount == 1 and _near(run4.trauma, float(beat["trauma"]), SCALAR_TOL) and corpse.hp == hp_dead4 and not bool(beat["hp_changed"]) and run4.kills == int(beat["kills"]) and run4.motes.size() == int(beat["motes"]))
+	_ok("the same corpse is still pulled toward the centre like the prototype's (%.4f px, to x %.3f; the prototype %.4f px, x %.3f)" % [corpse.position.distance_to(position_dead), corpse.position.x, float(beat["moved"]), float(beat["x"])],
+		_near(corpse.position.distance_to(position_dead), float(beat["moved"]), POSITION_TOL) and _near(corpse.position.x, float(beat["x"]), POSITION_TOL) and _near(corpse.position.y, float(beat["y"]), POSITION_TOL))
+	# The reviewer's scenario: two Maelstroms, the first one's burst kills a 5 hp husk and leaves a 28 hp one
+	# at 1 hp; the second whirl still pulls the corpse, which then takes part in the crowd's collisions.
+	var two_whirls: Dictionary = _ref["maelstrom_corpses"]["two_whirls"]
+	var run6: GameRun = _run_of_setup(two_whirls["setup"])
+	var ult_point: Vector2 = _point(two_whirls["setup"]["point"])
+	run6.apply(GameCommand.ultimate(0, ult_point))
+	run6.apply(GameCommand.ultimate(1, ult_point))
+	run6.swords[0].ultimate_time_left = float(two_whirls["setup"]["first_ult_time_left"])
+	var husks6: Array[EnemyState] = run6.enemies.duplicate()
+	var result6: Dictionary = _follow(run6, run6.swords[0], husks6, two_whirls["trace"], [], int(two_whirls["trace"]["ticks"]))
+	_ok("two whirls on one tick, the first's burst kills a husk and the second still pulls the corpse: both husks' position, velocity, health and stun and the first sword match the prototype on all %d ticks (kills %d, motes %d, left %d)" % [int(two_whirls["trace"]["ticks"]), run6.kills, run6.motes.size(), run6.enemies.size()],
+		String(result6["diff"]).is_empty() and run6.kills == int(two_whirls["kills"]) and run6.motes.size() == int(two_whirls["motes"]) and run6.enemies.size() == int(two_whirls["left"]), String(result6["diff"]))
+	# The finishing burst meets a corpse in its reach the same way: nothing is struck twice, the cue counts it.
+	var run8: GameRun = _lone_scenario(warden, [{"kind": "husk", "x": CENTER.x + 310.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}])
+	run8.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
+	var corpse8: EnemyState = run8.enemies[0]
+	while run8.swords[1].ultimate_time_left > GameRun.TICK_DT * 0.5:
+		run8.step()
+	run8.kill(corpse8, Vector2.UP)
+	var hp_dead8: float = corpse8.hp
+	run8.take_cues()
+	run8.step()
+	var bursts: Array[SimCue] = run8.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BURST)
+	_ok("a corpse inside the finishing burst's reach is not struck again but is counted by the burst's cue (cue amount %d, health unchanged, one kill)" % [bursts[0].amount if not bursts.is_empty() else -1],
+		run8.swords[1].phase == SwordState.Phase.RECOVER and bursts.size() == 1 and bursts[0].amount == 1 and corpse8.hp == hp_dead8 and run8.kills == 1)
 	var two: Dictionary = _ref["deaths"]["two_swords_one_victim"]
 	var run7: GameRun = _run_of_setup(two["setup"])
 	var victim7: EnemyState = run7.enemies[0]
@@ -971,8 +994,8 @@ func _check_removed_and_corpses() -> void:
 		run7.step()
 		if run7.kills >= 1:
 			break
-	_ok("when one sweep kills an enemy, the other sword's sweep of the same tick does not even enter the corpse in its hit set (first sword %s, second %s)" % [run7.swords[0].sweep_hits.has(victim7), run7.swords[1].sweep_hits.has(victim7)],
-		run7.kills == 1 and run7.swords[0].sweep_hits.has(victim7) and not run7.swords[1].sweep_hits.has(victim7))
+	_ok("when one sweep kills an enemy, the other sword's sweep does not reward the corpse again: one kill, three motes (kills %d, motes %d)" % [run7.kills, run7.motes.size()],
+		run7.kills == 1 and run7.motes.size() == 3)
 	# The sweep's hit set keeps nobody twice even when the same enemy is inside both sampled arcs.
 	var run5: GameRun = _lone_scenario(warden, [{"kind": "brute", "x": CENTER.x + 120.0, "y": CENTER.y, "hp": 100000.0, "speed_scale": 0.0}])
 	var brute: EnemyState = run5.enemies[0]

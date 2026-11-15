@@ -740,6 +740,53 @@ def case_maelstrom_rules():
     return out
 
 
+def case_maelstrom_corpses():
+    """A corpse is still pulled, struck at (a no-op) and counted by a beat's cue, because the prototype's
+    whirl iterates every enemy of the update, including one killed earlier in the same update (the dead
+    leave `g.enemies` only at the end of it, after movement and crowd separation). Two Common fire Wardens
+    whirl around the same point; husks stand at 5 hp and 28 hp. The first Maelstrom's clock is set to half
+    a tick, so its burst falls on the next tick (the beat timers stay at their first 0.15 s): the burst
+    kills the 5 hp husk, the second whirl then pulls the corpse, which then goes through the enemy
+    movement and the crowd separation next to the living 1 hp husk. Skipping the corpse's pull changes
+    collisions and deaths (a bowling hit, one more kill)."""
+    out = {}
+    point = (PLAYER[0] + 250.0, PLAYER[1])
+    layout = [((point[0] + 60.0, point[1]), 5.0, "husk"), ((point[0] + 94.0, point[1]), 28.0, "husk")]
+    # A corpse inside the reach still sets off the beat's sound and 0.08 shake (`hit_any` is set by any
+    # enemy in reach, `hit_enemy` of a corpse being a no-op), and is still pulled toward the centre.
+    with NoCrit(False):
+        g = fresh()
+        husk = foe(g, (PLAYER[0] + 310.0, PLAYER[1]), hp=900.0)
+        key(g, pygame.K_q, mouse=(PLAYER[0] + 250.0, PLAYER[1]))
+        tick(g, 9)
+        g.trauma = 0.0
+        g.kill(husk, V(0, -1), False)
+        before = V(husk.pos)
+        hp_before = husk.hp
+        tick(g)
+        out["corpse_beat"] = dict(setup=dict(conditions=False, crit=False, point=[PLAYER[0] + 250.0, PLAYER[1]], ticks_before=9,
+                                             swords=swords_setup(g), enemies=[husk.setup]),
+                                  kills=g.kills, motes=len(g.motes), trauma=r(g.trauma, 4), hp_changed=husk.hp != hp_before,
+                                  moved=r((husk.pos - before).length(), 4), x=r(husk.pos.x), y=r(husk.pos.y))
+    with NoCrit(False):
+        g = fresh(conditions=True, count=2, elements=("fire", "fire"))
+        es = [foe(g, at, hp=hp, kind=kind) for at, hp, kind in layout]
+        sw = g.swords[0]
+        key(g, pygame.K_q, mouse=point)
+        key(g, pygame.K_e, mouse=point)
+        sw.ult_t = DT / 2
+        assert [r(s.tick, 4) for s in g.swords] == [0.15, 0.15] and g.swords[1].ult_t > 2.0
+        tr = Trace(sw, es, detail=True)
+        for _ in range(40):
+            tick(g)
+            tr.step(g)
+        _CONDITION_CASES.append("maelstrom_corpses")
+        out["two_whirls"] = dict(setup=dict(conditions=True, crit=False, point=list(point), first_ult_time_left=r(DT / 2, 6),
+                                            swords=swords_setup(g), enemies=[e.setup for e in es]),
+                                 trace=tr.out(), kills=g.kills, motes=len(g.motes), left=len(g.enemies))
+    return out
+
+
 def case_orb_during_maelstrom():
     """Maelstrom does not parry: an orb inside the whirl is left alone."""
     out = {}
@@ -891,7 +938,7 @@ def main():
         maelstrom_single=case_maelstrom_single(), maelstrom_pull=case_maelstrom_pull(), maelstrom_kills=case_maelstrom_kills(),
         maelstrom_clocks=case_maelstrom_clocks(), maelstrom_rules=case_maelstrom_rules(),
         orb_during_maelstrom=case_orb_during_maelstrom(), sweep_conditions=case_sweep_conditions(),
-        maelstrom_conditions=case_maelstrom_conditions(), keys=case_keys(),
+        maelstrom_conditions=case_maelstrom_conditions(), maelstrom_corpses=case_maelstrom_corpses(), keys=case_keys(),
     )
     cases["fixture_scope"] = assert_fixtures_in_scope()
     text = dumps(cases)

@@ -652,6 +652,7 @@ mutate condition-particles-lost           scripts/presentation/effects_layer.gd 
 " ""
 mutate freeze-label-lost                  scripts/presentation/effects_layer.gd "\"FROZEN\", element_color(ConditionDefs.ICE)" "\"\", element_color(ConditionDefs.ICE)"
 # --- Warden and Maelstrom (slice #13)
+mutate warden-key-renamed                           scripts/sim/sword_defs.gd "const WARDEN: StringName = &\"blade\"" "const WARDEN: StringName = &\"warden\""
 mutate warden-damage                                scripts/sim/sword_defs.gd "WARDEN_DAMAGE: float = 17.0" "WARDEN_DAMAGE: float = 18.0"
 mutate warden-range                                 scripts/sim/sword_defs.gd "WARDEN_RANGE: float = 245.0" "WARDEN_RANGE: float = 300.0"
 mutate warden-cooldown                              scripts/sim/sword_defs.gd "WARDEN_COOLDOWN: float = 0.85" "WARDEN_COOLDOWN: float = 0.5"
@@ -708,7 +709,6 @@ mutate sweep-never-alternates                       scripts/sim/sword_state.gd "
 	side = -side" "	timer = windup
 	sweep_hits.clear()
 	side = side"
-mutate sweep-hits-corpses                           scripts/sim/sword_state.gd "			if enemy.dead or sweep_hits.has(enemy):" "			if sweep_hits.has(enemy):"
 mutate sweep-no-parry                               scripts/sim/sword_state.gd "		run.parry_projectiles(guard, tip, SwordDefs.WARDEN_PARRY_PAD)
 " "		pass
 "
@@ -756,16 +756,16 @@ mutate maelstrom-spins-backwards                    scripts/sim/sword_state.gd "
 mutate maelstrom-no-pull                            scripts/sim/sword_state.gd "			enemy.position += to_centre / dist * SwordDefs.WARDEN_ULT_PULL_SPEED * enemy.knock_mult * dt" "			enemy.position += Vector2.ZERO"
 mutate maelstrom-pull-ignores-knock-factor          scripts/sim/sword_state.gd "SwordDefs.WARDEN_ULT_PULL_SPEED * enemy.knock_mult * dt" "SwordDefs.WARDEN_ULT_PULL_SPEED * dt"
 mutate maelstrom-pulls-from-everywhere              scripts/sim/sword_state.gd "if SwordDefs.WARDEN_ULT_PULL_MIN < dist and dist < maelstrom_pull_range():" "if SwordDefs.WARDEN_ULT_PULL_MIN < dist:"
-mutate maelstrom-pulls-corpses                      scripts/sim/sword_state.gd "	for enemy: EnemyState in run.enemies:
+mutate maelstrom-pull-skips-corpses                 scripts/sim/sword_state.gd "	for enemy: EnemyState in run.enemies:
+		var to_centre" "	for enemy: EnemyState in run.enemies:
 		if enemy.dead:
 			continue
-		var to_centre" "	for enemy: EnemyState in run.enemies:
 		var to_centre"
-mutate maelstrom-beat-strikes-corpses               scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
-			if enemy.dead:
-				continue
+mutate maelstrom-beat-skips-corpses                 scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
 			var off: Vector2 = enemy.position - centre
 			if off.length() < reach + enemy.radius:" "		for enemy: EnemyState in run.enemies:
+			if enemy.dead:
+				continue
 			var off: Vector2 = enemy.position - centre
 			if off.length() < reach + enemy.radius:"
 mutate maelstrom-beat-reach-ignores-radius          scripts/sim/sword_state.gd "			if off.length() < reach + enemy.radius:
@@ -778,11 +778,11 @@ mutate maelstrom-beat-shakes-without-a-hit          scripts/sim/sword_state.gd "
 mutate maelstrom-burst-never-comes                  scripts/sim/sword_state.gd "	if ultimate_time_left <= 0.0:
 		var caught: int = 0" "	if false:
 		var caught: int = 0"
-mutate maelstrom-burst-strikes-corpses              scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
-			if enemy.dead:
-				continue
+mutate maelstrom-burst-skips-corpses                scripts/sim/sword_state.gd "		for enemy: EnemyState in run.enemies:
 			var off: Vector2 = enemy.position - centre
 			if off.length() < burst_reach + enemy.radius:" "		for enemy: EnemyState in run.enemies:
+			if enemy.dead:
+				continue
 			var off: Vector2 = enemy.position - centre
 			if off.length() < burst_reach + enemy.radius:"
 mutate maelstrom-burst-is-normal-hit                scripts/sim/sword_state.gd "off, SwordDefs.WARDEN_ULT_BURST_KNOCK, self, true, SwordDefs.WARDEN_ULT_BURST_STACKS)" "off, SwordDefs.WARDEN_ULT_BURST_KNOCK, self, false, SwordDefs.WARDEN_ULT_BURST_STACKS)"
