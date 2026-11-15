@@ -333,7 +333,7 @@ func _show_encounter(run: GameRun) -> void:
 		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dash through it or let a striking Fang sweep it away.   %s" % [
 			left[EnemyDefs.SPITTER], left[EnemyDefs.HUSK], run.cue_count(SimCue.Kind.PROJECTILE_FIRED), run.cue_count(SimCue.Kind.PROJECTILE_PARRIED), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN:
-		_encounter_label.text = "WARDEN ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   maelstroms finished %d, hits landed %d\nWardens sweep in alternating arcs; E / R (Maelstrom) pulls the crowd to the cursor, then bursts. Q: Fang's Viper Flurry.   %s" % [
+		_encounter_label.text = "WARDEN ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   maelstroms finished %d, hits landed %d\nSweeps alternate. E / R: Maelstrom pulls foes in, then bursts. Q: Viper Flurry.   %s" % [
 			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.MAELSTROM_BURST), run.cue_count(SimCue.Kind.ENEMY_HIT), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:
 		var frozen: int = 0
