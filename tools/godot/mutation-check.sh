@@ -25,8 +25,14 @@
 #   3. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
 #      never "CHECKS PASSED") is the project run again with the probes, still fail-fast.
 #      Only a full run that prints "CHECKS PASSED" makes a mutation SURVIVED.
-# FAST=0 restores the original behaviour (one complete, non-fail-fast run per mutation) and
-# is the reference the fast verdicts are compared against.
+# FAST=0 restores the original behaviour (one complete, non-fail-fast run per mutation, probes
+# included) and is the STRICT definition of a caught mutation: the checks must reject the project
+# AND the complete run must then still end in the ordinary failure verdict. The CI full pass
+# (.github/workflows/mutation.yml) runs FAST=0 and is the authoritative verdict.
+# The one difference to know: a fast run stops at the first clean failing check, so a mutation
+# that fails a check cleanly and would only CRASH (or time out) in a LATER check is CAUGHT in
+# fast mode and INCONCLUSIVE in classic mode. Fast mode treats a clean failure reported through
+# run_checks.gd's verdict path as behavioural evidence; classic mode insists on the whole run.
 #
 # Selection (all compose; every mutation lives in the `slice #N` section it is listed under):
 #   SECTIONS=pike,warden   only those sections, plus `core` (the ungrouped mutations at the top
@@ -39,7 +45,11 @@
 #                          against the sections too; an unknown name is refused.
 #   SHARD=i SHARDS=n       every n-th mutation of the selection starting at i (0-based), so n
 #                          copies of this script can run in parallel over the same selection.
-# Each shard ends with a `RESULT shard=… ran=… caught=… survived=… inconclusive=…` line.
+# Each shard ends with a `RESULT shard=… mode=… ran=… caught=… survived=… inconclusive=…
+# not_applied=…` line. `caught` counts only mutations that were applied and cleanly rejected;
+# a mutation whose search text no longer matches is `not_applied` (reported, never caught, and it
+# fails the run); `ran` counts every mutation started, so ran = caught + survived + inconclusive
+# + not_applied unless the script died in the middle of one.
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 # shellcheck source=tools/godot/godot.lock
@@ -118,8 +128,8 @@ for name in "${MUTATION_NAMES[@]}"; do
   if ((selected++ % SHARDS == SHARD)); then PLAN[$name]=1; fi
 done
 
-survived=0; inconclusive=0; ran=0
-report_result() { echo "RESULT shard=$SHARD shards=$SHARDS ran=$ran caught=$((ran - survived - inconclusive)) survived=$survived inconclusive=$inconclusive"; }
+survived=0; inconclusive=0; ran=0; caught=0; not_applied=0
+report_result() { echo "RESULT shard=$SHARD shards=$SHARDS mode=$([[ "$FAST" == 1 ]] && echo fast || echo classic) ran=$ran caught=$caught survived=$survived inconclusive=$inconclusive not_applied=$not_applied"; }
 if ((${#PLAN[@]} == 0)); then
   echo "shard $SHARD of $SHARDS: no mutations selected ($selected selected in all)"; report_result; exit 0
 fi
@@ -198,14 +208,25 @@ mutate() { # name file old new
   ran=$((ran + 1))
   local began=$EPOCHREALTIME
   cp -a "$SCRATCH/base" "$dir"
-  python3 -I - "$dir/$file" "$old" "$new" <<'PY' || { echo "MUTATION NOT APPLIED: $name"; exit 1; }
+  # A search text that no longer matches exactly once (or a missing file) means no bug was
+  # injected: that is its own outcome, never a rejection. Nothing is run for it.
+  if ! python3 -I - "$dir/$file" "$old" "$new" <<'PY'
 import sys
 path, old, new = sys.argv[1:4]
-text = open(path).read()
+try:
+    text = open(path).read()
+except OSError:
+    raise SystemExit(1)
 if text.count(old) != 1:
     raise SystemExit(1)
 open(path, "w").write(text.replace(old, new))
 PY
+  then
+    rm -rf "$dir"
+    echo "MUTATION NOT APPLIED: $name   <-- the search text in $file no longer matches exactly once"
+    not_applied=$((not_applied + 1))
+    return 0
+  fi
   local verdict="" detail="" attempt status log focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
   for attempt in 1 2; do
     if [[ "$FAST" == 1 ]]; then
@@ -234,13 +255,12 @@ PY
   rm -rf "$dir"
   local took; took="$(awk -v a="$began" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1fs", b - a }')"
   case "$verdict" in
-    CAUGHT)       echo "caught    $name   ($detail)   [$took]" ;;
+    CAUGHT)       echo "caught    $name   ($detail)   [$took]"; caught=$((caught + 1)) ;;
     SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug   [$took]"; survived=$((survived + 1)) ;;
     INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail   [$took]"; inconclusive=$((inconclusive + 1)) ;;
   esac
 }
 
-survived=0; inconclusive=0; ran=0
 mutate speed-zero           scripts/sim/game_run.gd  "PLAYER_SPEED: float = 285.0" "PLAYER_SPEED: float = 0.0"
 mutate pause-ignored        scripts/sim/game_run.gd  "	if paused:
 		return
@@ -1001,8 +1021,9 @@ mutate maelstrom-beat-sound-always                  scripts/audio/sfx_bank.gd "	
 mutate warden-visual-needle                         scripts/presentation/placeholder_sword_visual.gd "	_warden = spec.type_id == SwordDefs.WARDEN" "	_warden = false"
 
 echo
-echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
+echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi
 if ((inconclusive)); then echo "$inconclusive mutation(s) were inconclusive (crash, timeout or script error instead of a check verdict)"; fi
-((survived + inconclusive == 0)) || exit 1
-echo "all mutations were caught as behavioural rejections by the headless checks (0 inconclusive)"
+if ((not_applied)); then echo "$not_applied mutation(s) were NOT APPLIED (stale search text: nothing was tested)"; fi
+((caught == ran && survived + inconclusive + not_applied == 0)) || exit 1
+echo "all mutations were caught as behavioural rejections by the headless checks (0 inconclusive, 0 not applied)"
