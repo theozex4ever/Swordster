@@ -8,7 +8,7 @@ name: Mutation checks
 # branch). It publishes nothing and holds no secrets.
 on:
   push:
-    branches: [main, tooling/35-fast-mutations] # TEMPORARY: branch trigger to validate before merge
+    branches: [main]
   workflow_dispatch:
 
 permissions:
