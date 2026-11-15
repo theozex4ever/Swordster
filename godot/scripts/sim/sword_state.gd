@@ -8,7 +8,7 @@ extends RefCounted
 ## Fang (a homing dash, the Viper Flurry ultimate), Warden (an alternating
 ## sweeping arc, the Maelstrom ultimate), Pike (a long piercing thrust, the Skewer
 ## ultimate) and Colossus (a crushing slam, the Cataclysm ultimate) are ported: idle/recover orbit,
-## windup, strike, recovery and the ultimates. Converge lands in a later slice.
+## windup, strike, recovery and the ultimates, and the player's Converge command (`command`).
 ##
 ## Ultimates are per-slot sword state: each sword carries its own recharge and,
 ## while it lasts, the ULTIMATE phase. `begin_ultimate`, `_update_ultimate` and
@@ -38,8 +38,11 @@ var cooldown_left: float = 0.0
 var target: EnemyState = null
 var aim: Vector2 = Vector2.ZERO
 var dir: Vector2 = Vector2.RIGHT
-## Damage multiplier of the current attack (1 for automatic attacks).
+## Damage multiplier of the current attack (1 for automatic attacks, Converge's 1.5 for a commanded one).
 var boost: float = 1.0
+## How long the current windup lasts in total: the type's windup, or Converge's shorter one. The
+## windup's progress (the telegraphs) is measured against it, never against the type's own.
+var windup_span: float = 0.0
 
 ## Warden's sweep (prototype `pivot`, `a0`, `a1`, `side`, `dur`, `hit`). `side` flips at the
 ## start of every attack, so successive sweeps swing in opposite directions. The pivot and
@@ -113,6 +116,7 @@ static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> 
 	sword.size_scale = SwordDefs.RARITY_SIZE[rarity]
 	sword.knock = SwordDefs.base_knock(type_id)
 	sword.windup = SwordDefs.base_windup(type_id)
+	sword.windup_span = sword.windup
 	sword.hit_stop = SwordDefs.base_hitstop(type_id)
 	sword.hit_shake = SwordDefs.base_shake(type_id)
 	sword.ultimate_cooldown = SwordDefs.ultimate_recharge_of(spec_value)
@@ -263,9 +267,9 @@ func cataclysm_rise_progress() -> float:
 
 ## 0..1 progress of the thrust's windup (Pike), for the presentation's telegraph; 0 outside it.
 func windup_progress() -> float:
-	if phase != Phase.WINDUP or windup <= 0.0:
+	if phase != Phase.WINDUP or windup_span <= 0.0:
 		return 0.0
-	return 1.0 - clampf(timer / windup, 0.0, 1.0)
+	return 1.0 - clampf(timer / windup_span, 0.0, 1.0)
 
 
 ## 0..1 progress of the Skewer's aim phase (1 once it has launched), for the telegraph.
@@ -313,14 +317,38 @@ func begin_ultimate(run: GameRun, point: Vector2) -> void:
 			ultimate_time_left = SwordDefs.PIKE_ULT_AIM_TIME
 
 
-func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0) -> void:
+func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0, fast: bool = false) -> void:
 	target = new_target
 	aim = new_aim
 	boost = new_boost
 	phase = Phase.WINDUP
-	timer = windup
+	timer = windup * (SwordDefs.CONVERGE_WINDUP_FACTOR if fast else 1.0)
+	windup_span = timer
 	sweep_hits.clear()
 	side = -side
+
+
+## Converge (prototype `Sword.command`): this sword strikes `point` at once with a shorter windup and
+## CONVERGE_BOOST times its damage, aimed at the enemy nearest the point if one stands within
+## CONVERGE_TARGET_RADIUS of it (it then follows that enemy through the windup), else at the point
+## itself. The sword's own type decides what the attack is (a dash, a sweep, a thrust or a slam), as
+## for an automatic attack. A sword in the middle of a strike, buried after a slam or in its
+## ultimate ignores the command; one that is idle, winding up (the windup starts again) or
+## recovering takes it, whatever its attack cooldown says. Enemies are taken in the run's order
+## and the first nearest wins, a corpse included, exactly as in the prototype. Returns whether
+## the sword took the command.
+func command(run: GameRun, point: Vector2) -> bool:
+	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+	var nearest: EnemyState = null
+	var nearest_dist: float = SwordDefs.CONVERGE_TARGET_RADIUS
+	for enemy: EnemyState in run.enemies:
+		var dist: float = (enemy.position - point).length()
+		if dist < nearest_dist:
+			nearest = enemy
+			nearest_dist = dist
+	begin(nearest, point, SwordDefs.CONVERGE_BOOST, true)
+	return true
 
 
 ## One fixed step of this sword's state machine (prototype `Sword.update`).

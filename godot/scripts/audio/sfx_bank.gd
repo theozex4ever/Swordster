@@ -96,5 +96,7 @@ func play_cue(cue: SimCue) -> void:
 				play("hit")
 		SimCue.Kind.COLOSSUS_SLAM:
 			play("hit")
+		SimCue.Kind.CONVERGE:
+			play("chime")
 		_:
 			pass

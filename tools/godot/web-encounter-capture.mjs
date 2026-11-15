@@ -13,7 +13,9 @@
 // slots east and west, and a press while recharging is refused, all as browser key and mouse events), colossus (issue #15:
 // the colossus encounter, with three Colossus swords (poison, ice, fire); the slams are watched, then Q, E and R drop a
 // Cataclysm of each element with the cursor east, west and north of the player, and a press while recharging is refused,
-// all as browser key and mouse events, so the three elemental fields can be seen), drops (issue #17: the drops
+// all as browser key and mouse events, so the three elemental fields can be seen), converge (issue #16: the NORMAL start with
+// the default loadout, Fang / Warden / Colossus; left and right mouse clicks command Converge at near and far points, Tab
+// shows the attack ranges, and Q, E and R press the slots' ultimates, all as browser key and mouse events), drops (issue #17: the drops
 // encounter; a swap key with nothing lying about is refused, then the player walks about as the armed foes die and press
 // 1, 2 and 3 as browser key events, the page paused with P for every screenshot, so the drops, the pickup card, the swaps and
 // the refusals can be seen).
@@ -86,6 +88,12 @@ const key = async (code, k, vk) => {
   await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
 };
 const move = (x, y) => send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+const clickWith = async (x, y, button) => {
+  const buttons = button === "right" ? 2 : 1;
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, buttons, clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, buttons: 0, clickCount: 1 });
+};
 const click = async (x, y) => {
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1 });
@@ -95,8 +103,8 @@ const click = async (x, y) => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus | drops
-const query = scenario === "normal" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
+const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus | converge | drops
+const query = scenario === "normal" || scenario === "converge" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
   // The pinned crowd starts fighting the moment the engine runs, so react to the
@@ -262,6 +270,42 @@ if (scenario === "crowd") {
   await watch("06-q-refused", 100);
   await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the normal run
   await sleep(1200); await shot("colossus-07-next-dev-encounter-normal");
+} else if (scenario === "converge") {
+  // The normal start (no encounter): the default loadout, Fang (poison), Warden (ice), Colossus (fire). The page is software
+  // rendered, so the game is PAUSED with P (a key the game itself handles) to take each screenshot. The view is 1280x720 and
+  // centred on the player, so the cursor at (640 + dx, 360 + dy) aims dx, dy pixels from him.
+  const pause = async () => { await key("KeyP", "p", 80); await sleep(300); };
+  let shotIndex = 0;
+  const watch = async (label, ms) => { await sleep(ms); await pause(); await shot(`converge-${label}-${shotIndex++}`); await pause(); };
+  await sleep(1500); await watch("01-start", 0);
+  await key("Tab", "Tab", 9);
+  await watch("02-ranges", 400);
+  await key("Tab", "Tab", 9);
+  // The wave arrives about 1.6 s in; give it time, then command Converge at a NEAR point east of the player with the left button.
+  await sleep(1500);
+  await move(640 + 140, 360 - 10);
+  await clickWith(640 + 140, 360 - 10, "left");
+  console.log("left click, near point 140 px east, at " + stamp() + "s");
+  await watch("03-left-click-near", 120);
+  await watch("04-after-left-click", 500);
+  // The shared cooldown: a second click right away is refused (the HUD shows converge counting down).
+  await clickWith(640 - 150, 360 + 30, "right");
+  console.log("right click during the cooldown (refused), at " + stamp() + "s");
+  await watch("05-right-click-refused", 150);
+  await sleep(2300);
+  // A FAR point (about 640 px away, 460 px is the range): the right button, pulled back onto the range.
+  await move(640 + 600, 360 - 300);
+  await clickWith(640 + 600, 360 - 300, "right");
+  console.log("right click, far point 670 px north-east, at " + stamp() + "s");
+  await watch("06-right-click-far", 120);
+  await watch("07-after-right-click-far", 500);
+  await move(640 - 200, 360 + 60); await key("KeyQ", "q", 81);
+  await move(640 + 200, 360 - 60); await key("KeyE", "e", 69);
+  await move(640, 360 - 200); await key("KeyR", "r", 82);
+  console.log("Q, E, R at " + stamp() + "s");
+  await watch("08-ultimates-starting", 250);
+  await watch("09-ultimates-running", 600);
+  await watch("10-ultimates-landing", 900);
 } else if (scenario === "drops") {
   // The drops encounter, driven only by browser key events. The software-rendered page takes seconds per screenshot while the
   // game runs on, so the game is PAUSED with P (a key the game itself handles) for every screenshot: paused, a drop's card,

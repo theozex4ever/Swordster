@@ -63,6 +63,9 @@ enum Kind {
 	## A field dosed the enemies standing in it (`position` = its centre, `radius` = its radius, `amount` = how
 	## many living enemies it dosed, `element` = its element).
 	FIELD_PULSED,
+	## A Converge went out (`position` = the point it was aimed at, after the range clamp, `amount` = how
+	## many swords took the command; a sword that was striking, buried or in its ultimate did not).
+	CONVERGE,
 	## An armed enemy died and its sword now lies where it fell (`position` = where, `spec` = the sword).
 	SWORD_DROPPED,
 	## A pickup was swapped into a sword slot (`position` = where the pickup lay, `amount` = the slot index, `spec` =

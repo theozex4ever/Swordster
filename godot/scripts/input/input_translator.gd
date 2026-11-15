@@ -9,7 +9,9 @@ extends RefCounted
 ## coordinates. Keys 1, 2 and 3 ask to swap the nearest dropped sword into sword slot one, two and
 ## three (`GameCommand.swap`); the run refuses when none is within reach. R is also the restart key once the death screen is up: it sends
 ## the ultimate first and the restart after it, and the run refuses whichever does
-## not apply (an ultimate once dead, a restart while alive or before the delay).
+## not apply (an ultimate once dead, a restart while alive or before the delay). A left or right
+## mouse click commands Converge at the cursor's world point, and Tab or G shows or hides the
+## attack ranges. A mouse click the engine made up from a touch (the touch UI's, issue #20) is not a Converge.
 
 const MOVE_LEFT: Array[Key] = [KEY_A, KEY_LEFT]
 const MOVE_RIGHT: Array[Key] = [KEY_D, KEY_RIGHT]
@@ -19,6 +21,9 @@ const PAUSE_KEYS: Array[Key] = [KEY_P, KEY_ESCAPE]
 ## Godot reports left and right Shift as the same key.
 const DASH_KEYS: Array[Key] = [KEY_SPACE, KEY_SHIFT]
 const RESTART_KEYS: Array[Key] = [KEY_R]
+## Mouse buttons that command Converge (the prototype's buttons 1 and 3).
+const CONVERGE_BUTTONS: Array[MouseButton] = [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]
+const RANGE_KEYS: Array[Key] = [KEY_TAB, KEY_G]
 ## Ultimate keys by sword slot: Q = slot one, E = slot two, R = slot three.
 const ULTIMATE_KEYS: Array[Key] = [KEY_Q, KEY_E, KEY_R]
 ## Keys 1, 2 and 3 swap the nearest dropped sword into sword slot one, two or three.
@@ -43,6 +48,10 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
 	if event is InputEventMouse:
 		pointer = (event as InputEventMouse).position
+	if event is InputEventMouseButton:
+		var click: InputEventMouseButton = event
+		if click.pressed and click.button_index in CONVERGE_BUTTONS and click.device != InputEvent.DEVICE_ID_EMULATION:
+			commands.append(GameCommand.converge(aim_world()))
 	if event is InputEventKey:
 		var key_event: InputEventKey = event
 		var code: Key = key_event.physical_keycode
@@ -61,6 +70,8 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 					commands.append(GameCommand.restart_from_key())
 			elif code in SWAP_KEYS:
 				commands.append(GameCommand.swap(SWAP_KEYS.find(code)))
+			elif code in RANGE_KEYS:
+				commands.append(GameCommand.toggle_ranges())
 			elif code in SHOVE_KEYS:
 				commands.append(GameCommand.dev_shove())
 			elif code in ENCOUNTER_KEYS:

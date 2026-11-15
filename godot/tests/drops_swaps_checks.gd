@@ -52,6 +52,7 @@ func run_all() -> void:
 	_check_swaps()
 	_check_returned_drops()
 	_check_repeated()
+	_check_swap_and_converge()
 	_check_trace()
 	_check_rules()
 	_check_cues()
@@ -395,7 +396,7 @@ func _check_arming() -> void:
 func _check_armed_waves() -> void:
 	print("drops and swaps: armed waves in a run")
 	# A run that does not arm its waves plays exactly as before: the wave start draws nothing from the gameplay stream.
-	var plain_scenario: RunScenario = RunScenario.new()
+	var plain_scenario: RunScenario = RunScenario.fang_fixture()
 	plain_scenario.seed = 31
 	var plain: GameRun = GameRun.new(plain_scenario)
 	var state_before: int = plain.rng.state
@@ -406,7 +407,7 @@ func _check_armed_waves() -> void:
 	var guaranteed: bool = true
 	var detail: String = ""
 	for seed_value: int in 12:
-		var scenario: RunScenario = RunScenario.new()
+		var scenario: RunScenario = RunScenario.fang_fixture()
 		scenario.seed = 200 + seed_value
 		scenario.arm_waves = true
 		var run: GameRun = GameRun.new(scenario)
@@ -418,7 +419,7 @@ func _check_armed_waves() -> void:
 		detail += "%s " % [ok]
 	_ok("with arming on, the first wave's first enemy carries a Pike and its second a sword, in each of 12 seeds (%s)" % detail, guaranteed)
 	# the sword travels from the queue through the telegraph to the enemy, which has the extra health
-	var travel_scenario: RunScenario = RunScenario.new()
+	var travel_scenario: RunScenario = RunScenario.fang_fixture()
 	travel_scenario.seed = 8
 	travel_scenario.arm_waves = true
 	travel_scenario.crit_chance = 0.0
@@ -442,7 +443,7 @@ func _check_armed_waves() -> void:
 	# arming follows the enemy's own kind: a wave of brutes arms about three in four, a wave of husks about one in five
 	var armed_by_kind: Dictionary = {}
 	for kind: StringName in [EnemyDefs.BRUTE, EnemyDefs.HUSK]:
-		var kind_scenario: RunScenario = RunScenario.new()
+		var kind_scenario: RunScenario = RunScenario.fang_fixture()
 		kind_scenario.seed = 44
 		kind_scenario.arm_waves = true
 		var many: Array[StringName] = []
@@ -526,7 +527,7 @@ func _check_death_drops() -> void:
 		causes[cause] = run.pickups.size() == 1 and run.pickups[0].spec == spec and run.cue_count(SimCue.Kind.SWORD_DROPPED) == 1 and run.kills >= 1
 	_ok("a kill, a damage-over-time death, a wall slam and a bowling hit each leave exactly one drop (%s)" % [causes], causes.values().all(func(ok: bool) -> bool: return ok))
 	# a real fight: a Fang kills an armed husk standing in reach, and the drop appears at its feet
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 61
 	scenario.waves_enabled = false
 	scenario.crit_chance = 0.0
@@ -772,6 +773,120 @@ func _check_repeated() -> void:
 	_ok("swapping a sword mid-ultimate hands its recharge fraction on (%.3f) and ends that ultimate (the new sword is idle)" % fraction_left, _near(running.swords[0].ultimate_cooldown_left / running.swords[0].ultimate_cooldown, fraction_left, 1e-6) and running.swords[0].phase == SwordState.Phase.IDLE and running.swords[0].spec.type_id == SwordDefs.PIKE)
 	var refused: GameRun.UltimateResult = running.try_ultimate(0, running.position + Vector2(200.0, 0.0))
 	_ok("and its recharge still refuses the next ultimate", refused == GameRun.UltimateResult.RECHARGING)
+
+
+## A run with the default loadout (Fang, Warden, Colossus; all attacks parked), no waves, and one husk of 5000 health that
+## stands still `dx` px east of the player (so nothing it does and nothing it takes ends the run).
+func _converge_run(dx: float = 200.0) -> GameRun:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 17
+	scenario.waves_enabled = false
+	scenario.crit_chance = 0.0
+	scenario.sword_start_cooldowns = [PARKED, PARKED, PARKED]
+	var husk: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, CENTER + Vector2(dx, 0.0))
+	husk.speed_scale = 0.0
+	husk.hp = 5000.0
+	scenario.initial_enemies = [husk]
+	return GameRun.new(scenario)
+
+
+## Stands every sword but one down again after a Converge took them all (idle, no target, no boost), so that what the one
+## sword does to the husk is the whole story.
+func _stand_down_but(run: GameRun, slot: int) -> void:
+	for other: int in run.swords.size():
+		if other != slot:
+			run.swords[other].phase = SwordState.Phase.IDLE
+			run.swords[other].target = null
+			run.swords[other].boost = 1.0
+
+
+## The health the husk loses to the first blow of the one commanded sword in `slot` of `run`.
+func _commanded_damage(run: GameRun, slot: int, point: Vector2) -> float:
+	var enemy: EnemyState = run.enemies[0]
+	run.apply(GameCommand.converge(point))
+	_stand_down_but(run, slot)
+	var hp_before: float = enemy.hp
+	for i: int in 240:
+		run.step()
+		if enemy.hp < hp_before:
+			break
+	return hp_before - enemy.hp
+
+
+## Swapping and Converge together (issues #16 and #17): the cooldown is the run's and a swap neither resets nor skips it, Converge
+## commands the swapped-in sword by its own type, and a swap in the middle of a commanded strike drops that strike
+## (the prototype's `Game.swap` makes a brand-new idle `Sword`; `Game.converge` is untouched).
+func _check_swap_and_converge() -> void:
+	print("drops and swaps: swaps and Converge")
+	var run: GameRun = _converge_run()
+	var point: Vector2 = CENTER + Vector2(200.0, 0.0)
+	run.apply(GameCommand.converge(point))
+	_steps(run, 30)
+	var cooling: float = run.converge_cooldown_left
+	_ok("a Converge starts the shared cooldown (%.3f s of %.1f left half a second later)" % [cooling, SwordDefs.CONVERGE_COOLDOWN], cooling > 1.5 and cooling < SwordDefs.CONVERGE_COOLDOWN)
+	_ok("a swap with nothing in reach is refused and leaves the Converge cooldown alone", run.try_swap(1) == GameRun.SwapResult.NO_PICKUP and run.converge_cooldown_left == cooling)
+	_put(run, ["lance", 1, "fire"], 30.0, 0.0)
+	var result: GameRun.SwapResult = run.try_swap(0)
+	_ok("a swap during the Converge cooldown goes through and leaves the cooldown exactly where it was", result == GameRun.SwapResult.SWAPPED and run.converge_cooldown_left == cooling and run.swords[0].spec.type_id == SwordDefs.PIKE)
+	_ok("and a Converge pressed now is still refused, the swapped-in Pike untouched (idle, %.2f s of its start cooldown)" % run.swords[0].cooldown_left, run.try_converge(point) == GameRun.ConvergeResult.COOLING_DOWN and run.swords[0].phase == SwordState.Phase.IDLE)
+	var refused_while_cooling: bool = true
+	var ticks_cooling: int = 0
+	var time_at_swap: float = run.gameplay_time
+	while run.converge_cooldown_left > 0.0 and ticks_cooling < 600:
+		refused_while_cooling = refused_while_cooling and run.try_converge(point) == GameRun.ConvergeResult.COOLING_DOWN
+		run.step()
+		ticks_cooling += 1
+	var elapsed: float = run.gameplay_time - time_at_swap
+	_ok("every press is refused until the cooldown has run out (%.3f s of play for the %.3f s left at the swap: the swap neither reset nor skipped it)" % [elapsed, cooling], refused_while_cooling and absf(elapsed - cooling) <= 1.5 / 60.0)
+	_ok("and then a Converge works, the swapped-in Pike taking it", run.try_converge(point) == GameRun.ConvergeResult.COMMANDED and run.swords[0].phase == SwordState.Phase.WINDUP)
+	# the swapped-in sword obeys Converge by its own semantics: an attack cooldown does not matter, the command's boost and shortened windup apply
+	for entry: Array in [[0, ["lance", 1, "fire"]], [0, ["colossus", 2, "ice"]], [1, ["blade", 0, "poison"]], [2, ["fang", 2, "fire"]]]:
+		var swapped: GameRun = _converge_run()
+		var slot: int = int(entry[0])
+		var values: Array = entry[1]
+		_put(swapped, values, 25.0, 0.0)
+		var enemy: EnemyState = swapped.enemies[0]
+		_ok("%s swapped into slot %d starts waiting out its %.1f s start cooldown, idle" % [values[0], slot + 1, LootDefs.SWAP_START_COOLDOWN], swapped.try_swap(slot) == GameRun.SwapResult.SWAPPED and swapped.swords[slot].phase == SwordState.Phase.IDLE and _near(swapped.swords[slot].cooldown_left, LootDefs.SWAP_START_COOLDOWN, 1e-9))
+		swapped.apply(GameCommand.converge(point))
+		var sword: SwordState = swapped.swords[slot]
+		_ok("a Converge at once commands the swapped-in %s, though its start cooldown still runs: windup, boost %.1f, shortened windup (%.3f s), aimed at the husk it stands on" % [values[0], SwordDefs.CONVERGE_BOOST, sword.timer],
+			sword.phase == SwordState.Phase.WINDUP and sword.boost == SwordDefs.CONVERGE_BOOST and _near(sword.timer, sword.windup * SwordDefs.CONVERGE_WINDUP_FACTOR, 1e-9) and sword.target == enemy and swapped.cue_count(SimCue.Kind.CONVERGE) == 1)
+		_stand_down_but(swapped, slot)
+		var hp_before: float = enemy.hp
+		for i: int in 240:
+			swapped.step()
+			if enemy.hp < hp_before:
+				break
+		var dealt: float = hp_before - enemy.hp
+		var native_specs: Array = [["fang", 0, "poison"], ["fang", 0, "poison"], ["fang", 0, "poison"]]
+		native_specs[slot] = values
+		var native: GameRun = _converge_run()
+		native.swords.clear()
+		for native_values: Array in native_specs:
+			native.swords.append(SwordState.equip(_spec(native_values), native.position, PARKED))
+		var native_dealt: float = _commanded_damage(native, slot, point)
+		_ok("the commanded %s then strikes the husk for %.1f, exactly what the same sword does from its own slot at the start (%.1f)" % [values[0], dealt, native_dealt], dealt > 0.0 and _near(dealt, native_dealt, 1e-6))
+	# swapping while the sword is mid-strike: the strike is gone with the old sword
+	var strike_run: GameRun = _converge_run(100.0)
+	strike_run.apply(GameCommand.converge(CENTER + Vector2(100.0, 0.0)))
+	_stand_down_but(strike_run, 0)  # only the Fang's strike is the subject
+	var guard: int = 0
+	while strike_run.swords[0].phase != SwordState.Phase.STRIKE and guard < 240:
+		strike_run.step()
+		guard += 1
+	var striking: SwordState = strike_run.swords[0]
+	var husk_hp: float = strike_run.enemies[0].hp
+	var cooldown_then: float = strike_run.converge_cooldown_left
+	_ok("the commanded Fang is mid-strike (phase %d after %d ticks) when the swap comes" % [striking.phase, guard], striking.phase == SwordState.Phase.STRIKE)
+	_put(strike_run, ["lance", 0, "ice"], 20.0, 0.0)
+	var struck_spec: SwordSpec = striking.spec
+	_ok("the swap goes through mid-strike", strike_run.try_swap(0) == GameRun.SwapResult.SWAPPED)
+	var fresh: SwordState = strike_run.swords[0]
+	_ok("the new sword is a fresh idle one, no target, no boost, no strike, waiting out its start cooldown", fresh != striking and fresh.phase == SwordState.Phase.IDLE and fresh.target == null and fresh.boost == 1.0 and _near(fresh.cooldown_left, LootDefs.SWAP_START_COOLDOWN, 1e-9))
+	_ok("the Converge cooldown is not touched and the struck Fang lies down as a drop", strike_run.converge_cooldown_left == cooldown_then and strike_run.pickups.any(func(pickup: PickupState) -> bool: return pickup.spec == struck_spec))
+	_steps(strike_run, 20)
+	_ok("the cancelled strike never lands (husk health %.1f -> %.1f) while the new Pike waits out its cooldown" % [husk_hp, strike_run.enemies[0].hp], strike_run.enemies[0].hp == husk_hp and strike_run.swords[0] == fresh)
+
 
 
 func _check_trace() -> void:

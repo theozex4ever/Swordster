@@ -9,7 +9,7 @@ extends SceneTree
 ## the fight of burning, poisoned and freezing packs, `--probe=rate-warden` the fight of sweeping
 ## Wardens and Maelstroms, `--probe=rate-pike` the fight of thrusting Pikes and Skewers slamming
 ## columns into walls, `--probe=rate-colossus` the fight of crushing Colossi and Cataclysms leaving elemental fields,
-## `--probe=rate-drops` the fight of armed foes dying, dropping swords and the swaps that put them into the slots. With `--probe=launch` it instead reports which
+## `--probe=rate-converge` the default loadout commanded by Converge and its ultimates, `--probe=rate-drops` the fight of armed foes dying, dropping swords and the swaps that put them into the slots. With `--probe=launch` it instead reports which
 ## scenario a Main scene picks when it is given none (the launch-option path).
 ##
 ##   godot --headless --path godot --fixed-fps 20 --script res://tests/frame_rate_probe.gd -- --probe=rate
@@ -40,9 +40,11 @@ func _initialize() -> void:
 		_script_name = RenderRateScenario.PIKE
 	if mode == "rate-colossus":
 		_script_name = RenderRateScenario.COLOSSUS
+	if mode == "rate-converge":
+		_script_name = RenderRateScenario.CONVERGE
 	if mode == "rate-drops":
 		_script_name = RenderRateScenario.DROPS
-	if mode == "rate" or mode == "rate-drops" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden" or mode == "rate-pike" or mode == "rate-colossus":
+	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden" or mode == "rate-pike" or mode == "rate-colossus" or mode == "rate-converge" or mode == "rate-drops":
 		_main.scenario = RenderRateScenario.scenario(_script_name)
 	root.add_child(_main)
 	if mode == "launch":

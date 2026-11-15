@@ -1,7 +1,7 @@
 class_name Hud
 extends CanvasLayer
-## Overlay UI: build label, controls hint, health bar, wave/kill counters, dash
-## cooldown, one card per sword slot showing its ultimate key, name, availability and
+## Overlay UI: build label, controls hint, health bar, wave/kill counters, dash and
+## Converge cooldowns, one card per sword slot showing its ultimate key, name, availability and
 ## recharge, wave banner, run outcome screens, pause/restart/dash buttons, the
 ## dev-encounter button, the crowd fixture's Shove button and the encounter
 ## legend, audio-unlock prompt, pause overlay and the touch joystick indicator. It
@@ -38,6 +38,9 @@ var _hp_fill: ColorRect
 var _hp_label: Label
 var _wave_label: Label
 var _dash_label: Label
+var _converge_label: Label
+var _converge_track: ColorRect
+var _converge_bar: ColorRect
 var _banner_label: Label
 var _outcome_shade: ColorRect
 var _outcome_title: Label
@@ -65,6 +68,9 @@ var _pickup_lines: Array[Label] = []
 var _pickup_compare: Array[Label] = []
 var _pickup_style: StyleBoxFlat
 
+## Where the Converge cooldown sits (right of the dash one) and how wide its bar is.
+const CONVERGE_LABEL_X: float = 150.0
+const CONVERGE_BAR_WIDTH: float = 150.0
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 98.0)
 const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)
 const PICKUP_CARD_MARGIN: float = 10.0
@@ -80,7 +86,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Q / E / R: sword ultimates at the cursor   1 / 2 / 3: swap a drop   P / Esc: pause\nR after death: restart   C: next dev encounter   Touch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: sword ultimates at the cursor   1 / 2 / 3: swap a drop   Tab / G: ranges\nP / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag on the left half to move, Dash button to evade")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -94,6 +100,14 @@ func _ready() -> void:
 	_hp_label.position = Vector2(HP_BAR_SIZE.x + 30.0, 88.0)
 	_dash_label = _make_label(root, "dash ready")
 	_dash_label.position = Vector2(16.0, 118.0)
+	_converge_label = _make_label(root, "converge ready")
+	_converge_label.position = Vector2(CONVERGE_LABEL_X, 118.0)
+	_converge_track = _make_rect(root, Color(0.16, 0.2, 0.28))
+	_converge_track.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_track.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
+	_converge_bar = _make_rect(root, Color(0.78, 0.9, 1.0))
+	_converge_bar.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_bar.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
 	_wave_label = _make_label(root, "")
 	_wave_label.add_theme_font_size_override("font_size", 26)
 	_wave_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -332,6 +346,23 @@ func _show_pickup(run: GameRun) -> void:
 			_pickup_compare[slot].modulate = SwordDefs.RARITY_COLORS[equipped.rarity].lerp(Color.WHITE, 0.35)
 
 
+## Converge's shared cooldown (prototype `draw_hud`): the label dims and counts the seconds down, and the
+## bar under it fills as the cooldown runs out. Checks read `converge_status` and `converge_bar_fraction`.
+func _show_converge(run: GameRun) -> void:
+	var ready: bool = run.converge_cooldown_left <= 0.0
+	_converge_label.text = "converge ready" if ready else "converge %.1fs" % run.converge_cooldown_left
+	_converge_label.modulate = Color.WHITE if ready else Color(0.6, 0.65, 0.78)
+	_converge_bar.size.x = CONVERGE_BAR_WIDTH * (1.0 - clampf(run.converge_cooldown_left / SwordDefs.CONVERGE_COOLDOWN, 0.0, 1.0))
+
+
+func converge_status() -> String:
+	return _converge_label.text
+
+
+func converge_bar_fraction() -> float:
+	return _converge_bar.size.x / CONVERGE_BAR_WIDTH
+
+
 ## What the slot's card says: READY, ACTIVE while the ultimate runs, or the whole
 ## seconds left to recharge. Checks read it.
 func ultimate_status(slot: int) -> String:
@@ -413,6 +444,7 @@ func show_run(run: GameRun) -> void:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
 	else:
 		_dash_label.text = "dash ready"
+	_show_converge(run)
 	_show_ultimates(run)
 	_show_pickup(run)
 	_show_encounter(run)

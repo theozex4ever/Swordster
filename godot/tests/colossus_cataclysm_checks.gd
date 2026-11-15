@@ -99,7 +99,7 @@ func _steps(run: GameRun, count: int) -> void:
 ## A scenario from a case's `setup`: its swords (type, rarity, element, starting cooldown), enemies, player
 ## position, and whether elemental conditions are on, with no waves.
 func _scenario(setup: Dictionary) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	if not bool(setup["conditions"]):
 		scenario = scenario.without_conditions()
 	scenario.seed = 41
@@ -1229,8 +1229,8 @@ func _check_fixture_and_launch() -> void:
 	_ok("the encounter command goes from the pike encounter to the colossus one (three Colossi, restarts %d), and from it to the drops encounter" % from_pike.restarts, from_pike.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and from_pike.swords.all(func(sword: SwordState) -> bool: return sword.spec.type_id == SwordDefs.COLOSSUS) and from_pike.restarts == 1)
 	from_pike.apply(GameCommand.toggle_encounter())
 	_ok("and one more press goes to the drops encounter (issue #17)", from_pike.scenario.encounter == RunScenario.ENCOUNTER_DROPS and from_pike.restarts == 2)
-	_ok("--encounter=colossus and ?encounter=colossus ask for it, and the normal run is still three Fang swords (the final default loadout is issue #16)",
-		LaunchOptions.scenario_for("colossus") != null and LaunchOptions.scenario_for("colossus").encounter == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.new().loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.FANG))
+	_ok("--encounter=colossus and ?encounter=colossus ask for it, and asking for nothing starts the normal run with the default loadout (Fang, Warden, Colossus; issue #16)",
+		LaunchOptions.scenario_for("colossus") != null and LaunchOptions.scenario_for("colossus").encounter == RunScenario.ENCOUNTER_COLOSSUS and LaunchOptions.scenario_for("") == null and GameRun.new(LaunchOptions.scenario_for("")).swords.map(func(sword: SwordState) -> StringName: return sword.spec.type_id) == [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS])
 	var cluster_ok: bool = true
 	for point: Vector2 in scenario.initial_enemies.map(func(placement: EnemyPlacement) -> Vector2: return placement.position):
 		cluster_ok = cluster_ok and point.distance_to(scenario.start_position) > 280.0 and point.distance_to(scenario.start_position) < 440.0
@@ -1307,7 +1307,7 @@ func _check_progress_and_fields() -> void:
 func _check_field_particles() -> void:
 	print("colossus: a field sheds its element's particles")
 	for element: StringName in [&"fire", &"ice", &"poison"]:
-		var run: GameRun = GameRun.new(RunScenario.new().without_conditions())
+		var run: GameRun = GameRun.new(RunScenario.fang_fixture().without_conditions())
 		run.fields.append(FieldState.make(CENTER + Vector2(200.0, 0.0), 233.0, element, 50.0, 5.0))
 		var effects: EffectsLayer = EffectsLayer.new()
 		_tree.root.add_child(effects)

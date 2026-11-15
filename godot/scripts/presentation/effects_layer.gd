@@ -18,7 +18,8 @@ extends Node2D
 ## the enemies it carries and ends in a burst where it lets go. A Colossus telegraphs the ring its slam will
 ## crush while it winds up and falls, a slam and a Cataclysm end in rings, sparks and smoke, and the
 ## elemental ground Cataclysm leaves is drawn as a pulsing ellipse of its element until it fades, shedding
-## the element's particles. A sword lying in the arena stands in a ring of its rarity's colour, glows in the rarity's and the
+## the element's particles. Tab or G rings the player with each sword's attack range (`range_ring`), and a Converge
+## shows a ring closing on the point it was aimed at. A sword lying in the arena stands in a ring of its rarity's colour, glows in the rarity's and the
 ## element's, and a Rare or Mythic one throws a pillar of light (taller for a Mythic); an armed enemy's death rings and names
 ## the drop in its rarity's colour, a swap rings, sparks and names the sword now equipped, and a swap with nothing in reach
 ## says so. Purely visual: it reads the
@@ -262,6 +263,8 @@ func apply_cue(cue: SimCue) -> void:
 		SimCue.Kind.FIELD_PULSED:
 			if cue.amount > 0:
 				_add_ring(cue.position, cue.radius * 0.9, cue.radius, 0.25, Color(element_color(cue.element), 0.45), 2.0)
+		SimCue.Kind.CONVERGE:
+			_add_ring(cue.position, 60.0, 8.0, 0.35, Color(0.71, 0.86, 1.0, 0.9), 2.0)
 		SimCue.Kind.SWORD_DROPPED:
 			if cue.spec != null:
 				var drop_tint: Color = SwordDefs.RARITY_COLORS[cue.spec.rarity]
@@ -334,6 +337,9 @@ func _draw() -> void:
 		draw_arc(Vector2(wedge["pivot"]), mid, float(wedge["from"]), float(wedge["to"]), 6, Color(Color(wedge["color"]).lerp(Color.WHITE, 0.55), 0.55 * wedge_fade), span)
 	for field: FieldState in _run.fields:
 		_draw_field(field)
+	if _run.show_ranges and not _run.dead:
+		for sword: SwordState in _run.swords:
+			_rim(&"range_ring", _run.position, sword.attack_range, Color(_sword_color(sword.spec), 0.6), 1.0, 96)
 	for pickup: PickupState in _run.pickups:
 		_draw_pickup_ground(pickup)
 	for sword: SwordState in _run.swords:
@@ -386,7 +392,7 @@ func _draw() -> void:
 ## windup runs out, so a strike can be read before it lands. Follows the target like the sweep.
 func _draw_sweep_telegraph(sword: SwordState) -> void:
 	draw_counts[&"telegraph"] = draw_counts.get(&"telegraph", 0) + 1
-	var u: float = 1.0 - clampf(sword.timer / sword.windup, 0.0, 1.0)
+	var u: float = sword.windup_progress()
 	var span: float = sword.length * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
 	var mid: float = sword.length * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
 	var tint: Color = _sword_color(sword.spec)

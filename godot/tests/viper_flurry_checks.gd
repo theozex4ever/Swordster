@@ -85,7 +85,7 @@ func _steps(run: GameRun, count: int) -> void:
 ## Three Fang swords (Q, E, R) with no automatic attacks, enemies standing as the
 ## reference's `setup` says: no waves, no spawns, only what the case puts in the arena.
 func _arena(setups: Array, rarities: Array[int] = [0, 0, 0], crit_chance: float = 0.0) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 41
 	scenario.waves_enabled = false
 	scenario.crit_chance = crit_chance
@@ -709,7 +709,8 @@ func _check_keys_and_r() -> void:
 	click.position = Vector2(10.0, 20.0)
 	click.pressed = true
 	click.button_index = MOUSE_BUTTON_LEFT
-	_ok("a mouse click only updates the aim (Converge is a later slice)", aiming.handle_event(click).is_empty() and aiming.pointer == Vector2(10.0, 20.0))
+	var clicked: Array[GameCommand] = aiming.handle_event(click)
+	_ok("a mouse click updates the aim and commands Converge there (issue #16), not an ultimate", clicked.size() == 1 and clicked[0].kind == GameCommand.Kind.CONVERGE and clicked[0].point == Vector2(1010.0, 520.0) and aiming.pointer == Vector2(10.0, 20.0))
 	# R: slot three while alive, never a restart.
 	var run_alive: GameRun = _run_of([])
 	run_alive.kills = 7
@@ -982,7 +983,7 @@ func _check_main_scene() -> void:
 	main.queue_free()
 	await _tree.process_frame
 	# R as restart in the real scene: refused early, accepted after the delay, and never as an ultimate then.
-	var doom: RunScenario = RunScenario.new().without_conditions()
+	var doom: RunScenario = RunScenario.fang_fixture().without_conditions()
 	doom.seed = 6
 	doom.waves_enabled = false
 	doom.start_health = 10.0

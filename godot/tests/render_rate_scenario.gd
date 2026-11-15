@@ -12,7 +12,9 @@ extends RefCounted
 ## Pikes thrusting through standing columns and Skewers carrying them into the walls, the range limit
 ## and a corner, with refused presses and an orb parried) and "colossus" (issue #15: three Colossi crushing
 ## standing packs, four Cataclysms (two on one spot) leaving poison, ice and fire fields over them, orbs cleared
-## by slams, refused presses) and "drops" (issue #17: eight armed foes standing a few steps from the player die and
+## by slams, refused presses) and "converge" (issue #16: the default loadout, Fang / Warden / Colossus, commanded
+## by Converge at near, far and empty points and by their ultimates, with refusals by the cooldown and by busy swords).
+## and "drops" (issue #17: eight armed foes standing a few steps from the player die and
 ## drop their swords, which Cataclysm and Viper Flurry recharges and a run of swaps put into all three slots, with
 ## refused swaps before anything lies and a drop left lying). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
@@ -30,6 +32,7 @@ const CONDITIONS: String = "conditions"
 const WARDEN: String = "warden"
 const PIKE: String = "pike"
 const COLOSSUS: String = "colossus"
+const CONVERGE: String = "converge"
 const DROPS: String = "drops"
 const TOTAL_TICKS: int = 900
 ## Set in the environment by run_checks.gd's --fail-fast once a check has failed.
@@ -137,6 +140,22 @@ const COLOSSUS_COMMANDS: Array[Vector3] = [
 	Vector3(800.0, 0.0, 0.0),
 ]
 const COLOSSUS_AIMS: Array[Vector2] = [Vector2(260.0, 10.0), Vector2(-255.0, 60.0), Vector2(20.0, -285.0)]
+## The converge script: the player stands still with the prototype's default loadout (Fang poison, Warden ice, Colossus
+## fire) against standing packs: two to the east and west a Converge can catch, a pack north beyond the 460 px clamp, tough
+## posts that outlast everything and one brute. Commands: (tick, what, aim offset from the player), `what` 0 = Converge, 1 / 2 / 3 =
+## the ultimate of slot one / two / three. Converges at ticks the cooldown (or a sword) still holds are refused or only partly
+## taken, ultimates interrupt commanded windups, and one Converge aims 900 px away to be pulled back onto the range.
+const CONVERGE_EAST: Array[Vector2] = [Vector2(250.0, -10.0), Vector2(290.0, 30.0), Vector2(230.0, 50.0), Vector2(275.0, -55.0), Vector2(310.0, -20.0)]
+const CONVERGE_WEST: Array[Vector2] = [Vector2(-240.0, 60.0), Vector2(-280.0, 20.0), Vector2(-225.0, 100.0), Vector2(-265.0, 75.0)]
+const CONVERGE_NORTH: Array[Vector2] = [Vector2(20.0, -440.0), Vector2(-30.0, -470.0), Vector2(55.0, -455.0)]
+const CONVERGE_FRAGILE_HP: float = 90.0
+const CONVERGE_STURDY_HP: float = 900.0
+const CONVERGE_COMMANDS: Array[Vector4] = [
+	Vector4(30.0, 0.0, 262.0, 5.0), Vector4(60.0, 0.0, -250.0, 60.0), Vector4(100.0, 1.0, 270.0, 0.0), Vector4(170.0, 2.0, -255.0, 50.0),
+	Vector4(200.0, 0.0, -255.0, 50.0), Vector4(330.0, 3.0, 20.0, -445.0), Vector4(335.0, 0.0, 20.0, -900.0), Vector4(480.0, 0.0, 10.0, 130.0),
+	Vector4(520.0, 0.0, 262.0, 5.0), Vector4(640.0, 0.0, 262.0, 5.0), Vector4(700.0, 1.0, 270.0, 0.0), Vector4(705.0, 0.0, -250.0, 60.0),
+	Vector4(790.0, 0.0, 0.0, 0.0),
+]
 ## The drops script: the player stands still while Fang, Warden and Colossus (poison, ice, fire) kill eight armed foes that stand
 ## close (so every drop lands within the 80 px reach) and carry every sword type and rarity; swaps are commanded as drops
 ## appear (the first two before anything lies, so they are refused), after a Cataclysm and a Viper Flurry have started
@@ -176,6 +195,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _pike_scenario()
 	if name == COLOSSUS:
 		return _colossus_scenario()
+	if name == CONVERGE:
+		return _converge_scenario()
 	if name == DROPS:
 		return _drops_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
@@ -196,7 +217,7 @@ static func scenario(name: String = CROWD) -> RunScenario:
 
 
 static func _spitter_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 8
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -218,7 +239,7 @@ static func _spitter_scenario() -> RunScenario:
 
 
 static func _flurry_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 12
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -238,7 +259,7 @@ static func _flurry_scenario() -> RunScenario:
 
 
 static func _warden_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 13
 	scenario.waves_enabled = false
 	scenario.loadout = RunScenario.warden_fixture_loadout()
@@ -272,7 +293,7 @@ static func _warden_scenario() -> RunScenario:
 
 
 static func _pike_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 14
 	scenario.waves_enabled = false
 	scenario.loadout = RunScenario.pike_fixture_loadout()
@@ -300,7 +321,7 @@ static func _pike_scenario() -> RunScenario:
 
 
 static func _colossus_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 15
 	scenario.waves_enabled = false
 	var specs: Array[SwordSpec] = []
@@ -360,8 +381,34 @@ static func _pike_post(kind: StringName, at: Vector2, hp: float = PIKE_HP) -> En
 	return post
 
 
-static func _conditions_scenario() -> RunScenario:
+## The normal start's own loadout (`RunScenario.new()`), against standing packs, with conditions on.
+static func _converge_scenario() -> RunScenario:
 	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 16
+	scenario.waves_enabled = false
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	var center: Vector2 = scenario.start_position
+	var placements: Array[EnemyPlacement] = []
+	var packs: Array = [CONVERGE_EAST, CONVERGE_WEST, CONVERGE_NORTH]
+	for pack: Array in packs:
+		for i: int in pack.size():
+			var foe: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + (pack[i] as Vector2))
+			foe.speed_scale = 0.0
+			foe.hp = CONVERGE_FRAGILE_HP if i % 2 == 0 else CONVERGE_STURDY_HP
+			placements.append(foe)
+	var brute: EnemyPlacement = EnemyPlacement.make(EnemyDefs.BRUTE, center + Vector2(-120.0, -240.0))
+	brute.speed_scale = 0.0
+	placements.append(brute)
+	var post: EnemyPlacement = EnemyPlacement.make(EnemyDefs.HUSK, center + Vector2(110.0, 130.0))
+	post.speed_scale = 0.0
+	post.hp = 5000.0
+	placements.append(post)
+	scenario.initial_enemies = placements
+	return scenario
+
+
+static func _conditions_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 11
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -391,6 +438,12 @@ static func _conditions_scenario() -> RunScenario:
 ## Commands to issue once `completed_ticks` ticks have run.
 static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
+	if name == CONVERGE:
+		for entry: Vector4 in CONVERGE_COMMANDS:
+			if completed_ticks == int(entry.x):
+				var aim: Vector2 = GameRun.WORLD.get_center() + Vector2(entry.z, entry.w)
+				commands.append(GameCommand.converge(aim) if int(entry.y) == 0 else GameCommand.ultimate(int(entry.y) - 1, aim))
+		return commands
 	if name == DROPS:
 		for entry: Vector3 in DROPS_COMMANDS:
 			if completed_ticks == int(entry.x):
@@ -491,6 +544,8 @@ static func digest(run: GameRun) -> Dictionary:
 		"orbs_cleared": run.projectiles_cleared,
 		"fields": run.fields.map(func(field: FieldState) -> String: return "%s:%.3f:%.3f:%.3f:%.3f" % [field.element, field.position.x, field.position.y, field.life, field.tick_left]),
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
+		"converge_cues": run.cue_count(SimCue.Kind.CONVERGE),
+		"converge_cooldown": snappedf(run.converge_cooldown_left, 0.001),
 		"drop_cues": run.cue_count(SimCue.Kind.SWORD_DROPPED),
 		"swap_cues": run.cue_count(SimCue.Kind.SWORD_SWAPPED),
 		"swap_refused_cues": run.cue_count(SimCue.Kind.SWAP_REFUSED),

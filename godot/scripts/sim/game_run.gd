@@ -97,6 +97,15 @@ const CAMERA_OVERSCAN: float = 140.0
 
 enum Outcome { RUNNING, SURVIVED, LOST }
 
+## What became of a Converge command (`try_converge`).
+enum ConvergeResult {
+	COMMANDED,
+	## Paused or dead: no sword may be commanded.
+	UNAVAILABLE,
+	## The shared cooldown is still running.
+	COOLING_DOWN,
+}
+
 ## What became of a swap command (`try_swap`).
 enum SwapResult {
 	SWAPPED,
@@ -144,6 +153,9 @@ var trauma: float = 0.0
 var kick: Vector2 = Vector2.ZERO
 ## How many times this run was restarted; presenters use it to drop stale visuals.
 var restarts: int = 0
+## Whether the attack ranges are shown (Tab or G). Like the prototype's flag it belongs to the
+## session, not the run: a restart keeps it.
+var show_ranges: bool = false
 
 # --- player
 var position: Vector2 = Vector2.ZERO
@@ -156,6 +168,8 @@ var dead: bool = false
 var iframes: float = 0.0
 var dash_left: float = 0.0
 var dash_cooldown_left: float = 0.0
+## Gameplay seconds until Converge may be commanded again (prototype `converge_cd`).
+var converge_cooldown_left: float = 0.0
 ## Gameplay seconds since the player died.
 var death_time: float = 0.0
 
@@ -243,6 +257,11 @@ func apply(command: GameCommand) -> void:
 			try_swap(command.slot)
 		GameCommand.Kind.DEV_SHOVE:
 			_dev_shove()
+		GameCommand.Kind.CONVERGE:
+			try_converge(auto_aim() if command.at_nearest else command.point)
+		GameCommand.Kind.TOGGLE_RANGES:
+			if not paused and not dead:
+				show_ranges = not show_ranges
 		GameCommand.Kind.TOGGLE_ENCOUNTER:
 			restart_with(_encounter_scenarios[RunScenario.ENCOUNTER_CYCLE.find(RunScenario.next_encounter(scenario.encounter))])
 
@@ -325,6 +344,29 @@ func nearest_pickup() -> PickupState:
 			nearest = pickup
 			nearest_distance = distance
 	return nearest
+
+
+## Converge (prototype `Game.converge`): every equipped sword is commanded to strike `point`. Refused
+## while paused or dead and while the shared cooldown runs (silently, as in the prototype). A point
+## beyond CONVERGE_RANGE is pulled back onto it, measured from the player. Each sword in the run's
+## slot order takes the command or ignores it by its own state (`SwordState.command`); the cooldown
+## starts at once whether or not any sword took it. Works during hitstop, like every command.
+func try_converge(point: Vector2) -> ConvergeResult:
+	if paused or dead:
+		return ConvergeResult.UNAVAILABLE
+	if converge_cooldown_left > 0.0:
+		return ConvergeResult.COOLING_DOWN
+	var target: Vector2 = point
+	var to_point: Vector2 = point - position
+	if to_point.length() > SwordDefs.CONVERGE_RANGE:
+		target = position + to_point.normalized() * SwordDefs.CONVERGE_RANGE
+	var taken: int = 0
+	for sword: SwordState in swords:
+		if sword.command(self, target):
+			taken += 1
+	converge_cooldown_left = SwordDefs.CONVERGE_COOLDOWN
+	add_cue(SimCue.make(SimCue.Kind.CONVERGE, target, Vector2.ZERO, taken))
+	return ConvergeResult.COMMANDED
 
 
 ## The touch aim point (prototype `Game.auto_aim`): the nearest living enemy, or
@@ -410,6 +452,7 @@ func step() -> void:
 	combo_left -= dt
 	if combo_left <= 0.0:
 		combo = 0
+	converge_cooldown_left = maxf(0.0, converge_cooldown_left - dt)
 	if banner_left > 0.0:
 		banner_left -= dt
 		if banner_left <= 0.0:
@@ -881,6 +924,7 @@ func snapshot() -> Dictionary:
 		"iframes": iframes,
 		"dash_left": dash_left,
 		"dash_cooldown_left": dash_cooldown_left,
+		"converge_cooldown_left": converge_cooldown_left,
 		"hitstop": hitstop,
 		"slowmo": slowmo,
 		"camera": camera,
@@ -922,6 +966,7 @@ func _reset_state() -> void:
 	iframes = 0.0
 	dash_left = 0.0
 	dash_cooldown_left = 0.0
+	converge_cooldown_left = 0.0
 	death_time = 0.0
 	kills = 0
 	projectiles_cleared = 0

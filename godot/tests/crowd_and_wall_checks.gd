@@ -90,7 +90,7 @@ func _placement(setup: Dictionary) -> EnemyPlacement:
 
 ## No waves and no swords: only what the case itself puts in the arena.
 func _arena(setups: Array, player_at: Vector2 = Vector2(-1.0, -1.0)) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 23
 	scenario.waves_enabled = false
 	var no_swords: Array[SwordSpec] = []
@@ -715,7 +715,7 @@ func _key(code: Key) -> InputEventKey:
 # ----------------------------------------------------- wave composition
 func _check_wave_composition() -> void:
 	print("crowd: the encounter's wave fields husks, runners and brutes")
-	_ok("the normal run stays the husk wave (the prototype's wave 1 has no runners or brutes)", RunScenario.new().without_conditions().wave_kinds.is_empty() and not RunScenario.new().without_conditions().dev_shove)
+	_ok("the normal run stays the husk wave (the prototype's wave 1 has no runners or brutes)", RunScenario.fang_fixture().without_conditions().wave_kinds.is_empty() and not RunScenario.fang_fixture().without_conditions().dev_shove)
 	var scenario: RunScenario = RunScenario.crowd_encounter().without_conditions()
 	scenario.seed = 9
 	scenario.first_wave_delay = 0.1
@@ -891,7 +891,7 @@ func _check_main_scene() -> void:
 	main.queue_free()
 	await _tree.process_frame
 
-	var plain: Main = _main_with(RunScenario.new().without_conditions())
+	var plain: Main = _main_with(RunScenario.fang_fixture().without_conditions())
 	await _tree.process_frame
 	_press(plain, KEY_F)
 	_ok("in the normal run the shove does nothing and its controls are hidden", plain.run.cue_count(SimCue.Kind.SHOVE) == 0 and not plain._hud._shove_button.visible and not plain._hud._encounter_label.visible)
