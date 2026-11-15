@@ -1134,7 +1134,7 @@ func _check_removed_and_cleanup() -> void:
 	_steps(cycle, 70)
 	var had_field: bool = cycle.fields.size() == 1
 	cycle.apply(GameCommand.toggle_encounter())
-	_ok("switching dev encounter with a field down clears it and the swords with it (had a field: %s, now %d, encounter %s)" % [had_field, cycle.fields.size(), cycle.scenario.encounter], had_field and cycle.fields.is_empty() and cycle.scenario.encounter == RunScenario.ENCOUNTER_NORMAL)
+	_ok("switching dev encounter with a field down clears it and the swords with it (had a field: %s, now %d, encounter %s)" % [had_field, cycle.fields.size(), cycle.scenario.encounter], had_field and cycle.fields.is_empty() and cycle.scenario.encounter == RunScenario.ENCOUNTER_DROPS)
 	# The player's death while a sword is high up: it hangs idle and sinks, and no slam is made.
 	var death_run: GameRun = _lone_run(_trio(0, 0.0), [_husk_at(260.0, 30.0)])
 	_steps(death_run, 25)
@@ -1222,13 +1222,13 @@ func _check_fixture_and_launch() -> void:
 	_ok("the colossus encounter is a cluster of %d husks and one wave (%s husk / runner / spitter / brute) against three Colossus swords with poison, ice and fire; conditions on; no shove" % [scenario.initial_enemies.size(), counts],
 		scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and scenario.loadout.size() == 3 and scenario.loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.COLOSSUS) and scenario.loadout[0].element == &"poison" and scenario.loadout[1].element == &"ice" and scenario.loadout[2].element == &"fire"
 		and scenario.conditions_enabled and not scenario.dev_shove and scenario.waves_enabled and scenario.initial_enemies.size() == 7 and scenario.wave_kinds.size() == 16 and counts[2] == 2 and counts[3] == 2)
-	_ok("the dev cycle reaches it after the pike encounter and leaves it for the normal run, and the dev button names it",
-		RunScenario.next_encounter(RunScenario.ENCOUNTER_PIKE) == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.next_encounter(RunScenario.ENCOUNTER_COLOSSUS) == RunScenario.ENCOUNTER_NORMAL and RunScenario.encounter_title(RunScenario.ENCOUNTER_COLOSSUS) == "Colossus" and RunScenario.ENCOUNTER_CYCLE.has(RunScenario.ENCOUNTER_COLOSSUS))
+	_ok("the dev cycle reaches it after the pike encounter and leaves it for the drops encounter (issue #17), and the dev button names it",
+		RunScenario.next_encounter(RunScenario.ENCOUNTER_PIKE) == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.next_encounter(RunScenario.ENCOUNTER_COLOSSUS) == RunScenario.ENCOUNTER_DROPS and RunScenario.encounter_title(RunScenario.ENCOUNTER_COLOSSUS) == "Colossus" and RunScenario.ENCOUNTER_CYCLE.has(RunScenario.ENCOUNTER_COLOSSUS))
 	var from_pike: GameRun = GameRun.new(RunScenario.pike_encounter())
 	from_pike.apply(GameCommand.toggle_encounter())
-	_ok("the encounter command goes from the pike encounter to the colossus one (three Colossi, restarts %d), and from it to the normal run" % from_pike.restarts, from_pike.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and from_pike.swords.all(func(sword: SwordState) -> bool: return sword.spec.type_id == SwordDefs.COLOSSUS) and from_pike.restarts == 1)
+	_ok("the encounter command goes from the pike encounter to the colossus one (three Colossi, restarts %d), and from it to the drops encounter" % from_pike.restarts, from_pike.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and from_pike.swords.all(func(sword: SwordState) -> bool: return sword.spec.type_id == SwordDefs.COLOSSUS) and from_pike.restarts == 1)
 	from_pike.apply(GameCommand.toggle_encounter())
-	_ok("and one more press returns to the normal run", from_pike.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and from_pike.restarts == 2)
+	_ok("and one more press goes to the drops encounter (issue #17)", from_pike.scenario.encounter == RunScenario.ENCOUNTER_DROPS and from_pike.restarts == 2)
 	_ok("--encounter=colossus and ?encounter=colossus ask for it, and the normal run is still three Fang swords (the final default loadout is issue #16)",
 		LaunchOptions.scenario_for("colossus") != null and LaunchOptions.scenario_for("colossus").encounter == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.new().loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.FANG))
 	var cluster_ok: bool = true
