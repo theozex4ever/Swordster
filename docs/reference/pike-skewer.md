@@ -33,7 +33,7 @@ carry and release from `Sword.ultimate` and `Sword.update_ult`; wall slams and b
 `Game.hit_enemy` and `Game.afflict`; the Q/E/R keys through the real `Game.handle` with synthetic
 `KEYDOWN` events and a patched mouse position. Every case writes its fixture (`setup`) into the JSON,
 including the player's position and facing and whether elemental conditions are on, and the Godot
-checks build their scenarios from it. The JSON holds 5107 traced ticks, 114 + 114 thrust-geometry
+checks build their scenarios from it. The JSON holds 5217 traced ticks, 114 + 114 thrust-geometry
 probes, 36 + 42 orb-parry probes and 14 start points.
 
 **Conditions per case.** As in the Warden slice, `setup.conditions` says which the prototype ran with
@@ -43,8 +43,8 @@ probes, 36 + 42 orb-parry probes and 14 start points.
   walls, boundaries, deaths, recharge and refusals.
 - **On** for `conditions.thrust.{poison,ice,fire}` and `conditions.skewer.{poison,ice,fire}` (a
   Pike's thrust through three enemies for 260 ticks, a Skewer through three for 130; every condition
-  field per tick) and for `skewer_deaths.burns_while_carried` (a fire Skewer leaves an enemy at 2 hp;
-  it burns to death while it is carried).
+  field per tick) and for `skewer_deaths.burns_after_release` (a fire Skewer leaves an enemy at 2 hp;
+  it is released on tick 45 and burns to death on tick 58, in the sword's recovery).
 
 Other controls (asserted by the capture, recorded as `fixture_scope`): every enemy is an unarmed husk,
 runner or brute (arming and drops are issue #17); only Pike swords are equipped and Converge is never
@@ -130,7 +130,8 @@ enemies beside, behind and beyond; the muzzle: the first flight tick reaches 0.3
 launch; a crowd; three Skewers at once); `skewer_empty.*`; `skewer_walls.*` (east, west, north, south,
 two corners and a pile-up: the release at 1100 px/s, the slam damage `6 + (speed - 380) x 0.04`,
 bowling, an enemy pinned at the wall, the sword's kick-back); `skewer_boundary.*` (0.01 px inside and
-outside each of the four edges of the 10 px margin: the flight ends one tick apart); `skewer_range.*`;
+outside each of the four edges of the 10 px margin: the flight ends one tick apart); `skewer_range.*`
+(releases at the 750 px/s range ending: east near the end, beyond it, and along a diagonal);
 `skewer_deaths.*`; `skewer_rules.*` (recharge 600 / 522 / 445 ticks by rarity, refusal while
 recharging and while flying, firing again after the recharge, the other Pikes keep thrusting);
 `skewer_parry.*` (42 orb probes, 15 parried; none during the aim); `conditions.*`; `keys.*`.
@@ -150,8 +151,10 @@ none), and the captured cases are the ones that catch a divergence:
 - `skewer_deaths.killed_while_carried_{at_once,later}`: an impaled enemy killed from outside (`Game.kill`)
   beside living neighbours: it leaves the carry list at the next flight tick but, still in the run
   until its tick ends, is moved, separated and counted as the prototype does.
-- `skewer_deaths.burns_while_carried`: an enemy left at 2 hp by a fire Skewer burns to death during the
-  carry (tick 58) with neighbours carried on.
+- `skewer_deaths.burns_after_release`: an enemy left at 2 hp by a fire Skewer is released on tick 45
+  and burns to death on tick 58, in the sword's recovery, with neighbours flung on. It is not a death
+  while carried: the aim alone takes 23 ticks and the burn about 28 more, so a burn cannot finish an
+  enemy before the release; a death while carried is `killed_while_carried_*`.
 - `skewer_deaths.corpses_at_the_wall`: two impaled enemies (one pinned at the wall) die on the tick
   before the Skewer ends at the east wall; the corpses are dropped from the carry, the rest are flung
   and slam.
@@ -200,19 +203,31 @@ Each is a scope or correctness decision of slice #14, not a rebalance.
    applied and the enemies are carried even into and past a wall (their own movement clamps them).
 5. **The Skewer's carried list is a reference across ticks**, so it is validated each flight tick
    with `_in_play` (alive and still in the run), like the other cross-tick references.
-6. **A known float32-versus-float64 boundary at resting contact (not fixed, no gameplay change).**
+6. **A float32-versus-float64 boundary at resting contact (no gameplay change): the fixtures stay off it.**
    Carried enemies are driven into the same few pixels ahead of the tip, and the crowd separation
-   leaves a touching pair at exactly `dist == radius_a + radius_b` up to rounding. When the Skewer
-   lets go, whether that pair is bowled (`dist < reach`) depends on which side the rounding falls: the
-   prototype's float64 and Godot's float32 `Vector2` can fall on different sides (observed: the
-   prototype bowls an enemy for 3 and slows the bowler to 0.6, the port does not, on the release tick,
-   in fixtures whose carried enemies touch). Fixtures with such a pile (`skewer_carry.{line,muzzle,
-   crowd}`, `skewer_range.*`, `skewer_deaths.killed_while_carried_*`, the two corner walls) are marked
-   `compare: until_release` in the JSON with a `stable_ticks` field: they are compared tick by tick
-   up to the release (carry included) and after it only for invariants (nothing carried, the sword
-   recovering). Everything else, including the east, west, north, south and pile-up walls with their
-   slams and bowling, matches on every tick. No exact fix is cheap (it would need float64 positions
-   throughout the simulation), as for #13's pull cutoff.
+   leaves a pair that overlapped at exactly `dist == radius_a + radius_b` up to rounding. When the
+   Skewer lets go, whether that pair is bowled (`dist < reach`) depends on which side the rounding
+   falls: the prototype's float64 and Godot's float32 `Vector2` (about 0.0002 px of resolution out at
+   x = 2500) can fall on different sides (observed: the prototype bowls an enemy for 3 and slows the
+   bowler to 0.6, the port does not, on the release tick). **Nothing is excluded from the comparison
+   any more.** Every captured case, the release tick and what follows it included, is compared on
+   every tick (sword and every enemy's position, velocity, health, stun and death; the hit list with
+   its hitstop and shake; and, for the walls, the port's own slam cues and release cue against the
+   capture's slam count). The earlier `compare: until_release` / `stable_ticks` fields are gone.
+   What changed is the fixtures, in `tools/reference/capture_pike_skewer.py`:
+   - `skewer_carry.muzzle` and `skewer_range.beyond` never needed an exception (they matched fully).
+   - `skewer_carry.{line,crowd}`, `skewer_range.near_the_end` and `skewer_deaths.killed_while_carried_
+     {at_once,later}` have their layouts moved by sub-pixel offsets (`stagger(layout, k)`, at most
+     1.2 px in x and in y; seeds 8, 5, 5, 5, 5 respectively), a seed from 0 to 9 under which both number
+     formats land on the same side of the boundary (several seeds did; others flip a pair).
+   - `skewer_range.diagonal_near_the_end` is new (staggered with seed 5): the 750 px/s range release along a
+     diagonal, which no other fixture carried an enemy through (mutation `skewer-release-diagonal-range-speed-halved`).
+   - The two corner walls aim 5 px off the exact diagonal (`point` y + 5). On the exact diagonal the tip
+     passes both walls on the same tick, so which wall ends the flight is a tie between two roundings.
+   These piles still rest within a rounding error of touching, so agreement is a property of the
+   fixtures, not a tolerance: if either side's arithmetic changes so a pair flips, the check fails rather
+   than hides it. No exact fix is cheap (it would need
+   float64 positions throughout the simulation), as for #13's pull cutoff.
 7. **No touch ultimate buttons and no Converge.** Touch aiming (`ultimate_at_nearest`) works for a Pike
    (the heading toward the nearest enemy, or 300 px ahead) but the on-screen buttons are issue #20, and
    Converge's fast windup is issue #16.
@@ -229,7 +244,7 @@ Linux, Godot 4.7.2-stable. Base `origin/main` `2d68b50`; branch `feat/14-pike-sk
 | `tools/godot/mutation-check.sh` | **583 of 583** deliberate bugs caught, 0 inconclusive, 0 survived: one complete pass in 7 parallel shards (`SHARD=i SHARDS=7`, 84 / 84 / 83 / 83 / 83 / 83 / 83) on head `ed7ff2b`, baseline `CHECKS PASSED: 1325`. 453 of the 583 are the earlier slices' (eight of them repaired because the first #14 commit changed the text they patch); 130 are new, for the thrust, targeting, Skewer, walls and boundaries, deaths, the encounter, HUD and presentation. Earlier passes found test-side problems, all fixed before this one: survivors in the presentation and HUD checks (the legend counts, the launch sound, the release ring and number, the column fixture), mutations that were equivalent (impaling a corpse: the carry filter removes it in the same tick; clamping a skill shot to a range: the heading is unchanged) or could only crash the engine's own guard (`pike-unsupported`) and so were dropped or replaced, and checks that crashed instead of failing when an enemy or orb had died |
 | Reference regeneration | All seven captures (`capture_pike_skewer.py`, `capture_warden_maelstrom.py`, `capture_fang_survival_loop.py`, `capture_crowd_and_walls.py`, `capture_spitters_and_parries.py`, `capture_viper_flurry.py`, `capture_elemental_conditions.py`) rerun on the head give output byte-identical (`cmp`) to the committed JSON; the six earlier JSON files are unchanged in this PR, as is `game/`. |
 | Low/high render rates | The scripted Pike fight (three Pikes, six Skewers north, east, north-east, west, south and north again, two refused presses, columns of husks, runners and brutes slammed into the north and east walls and a corner, pinned spitters whose orbs are parried) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time. |
-| Per-tick comparison with the prototype | Sword pose, phase, carried count, velocity, clocks, recharge and every enemy's position, health, velocity, stun and death (and every condition field in the condition cases) match on every tick of every captured trace, except the fixtures marked `compare: until_release` (exception 6), plus 228 thrust-geometry, 36 thrust-parry and 42 Skewer-parry probe points. |
+| Per-tick comparison with the prototype | Sword pose, phase, carried count, velocity, clocks, recharge and every enemy's position, health, velocity, stun and death (and every condition field in the condition cases) match on every tick of every captured trace, with no fixture excluded (exception 6), plus 228 thrust-geometry, 36 thrust-parry and 42 Skewer-parry probe points. |
 | **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261115-044153-950123b36`, served over HTTP with `?encounter=pike` and driven with browser mouse-move and key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=pike`): **E** with the cursor above the player starts a Skewer north (the "SKEWER" text, the card ACTIVE, rings on the carried foes), the Skewer ends at the north wall with a wall slam and "wall slams 1" in the legend, **E** again while recharging is refused ("recharging 0s", the card at `0s`), **Q** fires a Skewer east (the card at `8s`) and **R** west. Console: the three Godot start-up lines, no errors. The frame pacing of the capture is the browser's, not a measurement; the press-to-slam timing in the screenshots is the browser's, not the simulation's. |
 | **Windows export, under Wine 11 on Linux (not a Windows machine)** | The same build `20261115-044153-950123b36`: the full build's ZIP extracted unmodified, its own `SHA256SUMS` verified, the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <frames> --fixed-fps 30 --quit-after 450 -- --encounter=pike` (a scratch Wine prefix): engine-side frames of the game's own viewport (no desktop capture, no input, nothing added to the game). The frames show the pike encounter's HUD (the three cards **Q / E / R Skewer READY**, "Pike sword  skill shot"), the three Pikes with their long shafts and leaf heads, the column arriving and thrusts cutting through it with their 24-damage numbers. **What this does not show:** a Skewer in the Windows build. No key or mouse event was sent to the shipped build (no autopilot exists in the game), so Q/E/R input in a Windows build belongs to the deferred device matrix (#6/#22); the Skewer itself is shown in the Web build. |
 

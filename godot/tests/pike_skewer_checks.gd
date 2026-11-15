@@ -282,22 +282,16 @@ func _hits_diff(mine: Array[Dictionary], want: Array) -> String:
 
 
 ## Follows a captured trace of slot `slot` (the Skewer commanded on tick 0 when `skewer`), returning the
-## run, the enemies and the comparison. A case marked `compare: until_release` (a pile of carried enemies
-## resting at the touching distance, see docs/reference/pike-skewer.md) is compared tick by tick up to its
-## `stable_ticks` and then only played on to the end of the trace, for the caller's invariants.
+## run, the enemies and the comparison. Every case is compared on every tick to the end of its trace,
+## release and what follows it included.
 func _replay(case: Dictionary, slot: int = 0, skewer: bool = true) -> Dictionary:
 	var setup: Dictionary = case["setup"]
 	var run: GameRun = _skewer_run(setup, slot) if skewer else _run_of_setup(setup)
 	var enemies: Array[EnemyState] = run.enemies.duplicate()
-	var ticks: int = int(case["trace"]["ticks"])
-	var until_release: bool = String(case.get("compare", "")) == "until_release"
-	var compared: int = int(case["stable_ticks"]) if until_release else ticks
-	var result: Dictionary = _follow(run, run.swords[slot], enemies, case["trace"], compared, 0, not until_release)
-	if until_release:
-		_steps(run, ticks - compared)
+	var result: Dictionary = _follow(run, run.swords[slot], enemies, case["trace"], int(case["trace"]["ticks"]))
 	result["run"] = run
 	result["enemies"] = enemies
-	result["compared"] = compared
+	result["compared"] = int(case["trace"]["ticks"])
 	return result
 
 
@@ -326,11 +320,11 @@ func _check_reference_scope() -> void:
 	_ok("only Pike swords took part, Converge was not used (issue #16), no waves ran (issue #18)", scope["swords_used"] == ["lance"] and not bool(scope["converge_used"]) and not bool(scope["waves_enabled"]))
 	var with_conditions: Array = scope["afflict_enabled_cases"]
 	_ok("the prototype's afflict was OFF everywhere except the condition cases %s" % [with_conditions], bool(scope["afflict_disabled_everywhere_else"])
-		and with_conditions == ["skewer_burn_dies_carried", "skewer_fire", "skewer_ice", "skewer_poison", "thrust_fire", "thrust_ice", "thrust_poison"])
+		and with_conditions == ["skewer_burn_dies_after_release", "skewer_fire", "skewer_ice", "skewer_poison", "thrust_fire", "thrust_ice", "thrust_poison"])
 	var flags_ok: bool = true
 	for label: String in ["poison", "ice", "fire"]:
 		flags_ok = flags_ok and bool(_ref["conditions"]["thrust"][label]["setup"]["conditions"]) and bool(_ref["conditions"]["skewer"][label]["setup"]["conditions"])
-	flags_ok = flags_ok and bool(_ref["skewer_deaths"]["burns_while_carried"]["setup"]["conditions"])
+	flags_ok = flags_ok and bool(_ref["skewer_deaths"]["burns_after_release"]["setup"]["conditions"])
 	for label: String in ["common", "common_crit", "rare", "mythic"]:
 		flags_ok = flags_ok and not bool(_ref["thrust"][label]["setup"]["conditions"]) and not bool(_ref["skewer_single"][label]["setup"]["conditions"])
 	_ok("each case's fixture says whether conditions are on: the condition cases on, the physical cases off", flags_ok)
@@ -666,17 +660,19 @@ func _check_skewer_carry() -> void:
 	var result: Dictionary = _replay(line)
 	var count: int = (line["setup"]["enemies"] as Array).size()
 	var blows: Array[int] = _hit_counts_of(result["hits"], count)
-	_ok("a line of enemies, some beside the line, one behind the player and one beyond the range: the aim, flight, blows and carry match on the %d ticks up to the release; blows per enemy %s as the prototype's %s" % [int(result["compared"]), blows, line["blows_per_enemy"]],
-		String(result["diff"]).is_empty() and blows == _int_array(line["blows_per_enemy"]), String(result["diff"]))
-	_ok("no enemy is struck twice by one Skewer (most blows on one enemy: %d), and the Skewer ends carrying nothing (%d)" % [blows.max(), (result["run"] as GameRun).swords[0].skewer_carried.size()], blows.max() == 1 and (result["run"] as GameRun).swords[0].skewer_carried.is_empty() and (result["run"] as GameRun).swords[0].phase != SwordState.Phase.ULTIMATE)
+	_ok("a line of enemies, some beside the line, one behind the player and one beyond the range: the aim, flight, blows and carry match on all %d ticks, the release and what follows it included; blows per enemy %s as the prototype's %s" % [int(result["compared"]), blows, _hit_counts_of(line["trace"]["hits"], count)],
+		String(result["diff"]).is_empty() and blows == _hit_counts_of(line["trace"]["hits"], count), String(result["diff"]))
+	var before_release: Array = (result["hits"] as Array).filter(func(hit: Dictionary) -> bool: return int(hit["tick"]) < _transition_ticks(line["trace"], "recover")[0])
+	var struck: Array[int] = _hit_counts_of(before_release, count)
+	_ok("no enemy is struck twice by one Skewer before it lets go (most blows on one enemy: %d; the later hits are the release's bowling), and the Skewer ends carrying nothing (%d)" % [struck.max(), (result["run"] as GameRun).swords[0].skewer_carried.size()], struck.max() == 1 and (result["run"] as GameRun).swords[0].skewer_carried.is_empty() and (result["run"] as GameRun).swords[0].phase != SwordState.Phase.ULTIMATE)
 	var muzzle: Dictionary = _ref["skewer_carry"]["muzzle"]
 	var result_m: Dictionary = _replay(muzzle)
-	_ok("enemies right at the muzzle, behind it and beside it (the first flight tick's segment reaches 0.3 lengths behind the launch): the same ones are struck, on the first flight tick (%s), and all %d ticks up to the release match" % [_hit_counts_of(result_m["hits"], 6), int(result_m["compared"])],
-		String(result_m["diff"]).is_empty() and _hit_counts_of(result_m["hits"], 6) == _int_array(muzzle["blows_per_enemy"]) and _hit_counts_of(result_m["hits"], 6) == [1, 0, 1, 0, 0, 1], String(result_m["diff"]))
+	_ok("enemies right at the muzzle, behind it and beside it (the first flight tick's segment reaches 0.3 lengths behind the launch): the same ones are struck, on the first flight tick (%s), and all %d ticks match" % [_hit_counts_of(result_m["hits"], 6), int(result_m["compared"])],
+		String(result_m["diff"]).is_empty() and _hit_counts_of(result_m["hits"], 6) == _hit_counts_of(muzzle["trace"]["hits"], 6) and _hit_counts_of(result_m["hits"], 6) == [1, 0, 1, 0, 0, 1], String(result_m["diff"]))
 	var crowd: Dictionary = _ref["skewer_carry"]["crowd"]
 	var result_c: Dictionary = _replay(crowd)
-	_ok("twelve overlapping enemies carried together (crowd separation pushes them apart while they are carried): the blows and the carry match on all %d ticks up to the release" % int(result_c["compared"]),
-		String(result_c["diff"]).is_empty() and _hit_counts_of(result_c["hits"], 12) == _int_array(crowd["blows_per_enemy"]), String(result_c["diff"]))
+	_ok("twelve overlapping enemies carried together (crowd separation pushes them apart while they are carried): the blows, the carry and the release match on all %d ticks" % int(result_c["compared"]),
+		String(result_c["diff"]).is_empty() and _hit_counts_of(result_c["hits"], 12) == _hit_counts_of(crowd["trace"]["hits"], 12), String(result_c["diff"]))
 	var three: Dictionary = _ref["skewer_carry"]["three_skewers"]
 	var run_t: GameRun = _run_of_setup(three["setup"])
 	var points: Array = three["setup"]["points"]
@@ -708,8 +704,16 @@ func _check_skewer_walls() -> void:
 		var case: Dictionary = _ref["skewer_walls"][label]
 		var result: Dictionary = _replay(case)
 		var run: GameRun = result["run"]
-		_ok("%s: the carry, the release at 1100 px/s%s match on %d ticks (kills %d, slam cues %d)" % [label, ", the slam damage, bowling and the sword's kick-back" if int(result["compared"]) == int(case["trace"]["ticks"]) else " (compared up to it: a pile at the touching distance)", int(result["compared"]), run.kills, run.cue_count(SimCue.Kind.WALL_SLAM)],
+		_ok("%s: the carry, the release at 1100 px/s, the slam damage, bowling and the sword's kick-back match on all %d ticks (kills %d, slam cues %d)" % [label, int(result["compared"]), run.kills, run.cue_count(SimCue.Kind.WALL_SLAM)],
 			String(result["diff"]).is_empty() and run.kills == int(case["kills"]) and run.cue_count(SimCue.Kind.WALL_SLAM) >= 1, String(result["diff"]))
+		# the port's own outcome against the capture's: one wall slam for every enemy the prototype slammed, and one release
+		# announced as a wall carrying what the Skewer carried on the tick before it let go
+		var trace: Dictionary = case["trace"]
+		var release_tick: int = _transition_ticks(trace, "recover")[0]
+		var carried_before: int = int((trace["carried"] as Array)[release_tick - 2])
+		var announced: Array[SimCue] = run.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.SKEWER_RELEASED)
+		_ok("%s: the port slams %d enemies (the prototype slammed %d on and after its release tick %d) and announces one release as a wall with %d impaled (the prototype let go of %d)" % [label, run.cue_count(SimCue.Kind.WALL_SLAM), _slams_from(trace, release_tick), release_tick, announced[0].amount if not announced.is_empty() else -1, carried_before],
+			run.cue_count(SimCue.Kind.WALL_SLAM) == _slams_from(trace, release_tick) and announced.size() == 1 and announced[0].critical and announced[0].amount == carried_before)
 	var east: Dictionary = _ref["skewer_walls"]["east"]
 	var run_e: GameRun = _skewer_run(east["setup"])
 	var released: Array[SimCue] = []
@@ -722,9 +726,36 @@ func _check_skewer_walls() -> void:
 			if cue.kind == SimCue.Kind.WALL_SLAM:
 				slammed += 1
 	_ok("the release is announced once as a wall slam of %d enemies, and the wall slam cue is the existing one (#9): %d slams" % [released[0].amount if not released.is_empty() else -1, slammed], released.size() == 1 and released[0].critical and released[0].amount >= 5 and slammed >= 5)
-	var corner: Dictionary = _ref["skewer_walls"]["corner_north_east"]
-	var corner_hits: Array = corner["trace"]["hits"]
-	_ok("a corner ends on the first wall the tip passes with the heading kept diagonal: every carried enemy is flung and the wall slams them (%d hit ticks in the prototype)" % corner_hits.size(), corner_hits.size() >= 5 and int(corner["stable_ticks"]) < int(corner["trace"]["ticks"]))
+	for label: String in ["corner_north_east", "corner_south_west"]:
+		var corner: Dictionary = _ref["skewer_walls"][label]
+		var run_k: GameRun = _skewer_run(corner["setup"])
+		var sword_k: SwordState = run_k.swords[0]
+		var release_k: int = _transition_ticks(corner["trace"], "recover")[0]
+		var launch_dir: Vector2 = Vector2.ZERO
+		var released_dir: Vector2 = Vector2.ZERO
+		for n: int in range(1, release_k + 1):
+			run_k.step()
+			if n == 1:
+				launch_dir = sword_k.dir
+		released_dir = sword_k.dir
+		for n: int in range(release_k, int(corner["trace"]["ticks"])):
+			run_k.step()
+		var slams_k: int = run_k.cue_count(SimCue.Kind.WALL_SLAM)
+		_ok("%s: the diagonal heading is kept to the release on tick %d (%s then %s); the port slams %d enemies as the prototype did (%d) and kills %d (%d)" % [label, release_k, launch_dir, released_dir, slams_k, _slams_from(corner["trace"], release_k), run_k.kills, int(corner["kills"])],
+			launch_dir.is_equal_approx(released_dir) and absf(launch_dir.x) > 0.5 and absf(launch_dir.y) > 0.5 and slams_k == _slams_from(corner["trace"], release_k) and slams_k >= 5 and run_k.kills == int(corner["kills"]))
+
+
+## How many enemies the capture's trace shows slammed into a wall: a loss of more than a bowling blow (3 hp) on
+## or after the tick the Skewer let go.
+func _slams_from(trace: Dictionary, release_tick: int) -> int:
+	var slams: int = 0
+	for hit: Variant in trace["hits"]:
+		if int((hit as Dictionary)["tick"]) < release_tick:
+			continue
+		for pair: Variant in (hit as Dictionary)["dealt"]:
+			if float((pair as Array)[1]) > 10.0:
+				slams += 1
+	return slams
 
 
 func _check_skewer_boundary() -> void:
@@ -754,10 +785,10 @@ func _check_skewer_boundary() -> void:
 
 func _check_skewer_range() -> void:
 	print("pike: a Skewer ends at its range and flings what it carries at 750 px/s")
-	for label: String in ["near_the_end", "beyond"]:
+	for label: String in ["near_the_end", "beyond", "diagonal_near_the_end"]:
 		var case: Dictionary = _ref["skewer_range"][label]
 		var result: Dictionary = _replay(case)
-		_ok("%s: the aim, flight and carry match on all %d ticks up to the release (the flight lasts range / speed seconds from the launch)" % [label, int(result["compared"])], String(result["diff"]).is_empty() and (result["run"] as GameRun).swords[0].skewer_carried.is_empty(), String(result["diff"]))
+		_ok("%s: the aim, flight, carry and the release at 750 px/s match on all %d ticks (the flight lasts range / speed seconds from the launch)" % [label, int(result["compared"])], String(result["diff"]).is_empty() and (result["run"] as GameRun).swords[0].skewer_carried.is_empty(), String(result["diff"]))
 	var near: Dictionary = _ref["skewer_range"]["near_the_end"]
 	var run: GameRun = _skewer_run(near["setup"])
 	var released: Array[SimCue] = []
@@ -787,7 +818,7 @@ func _check_skewer_deaths() -> void:
 		var victim: EnemyState = enemies[int(setup["kill_index"])]
 		for n: int in range(1, int(case["trace"]["ticks"]) + 1):
 			run.step()
-			if diff.is_empty() and n <= int(case["stable_ticks"]):
+			if diff.is_empty():
 				diff = _sword_diff(sword, case["trace"], n - 1, n)
 				for k: int in enemies.size():
 					if diff.is_empty():
@@ -796,14 +827,15 @@ func _check_skewer_deaths() -> void:
 				armed_at = n
 			if armed_at >= 0 and n == armed_at + int(setup["kill_after_ticks"]):
 				run.kill(victim, Vector2.UP)
-		_ok("%s: an impaled enemy killed from outside %d ticks after it was carried (corpse still in the run and the carry list for a tick, beside living neighbours): the %d ticks up to the release match; kills %d, motes %d, left %d, carrying %d" % [label, int(setup["kill_after_ticks"]), int(case["stable_ticks"]), run.kills, run.motes.size(), run.enemies.size(), sword.skewer_carried.size()],
+		_ok("%s: an impaled enemy killed from outside %d ticks after it was carried (corpse still in the run and the carry list for a tick, beside living neighbours): all %d ticks match; kills %d, motes %d, left %d, carrying %d" % [label, int(setup["kill_after_ticks"]), int(case["trace"]["ticks"]), run.kills, run.motes.size(), run.enemies.size(), sword.skewer_carried.size()],
 			diff.is_empty() and armed_at == int(case["armed_at"]) and run.kills == int(case["kills"]) and run.motes.size() == int(case["motes"]) and run.enemies.size() == int(case["left"]), diff)
-	var burn: Dictionary = deaths["burns_while_carried"]
+	var burn: Dictionary = deaths["burns_after_release"]
 	var result_n: Dictionary = _replay(burn)
 	var run_n: GameRun = result_n["run"]
 	var enemies_n: Array[EnemyState] = result_n["enemies"]
-	_ok("an enemy left at 2 hp by the blow burns to death while carried (tick %s as the prototype) with neighbours carried on: all %d ticks match; kills %d, motes %d" % [burn["died_tick"], int(burn["trace"]["ticks"]), run_n.kills, run_n.motes.size()],
-		String(result_n["diff"]).is_empty() and enemies_n[0].dead and run_n.kills == int(burn["kills"]) and run_n.motes.size() == int(burn["motes"]), String(result_n["diff"]))
+	var burn_release: int = _transition_ticks(burn["trace"], "recover")[0]
+	_ok("an enemy left at 2 hp by the blow is released on tick %d and burns to death on tick %s (as the prototype: the burn needs longer than the flight leaves, so it dies in the sword's recovery) with neighbours flung on: all %d ticks match; kills %d, motes %d" % [burn_release, burn["died_tick"], int(burn["trace"]["ticks"]), run_n.kills, run_n.motes.size()],
+		String(result_n["diff"]).is_empty() and enemies_n[0].dead and int(burn["died_tick"]) > burn_release and run_n.kills == int(burn["kills"]) and run_n.motes.size() == int(burn["motes"]), String(result_n["diff"]))
 	var joined: Dictionary = deaths["corpse_joins_the_hit_set"]
 	var setup_j: Dictionary = joined["setup"]
 	var run_j: GameRun = _run_of_setup(setup_j)
@@ -1180,15 +1212,15 @@ func _check_main_scene() -> void:
 	var effects: EffectsLayer = main._presenter._effects
 	_tick_main(main, 8)
 	await _tree.process_frame
-	_ok("while it aims, the card shows ACTIVE and the layer draws the aim line from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and sword.phase == SwordState.Phase.ULTIMATE and not sword.skewer_flying and effects.draw_counts.get(&"skewer_aim", 0) > 0)
+	_ok("while it aims, the card shows ACTIVE and the layer draws the aim line from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and sword.phase == SwordState.Phase.ULTIMATE and not sword.skewer_flying and effects.draw_counts.get(&"skewer_aim_band", 0) > 0 and effects.draw_counts.get(&"skewer_aim_line", 0) > 0 and effects.draw_counts.get(&"skewer_carry_ring", 0) == 0)
 	var carry_seen: bool = false
 	var launch_heard: bool = false
 	for i: int in 70:
 		_tick_main(main, 1)
 		await _tree.process_frame
-		carry_seen = carry_seen or effects.draw_counts.get(&"skewer_carry", 0) > 0
+		carry_seen = carry_seen or (effects.draw_counts.get(&"skewer_carry_ring", 0) > 0 and effects.draw_counts.get(&"skewer_carry_line", 0) > 0)
 		launch_heard = launch_heard or main._sfx.played.has("strike")
-	_ok("in flight it rings the enemies it carries (%d draws) and the launch and the release are cues (launched %d, released %d)" % [effects.draw_counts.get(&"skewer_carry", 0), main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), main.run.cue_count(SimCue.Kind.SKEWER_RELEASED)],
+	_ok("in flight it rings the enemies it carries (%d draws) and the launch and the release are cues (launched %d, released %d)" % [effects.draw_counts.get(&"skewer_carry_ring", 0), main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), main.run.cue_count(SimCue.Kind.SKEWER_RELEASED)],
 		carry_seen and main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED) == 1 and main.run.cue_count(SimCue.Kind.SKEWER_RELEASED) == 1 and main.run.cue_count(SimCue.Kind.ENEMY_HIT) >= 3)
 	_ok("the encounter legend counts what happened (skewers launched 1, wall slams %d): %s" % [main.run.cue_count(SimCue.Kind.WALL_SLAM), hud._encounter_label.text.get_slice("\n", 0)],
 		main.run.cue_count(SimCue.Kind.WALL_SLAM) >= 1 and hud._encounter_label.text.contains("skewers launched 1") and hud._encounter_label.text.contains("wall slams %d" % main.run.cue_count(SimCue.Kind.WALL_SLAM)))
@@ -1216,7 +1248,7 @@ func _check_main_scene() -> void:
 	for i: int in 240:
 		_tick_main(main, 1)
 		await _tree.process_frame
-		telegraph_seen = telegraph_seen or effects.draw_counts.get(&"thrust_telegraph", 0) > 0
+		telegraph_seen = telegraph_seen or (effects.draw_counts.get(&"thrust_telegraph_band", 0) > 0 and effects.draw_counts.get(&"thrust_telegraph_line", 0) > 0)
 	_ok("while the Pikes thrust, the windup shows the line it will cut (drawn: %s)" % [effects.draw_counts], telegraph_seen)
 	await _tree.create_timer(0.1).timeout
 	main._sfx.played.clear()

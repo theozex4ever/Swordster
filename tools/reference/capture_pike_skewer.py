@@ -17,8 +17,8 @@ from `Sword.acquire/begin/update/strike`, the aim, flight, impalement, carry and
 Every case writes its fixture (`setup`) into the JSON and the Godot checks build their scenarios
 from it, including the player's position and facing and whether elemental conditions are ON: the
 physical cases run with `Game.afflict` switched off (`setup.conditions == false`, as in the earlier
-slices), the cases whose subject is how the blows apply conditions (and the one whose carried
-enemy burns to death) leave the prototype's own `afflict` ON. The capture asserts which is which.
+slices), the cases whose subject is how the blows apply conditions (and the one whose enemy burns to death
+after the release) leave the prototype's own `afflict` ON. The capture asserts which is which.
 
 Mechanics outside this slice are off, and the capture asserts that: every enemy is an unarmed
 husk, runner or brute (arming and drops are issue #17); only Pike swords are equipped (Colossus is
@@ -193,22 +193,18 @@ class Trace:
         return d
 
 
-def until_release(case, reason):
-    """Marks a case whose fixture ends in a pile of carried enemies resting at exactly the touching distance
-    (a Skewer drives every enemy it carries into the same few pixels ahead of its tip, and the crowd
-    separation leaves such a pair at `dist == reach` up to rounding). Once the Skewer lets go, whether that
-    pair is bowled depends on which side of `dist < reach` the rounding falls, and the prototype's float64
-    and Godot's float32 `Vector2` can fall on different sides (docs/reference/pike-skewer.md, exception 6).
-    The Godot checks compare these cases tick by tick up to `stable_ticks` (the last tick before the
-    release) and check the release's own invariants after it."""
-    states = case["trace"]["state"]
-    first = next(i for i, st in enumerate(states) if st == "recover")
-    case["compare"] = "until_release"
-    case["compare_reason"] = reason
-    case["stable_ticks"] = first  # ticks 1..first are before the release (the release is tick first + 1)
-    case["blows_per_enemy"] = [sum(1 for h in case["trace"]["hits"] if h["tick"] <= first for i, _ in h["dealt"] if i == k)
-                               for k in range(len(case["trace"]["enemies"]))]
-    return case
+def stagger(layout, k):
+    """Moves each (dx, dy, kind, hp) of a layout by a fraction of a pixel (at most 1.2 px in x and 1.2 px in y).
+
+    A Skewer drives every enemy it carries into the same few pixels ahead of its tip, and the crowd separation
+    leaves two of them that overlapped resting at `dist == reach` up to rounding. When the Skewer lets go, whether
+    such a pair is bowled depends on which side of `dist < reach` the rounding falls, and the prototype's float64
+    and Godot's float32 `Vector2` (about 0.0002 px of resolution out at x = 2500) can fall on different sides: a
+    pile that settles within a rounding error of that boundary is a coin toss between the two number formats,
+    not a rule (docs/reference/pike-skewer.md, exception 6). `k` seeds the stagger. It was picked per fixture from
+    the seeds 0 to 9 (several land both implementations on the same side, others flip a pair), so the Godot checks can compare the
+    whole trace, release included; it is not a tolerance, and the fixture still fails if the port's rules differ."""
+    return [(dx + ((i * 5 + 2 * k) % 5 - 2) * 0.6, dy + ((i * 3 + k) % 7 - 3) * 0.4, kind, hp) for i, (dx, dy, kind, hp) in enumerate(layout)]
 
 
 def run_trace(g, sw, es, ticks):
@@ -516,7 +512,7 @@ def case_skewer_carry():
     """Several enemies on one Skewer: those the segment touches (radius + 18 off the line) are struck once,
     impaled and carried together, ones beside the line, behind the player and beyond the range are left alone."""
     out = {}
-    g, sw, es, _, tr, setup = skewer_run(enemies=line_layout(), ticks=130)
+    g, sw, es, _, tr, setup = skewer_run(enemies=stagger(line_layout(), 8), ticks=130)
     per = [sum(1 for h in tr.hits for i, _ in h["dealt"] if i == k) for k in range(len(es))]
     out["line"] = dict(setup=setup, trace=tr.out(), hits_per_enemy=per, kills=g.kills)
     # enemies close to the player's side of the launch: the first flight tick's segment reaches behind the sword
@@ -525,7 +521,7 @@ def case_skewer_carry():
     out["muzzle"] = dict(setup=setup, trace=tr.out(), kills=g.kills)
     # a crowd that overlaps itself: the crowd separation pushes carried enemies apart while they are carried
     crowd = [(260.0 + 20.0 * (i % 4), -30.0 + 22.0 * (i // 4) + 6.0 * (i % 3), "husk" if i % 5 else "runner", 900.0) for i in range(12)]
-    g, sw, es, _, tr, setup = skewer_run(enemies=crowd, ticks=130)
+    g, sw, es, _, tr, setup = skewer_run(enemies=stagger(crowd, 5), ticks=130)
     out["crowd"] = dict(setup=setup, trace=tr.out(), kills=g.kills)
     # three Skewers from three Pikes on one tick, with enemies on each line: separate hit sets and carries
     with NoCrit(False):
@@ -579,7 +575,10 @@ def case_skewer_walls():
         to_wall = min((WORLD.right - 40.0 - px) / ux if ux > 0 else (40.0 - px) / ux if ux < 0 else 1e9,
                       (WORLD.bottom - 40.0 - py) / uy if uy > 0 else (40.0 - py) / uy if uy < 0 else 1e9)
         layout = layout + [(ux * to_wall, uy * to_wall, "husk", 900.0)]
-        g, sw, es, _, tr, setup = skewer_run(player=player, point=(px + heading[0] * 400.0, py + heading[1] * 400.0), enemies=layout, ticks=110)
+        # the aim point is 5 px off the exact diagonal of a corner: on the exact diagonal the tip passes both
+        # walls on the same tick and the wall that ends the flight is a tie between two float roundings
+        off = 5.0 if heading[0] and heading[1] else 0.0
+        g, sw, es, _, tr, setup = skewer_run(player=player, point=(px + heading[0] * 400.0, py + heading[1] * 400.0 + off), enemies=layout, ticks=110)
         out[label] = dict(setup=setup, trace=tr.out(), kills=g.kills, slams=sum(1 for h in tr.hits if h["tick"] > 0))
     # a bowling pile-up against the wall: others stand where the released enemy slams
     pile = [(300.0, 0.0, "husk", 900.0), (540.0, 20.0, "husk", 900.0), (590.0, -14.0, "husk", 900.0), (560.0, 60.0, "runner", 900.0), (610.0, 30.0, "brute", 900.0)]
@@ -631,8 +630,15 @@ def case_skewer_range():
     everything still impaled at 750 px/s; an enemy that would be reached by tick 23 is not."""
     out = {}
     for label, dxs in (("near_the_end", (650.0, 780.0, 880.0, 900.0, 940.0)), ("beyond", (1010.0, 1080.0))):
-        g, sw, es, _, tr, setup = skewer_run(enemies=[(dx, 8.0 * i, "husk", 900.0) for i, dx in enumerate(dxs)], ticks=110)
+        layout = [(dx, 8.0 * i, "husk", 900.0) for i, dx in enumerate(dxs)]
+        g, sw, es, _, tr, setup = skewer_run(enemies=stagger(layout, 5) if label == "near_the_end" else layout, ticks=110)
         out[label] = dict(setup=setup, trace=tr.out())
+    # the same ending along a diagonal (the aim point 300 px east and 300 px south of the player): the release at
+    # 750 px/s keeps the heading, so each enemy leaves along both axes
+    ux, uy = 1.0 / math.sqrt(2.0), 1.0 / math.sqrt(2.0)
+    layout = [(ux * a - uy * b, uy * a + ux * b, "husk", 900.0) for a, b in ((560.0, 0.0), (700.0, 14.0), (790.0, -12.0), (830.0, 6.0))]
+    g, sw, es, _, tr, setup = skewer_run(point=(PLAYER[0] + 300.0, PLAYER[1] + 300.0), enemies=stagger(layout, 5), ticks=110)
+    out["diagonal_near_the_end"] = dict(setup=setup, trace=tr.out())
     return out
 
 
@@ -649,8 +655,8 @@ def case_skewer_deaths():
     for label, extra in (("killed_while_carried_at_once", 0), ("killed_while_carried_later", 5)):
         with NoCrit(False):
             g = fresh()
-            es = [foe(g, (PLAYER[0] + 250.0, PLAYER[1])), foe(g, (PLAYER[0] + 262.0, PLAYER[1] + 14.0)), foe(g, (PLAYER[0] + 258.0, PLAYER[1] - 20.0), kind="runner"),
-                  foe(g, (PLAYER[0] + 330.0, PLAYER[1] + 4.0))]
+            pile = stagger([(250.0, 0.0, "husk", 900.0), (262.0, 14.0, "husk", 900.0), (258.0, -20.0, "runner", 900.0), (330.0, 4.0, "husk", 900.0)], 5)
+            es = [foe(g, (PLAYER[0] + dx, PLAYER[1] + dy), kind=kind) for dx, dy, kind, _ in pile]
             sw = g.swords[0]
             key(g, pygame.K_q, mouse=(PLAYER[0] + 400.0, PLAYER[1]))
             tr = Trace(sw, es)
@@ -665,14 +671,17 @@ def case_skewer_deaths():
             assert armed_at is not None
             out[label] = dict(setup=setup_of(g, (), es, point=[PLAYER[0] + 400.0, PLAYER[1]], kill_after_ticks=extra, kill_index=0),
                               trace=tr.out(), kills=g.kills, motes=len(g.motes), left=len(g.enemies), armed_at=armed_at)
-    # burning to death while carried (conditions ON): the Skewer's two doses of fire outlast the carried enemy
+    # burning to death (conditions ON): the Skewer's two doses of fire outlast an enemy left at 2 hp. It lets go of the
+    # enemy on tick 45 and the burn kills it on tick 58, in the sword's recovery: the Skewer's aim alone takes 23 ticks
+    # and a burn needs about 28 more, so a burn cannot finish an enemy before the release (a kill while carried is
+    # killed_while_carried_*)
     with NoCrit(False):
         g = fresh(conditions=True, elements=("fire", "fire", "fire"))
         es = [foe(g, (PLAYER[0] + 300.0, PLAYER[1]), hp=55.0), foe(g, (PLAYER[0] + 322.0, PLAYER[1] + 12.0)), foe(g, (PLAYER[0] + 360.0, PLAYER[1] - 6.0), kind="brute")]
         key(g, pygame.K_q, mouse=(PLAYER[0] + 400.0, PLAYER[1]))
         tr = run_trace(g, g.swords[0], es, 110)
-        _CONDITION_CASES.append("skewer_burn_dies_carried")
-        out["burns_while_carried"] = dict(setup=setup_of(g, (), es, point=[PLAYER[0] + 400.0, PLAYER[1]]), trace=tr.out(), kills=g.kills, motes=len(g.motes),
+        _CONDITION_CASES.append("skewer_burn_dies_after_release")
+        out["burns_after_release"] = dict(setup=setup_of(g, (), es, point=[PLAYER[0] + 400.0, PLAYER[1]]), trace=tr.out(), kills=g.kills, motes=len(g.motes),
                                           died_tick=next((i + 1 for i, d in enumerate(tr.e[0]["dead"]) if d), None))
     # a Pike (slot 0, which acts before the Skewer's slot 1) thrusts through a 20 hp enemy on the very tick the
     # Skewer's segment reaches it: the thrust kills it first, so the Skewer finds a corpse. The corpse joins the
@@ -934,15 +943,6 @@ def main():
         skewer_boundary=case_skewer_boundary(), skewer_range=case_skewer_range(), skewer_deaths=case_skewer_deaths(),
         skewer_rules=case_skewer_rules(), skewer_parry=case_skewer_parry(), conditions=case_conditions(), keys=case_keys(),
     )
-    pile = "carried enemies pile up at the touching distance"
-    for name in ("line", "muzzle", "crowd"):
-        until_release(cases["skewer_carry"][name], pile)
-    for name in ("near_the_end", "beyond"):
-        until_release(cases["skewer_range"][name], pile)
-    for name in ("killed_while_carried_at_once", "killed_while_carried_later"):
-        until_release(cases["skewer_deaths"][name], pile)
-    for name in ("corner_north_east", "corner_south_west"):
-        until_release(cases["skewer_walls"][name], pile)
     cases["fixture_scope"] = assert_fixtures_in_scope()
     text = dumps(cases)
     if len(sys.argv) > 1:

@@ -33,8 +33,11 @@ var _embers: Array[Dictionary] = []
 var _wedges: Array[Dictionary] = []
 var _last_sweep_angle: Dictionary = {}
 ## How many times each kind of Warden or Pike effect has been drawn (`telegraph`, `fan`, `maelstrom`,
-## `thrust_telegraph`, `skewer_aim`, `skewer_carry`);
-## checks read it to prove the layer really draws what the sword's state asks for.
+## and the Pike's strokes `thrust_telegraph_band`, `thrust_telegraph_line`, `skewer_aim_band`,
+## `skewer_aim_line`, `skewer_carry_ring`, `skewer_carry_line`); the Pike's strokes go through `_stroke`
+## and `_stroke_ring`, which count and draw in one call, so a stroke cannot be counted without being
+## drawn nor drawn without being counted. Checks read it to prove the layer really draws what the
+## sword's state asks for.
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -336,15 +339,26 @@ func _draw_sweep_telegraph(sword: SwordState) -> void:
 ## The line a Pike is about to thrust along: from where the sword hangs, past the aim point by the
 ## thrust's overshoot, brightening as the windup runs out. Follows the target like the thrust.
 func _draw_thrust_telegraph(sword: SwordState) -> void:
-	draw_counts[&"thrust_telegraph"] = draw_counts.get(&"thrust_telegraph", 0) + 1
 	var u: float = sword.windup_progress()
 	var heading: Vector2 = (sword.aim - sword.position).normalized()
 	var tint: Color = _sword_color(sword.spec)
 	var reach: float = (sword.aim - sword.position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT
 	var from: Vector2 = sword.position + heading * sword.length * SwordDefs.PIKE_TIP_FRACTION
 	var to: Vector2 = sword.position + heading * reach
-	draw_line(from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
-	draw_line(from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+	_stroke(&"thrust_telegraph_band", from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
+	_stroke(&"thrust_telegraph_line", from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## Draws a line and counts it under `kind` in one step (see `draw_counts`).
+func _stroke(kind: StringName, from: Vector2, to: Vector2, color: Color, width: float) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_line(from, to, color, width)
+
+
+## Draws a full circle's outline and counts it under `kind` in one step (see `draw_counts`).
+func _stroke_ring(kind: StringName, centre: Vector2, radius: float, color: Color, width: float) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_arc(centre, radius, 0.0, TAU, 20, color, width)
 
 
 ## A Skewer: while it aims, the line it will fly along (the prototype's: from the player out to the
@@ -352,17 +366,15 @@ func _draw_thrust_telegraph(sword: SwordState) -> void:
 ## enemy it carries and a short line back to the point.
 func _draw_skewer(sword: SwordState, tint: Color) -> void:
 	if not sword.skewer_flying:
-		draw_counts[&"skewer_aim"] = draw_counts.get(&"skewer_aim", 0) + 1
 		var u: float = sword.skewer_aim_progress()
 		var end: Vector2 = _run.position + sword.dir * SwordDefs.PIKE_ULT_RANGE
-		draw_line(_run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
-		draw_line(_run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+		_stroke(&"skewer_aim_band", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+		_stroke(&"skewer_aim_line", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
 		return
 	var tip: Vector2 = sword.position + sword.dir * sword.length * SwordDefs.PIKE_ULT_TIP_FRACTION
 	for enemy: EnemyState in sword.skewer_carried:
-		draw_counts[&"skewer_carry"] = draw_counts.get(&"skewer_carry", 0) + 1
-		draw_arc(enemy.position, enemy.radius + 7.0, 0.0, TAU, 20, Color(tint, 0.85), 3.0)
-		draw_line(enemy.position, tip, Color(tint, 0.4), 2.0)
+		_stroke_ring(&"skewer_carry_ring", enemy.position, enemy.radius + 7.0, Color(tint, 0.85), 3.0)
+		_stroke(&"skewer_carry_line", enemy.position, tip, Color(tint, 0.4), 2.0)
 
 
 ## A running Maelstrom: the range it pulls from (dashed), spinning arcs inside the reach of its
