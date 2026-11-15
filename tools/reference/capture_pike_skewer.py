@@ -193,6 +193,24 @@ class Trace:
         return d
 
 
+def until_release(case, reason):
+    """Marks a case whose fixture ends in a pile of carried enemies resting at exactly the touching distance
+    (a Skewer drives every enemy it carries into the same few pixels ahead of its tip, and the crowd
+    separation leaves such a pair at `dist == reach` up to rounding). Once the Skewer lets go, whether that
+    pair is bowled depends on which side of `dist < reach` the rounding falls, and the prototype's float64
+    and Godot's float32 `Vector2` can fall on different sides (docs/reference/pike-skewer.md, exception 6).
+    The Godot checks compare these cases tick by tick up to `stable_ticks` (the last tick before the
+    release) and check the release's own invariants after it."""
+    states = case["trace"]["state"]
+    first = next(i for i, st in enumerate(states) if st == "recover")
+    case["compare"] = "until_release"
+    case["compare_reason"] = reason
+    case["stable_ticks"] = first  # ticks 1..first are before the release (the release is tick first + 1)
+    case["blows_per_enemy"] = [sum(1 for h in case["trace"]["hits"] if h["tick"] <= first for i, _ in h["dealt"] if i == k)
+                               for k in range(len(case["trace"]["enemies"]))]
+    return case
+
+
 def run_trace(g, sw, es, ticks):
     tr = Trace(sw, es)
     for _ in range(ticks):
@@ -502,7 +520,7 @@ def case_skewer_carry():
     per = [sum(1 for h in tr.hits for i, _ in h["dealt"] if i == k) for k in range(len(es))]
     out["line"] = dict(setup=setup, trace=tr.out(), hits_per_enemy=per, kills=g.kills)
     # enemies close to the player's side of the launch: the first flight tick's segment reaches behind the sword
-    muzzle = [(-60.0, 0.0, "husk", 900.0), (-35.0, 30.0, "husk", 900.0), (-20.0, 0.0, "husk", 900.0), (5.0, -34.0, "runner", 900.0), (30.0, 0.0, "husk", 900.0), (70.0, 10.0, "brute", 900.0)]
+    muzzle = [(-44.0, 0.0, "husk", 900.0), (-60.0, 6.0, "husk", 900.0), (46.0, -2.0, "husk", 900.0), (30.0, 40.0, "runner", 900.0), (-30.0, -44.0, "husk", 900.0), (110.0, 8.0, "brute", 900.0)]
     g, sw, es, _, tr, setup = skewer_run(enemies=muzzle, ticks=90)
     out["muzzle"] = dict(setup=setup, trace=tr.out(), kills=g.kills)
     # a crowd that overlaps itself: the crowd separation pushes carried enemies apart while they are carried
@@ -716,12 +734,15 @@ def case_skewer_deaths():
         key(g, pygame.K_q, mouse=(PLAYER[0] + 400.0, PLAYER[1]))
         tr = Trace(g.swords[0], es)
         for n in range(1, 120):
-            if n == 28:
+            if n == 33:
+                carried_at_death = len(g.swords[0].carried)
                 g.hurt_player(1000, V(PLAYER[0] - 50.0, PLAYER[1]))
             tick(g)
             tr.step(g)
-        out["player_dies_in_flight"] = dict(setup=setup_of(g, (), es, point=[PLAYER[0] + 400.0, PLAYER[1]], die_after_ticks=27), trace=tr.out(),
-                                            state=g.swords[0].state, carried=len(g.swords[0].carried))
+        assert len(g.swords[0].carried) == 0
+        out["player_dies_in_flight"] = dict(setup=setup_of(g, (), es, point=[PLAYER[0] + 400.0, PLAYER[1]], die_after_ticks=32), trace=tr.out(),
+                                            state=g.swords[0].state, carried=len(g.swords[0].carried),
+                                            carried_at_death=carried_at_death)
     return out
 
 
@@ -842,7 +863,8 @@ def case_conditions():
             out["thrust"][element] = dict(setup=setup_of(g, (0,), es), conditions=cols, kills=g.kills)
         with NoCrit(False):
             g = fresh(rarities=(index, 0, 0), conditions=True, elements=(element, "ice", "fire"))
-            es = [foe(g, (PLAYER[0] + 250.0, PLAYER[1] + 4.0), hp=2000.0), foe(g, (PLAYER[0] + 330.0, PLAYER[1] - 6.0), kind="brute", hp=2000.0),
+            # lateral gaps wider than the sum of radii, so the carried enemies never rest touching each other
+            es = [foe(g, (PLAYER[0] + 250.0, PLAYER[1] - 28.0), hp=2000.0), foe(g, (PLAYER[0] + 330.0, PLAYER[1] + 44.0), kind="brute", hp=2000.0),
                   foe(g, (PLAYER[0] + 420.0, PLAYER[1]), kind="runner", hp=2000.0)]
             key(g, pygame.K_q, mouse=(PLAYER[0] + 400.0, PLAYER[1]))
             cols = condition_columns(g, es, 130)
@@ -912,6 +934,15 @@ def main():
         skewer_boundary=case_skewer_boundary(), skewer_range=case_skewer_range(), skewer_deaths=case_skewer_deaths(),
         skewer_rules=case_skewer_rules(), skewer_parry=case_skewer_parry(), conditions=case_conditions(), keys=case_keys(),
     )
+    pile = "carried enemies pile up at the touching distance"
+    for name in ("line", "muzzle", "crowd"):
+        until_release(cases["skewer_carry"][name], pile)
+    for name in ("near_the_end", "beyond"):
+        until_release(cases["skewer_range"][name], pile)
+    for name in ("killed_while_carried_at_once", "killed_while_carried_later"):
+        until_release(cases["skewer_deaths"][name], pile)
+    for name in ("corner_north_east", "corner_south_west"):
+        until_release(cases["skewer_walls"][name], pile)
     cases["fixture_scope"] = assert_fixtures_in_scope()
     text = dumps(cases)
     if len(sys.argv) > 1:

@@ -1194,7 +1194,7 @@ func _check_main_scene() -> void:
 	main._sfx.played.clear()
 	await _tree.create_timer(0.1).timeout
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BURST, Vector2.ZERO, Vector2.ZERO, 1))
-	_ok("a beat that struck something is heard (a slash), one that struck nothing is silent, and the burst is heard", silent_beat and struck_beat and main._sfx.played.has("strike"), "%s" % [main._sfx.played]) 
+	_ok("a beat that struck something is heard (a slash), one that struck nothing is silent, and the burst is heard", silent_beat and struck_beat and main._sfx.played.has("strike"), "%s" % [main._sfx.played])
 	var warden_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._warden:
