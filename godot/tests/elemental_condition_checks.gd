@@ -908,6 +908,8 @@ func _check_visual_independence() -> void:
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
 	print("conditions: identical outcomes at low and high render rates")
+	if not RenderRateScenario.probes_enabled():
+		return
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.CONDITIONS)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
 	_ok("the scripted fight does something worth comparing (freezes %d, burning deaths %d, damage ticks %d, shatters %d, kills %d)" % [int(headless["frozen_cues"]), int(headless["spread_cues"]), int(headless["condition_damage_cues"]), int(headless["shatter_cues"]), int(headless["kills"])],

@@ -6,14 +6,29 @@ extends SceneTree
 ##
 ## Prints "CHECKS PASSED: <n>" on success; the build requires that line as well
 ## as exit status 0 because Godot can exit 0 after a script error.
+##
+## The mutation checker (tools/godot/mutation-check.sh) adds two switches after `--`:
+##   --fail-fast    stop at the first failing check: print its "  FAIL" line, then the usual
+##                  "CHECKS FAILED: <failed> of <run>" verdict, and exit 1 like a complete run.
+##                  Later checks are neither run nor counted, and the render-rate probes that
+##                  have not started yet are skipped.
+##   --skip-probes  skip the render-rate probes (RenderRateScenario.probes_enabled()). A run
+##                  without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
+## Without them, every check runs and every failure is reported, as the build requires.
 
 const EPS: float = 0.001
 
 var _total: int = 0
 var _failed: int = 0
+var _fail_fast: bool = false
+var _skip_probes: bool = false
+var _stopped: bool = false
 
 
 func _initialize() -> void:
+	var switches: PackedStringArray = OS.get_cmdline_user_args()
+	_fail_fast = switches.has("--fail-fast")
+	_skip_probes = switches.has("--skip-probes")
 	_run_all.call_deferred()
 
 
@@ -38,7 +53,7 @@ func _run_all() -> void:
 	var warden: WardenMaelstromChecks = WardenMaelstromChecks.new(_check, self)
 	await warden.run_all()
 	if _failed == 0 and _total > 0:
-		print("CHECKS PASSED: %d" % _total)
+		print(_passed_line())
 		quit(0)
 	else:
 		print("CHECKS FAILED: %d of %d" % [_failed, _total])
@@ -47,12 +62,33 @@ func _run_all() -> void:
 
 # --------------------------------------------------------------- helpers
 func _check(label: String, condition: bool, detail: String = "") -> void:
+	if _stopped:
+		return
 	_total += 1
 	if condition:
 		print("  ok   %s" % label)
 	else:
 		_failed += 1
 		print("  FAIL %s %s" % [label, detail])
+		if _fail_fast:
+			_stop_at_first_failure()
+
+
+## --fail-fast: the verdict is printed now, because the checks already running still have to
+## reach their next `await` before the engine can leave. Their remaining checks are ignored
+## (see _check) and RenderRateScenario.probes_enabled() sees the environment flag, so no
+## probe process is started from here on.
+func _stop_at_first_failure() -> void:
+	_stopped = true
+	OS.set_environment(RenderRateScenario.STOPPED_ENV, "1")
+	print("CHECKS FAILED: %d of %d (--fail-fast: stopped at the first failure)" % [_failed, _total])
+	quit(1)
+
+
+func _passed_line() -> String:
+	if _skip_probes:
+		return "CHECKS PARTIAL: %d (--skip-probes: the render-rate probes did not run)" % _total
+	return "CHECKS PASSED: %d" % _total
 
 
 func _near(a: Vector2, b: Vector2, tolerance: float = EPS) -> bool:

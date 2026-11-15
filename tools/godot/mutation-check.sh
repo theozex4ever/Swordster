@@ -11,6 +11,32 @@
 # parse/script error, no verdict at all) is INCONCLUSIVE: it is retried once, then reported and, if it
 # persists, makes the script fail instead of silently counting as detection.
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
+#
+# Speed (issue #35). Nearly all of a full run_checks.gd run (about 45 s) is the render-rate
+# probes: sub-Godot processes at 5/20/60/240 fps in each fight group. Almost every mutation is
+# rejected by a behavioural check long before them, so each mutation is judged in two steps:
+#   1. quick: `run_checks.gd -- --fail-fast --skip-probes` stops at the first failing check
+#      and never launches a probe (a few seconds). A clean failure verdict here is CAUGHT;
+#      it is the same verdict the full run would give, because the quick run only runs
+#      fewer checks and any check that fails there fails there too.
+#   2. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
+#      never "CHECKS PASSED") is the project run again with the probes, still fail-fast.
+#      Only a full run that prints "CHECKS PASSED" makes a mutation SURVIVED.
+# FAST=0 restores the original behaviour (one complete, non-fail-fast run per mutation) and
+# is the reference the fast verdicts are compared against.
+#
+# Selection (all compose; every mutation lives in the `slice #N` section it is listed under):
+#   SECTIONS=pike,warden   only those sections, plus `core` (the ungrouped mutations at the top
+#                          of the list: simulation basics such as speed, pause, restart and the
+#                          wall clamp). A section is named by the first word of its header title
+#                          or by its slice number (SECTIONS=14 or SECTIONS='#14'). CORE=0 leaves
+#                          core out; SECTIONS=all or unset selects every section;
+#                          SECTIONS=list prints the sections and exits.
+#   ONLY=a,b               only the named mutations (rerun after fixing a check), checked
+#                          against the sections too; an unknown name is refused.
+#   SHARD=i SHARDS=n       every n-th mutation of the selection starting at i (0-based), so n
+#                          copies of this script can run in parallel over the same selection.
+# Each shard ends with a `RESULT shard=… ran=… caught=… survived=… inconclusive=…` line.
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 # shellcheck source=tools/godot/godot.lock
@@ -27,28 +53,128 @@ if [[ ! "$SHARDS" =~ ^[1-9][0-9]*$ || ! "$SHARD" =~ ^[0-9]+$ ]] || ((10#$SHARD >
   exit 2
 fi
 SHARD=$((10#$SHARD)) SHARDS=$((10#$SHARDS))
+FAST="${FAST:-1}"
+[[ "$FAST" == 0 || "$FAST" == 1 ]] || { echo "FAST must be 0 or 1 (got $FAST)" >&2; exit 2; }
 
-SCRATCH="$(mktemp -d)"; trap 'rm -rf "$SCRATCH"' EXIT
+# The mutation list below is plain script text: read it back to learn which section each
+# mutation is in, so a section added later is selectable without registering it anywhere.
+declare -A SECTION_OF=() SECTION_COUNT=() SECTION_ALIAS=()
+MUTATION_NAMES=(); SECTION_KEYS=(core); SECTION_COUNT[core]=0
+section=core
+while IFS= read -r line; do
+  if [[ "$line" =~ ^"# --- "(.+)$ ]]; then
+    title="${BASH_REMATCH[1]}"
+    key="${title%% *}"; key="${key,,}"; key="${key//[^a-z0-9]/}"
+    [[ -n "$key" ]] || key="section$((${#SECTION_KEYS[@]} + 1))"
+    section="$key"
+    if [[ -z "${SECTION_COUNT[$section]+x}" ]]; then SECTION_COUNT[$section]=0; SECTION_KEYS+=("$section"); fi
+    if [[ "$title" =~ \(slice\ \#([0-9]+)\) ]]; then SECTION_ALIAS[${BASH_REMATCH[1]}]="$section"; fi
+  elif [[ "$line" =~ ^mutate[[:space:]]+([^[:space:]]+) ]]; then
+    SECTION_OF[${BASH_REMATCH[1]}]="$section"; MUTATION_NAMES+=("${BASH_REMATCH[1]}")
+    SECTION_COUNT[$section]=$((SECTION_COUNT[$section] + 1))
+  fi
+done < "${BASH_SOURCE[0]}"
+
+SECTIONS="${SECTIONS:-}"
+if [[ "${SECTIONS,,}" == list ]]; then
+  for key in "${SECTION_KEYS[@]}"; do
+    aliases=""; for slice in "${!SECTION_ALIAS[@]}"; do [[ "${SECTION_ALIAS[$slice]}" == "$key" ]] && aliases=" (slice #$slice)"; done
+    printf '%-12s %3d mutations%s\n' "$key" "${SECTION_COUNT[$key]}" "$aliases"
+  done
+  exit 0
+fi
+declare -A WANT_SECTION=()
+if [[ -n "$SECTIONS" && "${SECTIONS,,}" != all ]]; then
+  IFS=',' read -r -a requested <<<"$SECTIONS"
+  for token in "${requested[@]}"; do
+    token="${token//[[:space:]]/}"; token="${token,,}"; token="${token#\#}"; token="${token#slice}"; token="${token#\#}"
+    if [[ -n "${SECTION_COUNT[$token]+x}" ]]; then WANT_SECTION[$token]=1
+    elif [[ -n "${SECTION_ALIAS[$token]+x}" ]]; then WANT_SECTION[${SECTION_ALIAS[$token]}]=1
+    else
+      echo "unknown section '$token' in SECTIONS=$SECTIONS (SECTIONS=list shows them: ${SECTION_KEYS[*]})" >&2
+      exit 2
+    fi
+  done
+  [[ "${CORE:-1}" == 0 ]] || WANT_SECTION[core]=1
+fi
+declare -A WANT_ONLY=()
+if [[ -n "${ONLY:-}" ]]; then
+  IFS=',' read -r -a requested <<<"$ONLY"
+  for token in "${requested[@]}"; do
+    [[ -n "${SECTION_OF[$token]+x}" ]] || { echo "unknown mutation '$token' in ONLY=$ONLY" >&2; exit 2; }
+    WANT_ONLY[$token]=1
+  done
+fi
+# PLAN is this shard's share of the selection. Sharding is over the selected list (not all
+# mutations), so a section run is spread evenly too.
+declare -A PLAN=()
+selected=0
+for name in "${MUTATION_NAMES[@]}"; do
+  if ((${#WANT_SECTION[@]})) && [[ -z "${WANT_SECTION[${SECTION_OF[$name]}]+x}" ]]; then continue; fi
+  if ((${#WANT_ONLY[@]})) && [[ -z "${WANT_ONLY[$name]+x}" ]]; then continue; fi
+  if ((selected++ % SHARDS == SHARD)); then PLAN[$name]=1; fi
+done
+
+survived=0; inconclusive=0; ran=0
+report_result() { echo "RESULT shard=$SHARD shards=$SHARDS ran=$ran caught=$((ran - survived - inconclusive)) survived=$survived inconclusive=$inconclusive"; }
+if ((${#PLAN[@]} == 0)); then
+  echo "shard $SHARD of $SHARDS: no mutations selected ($selected selected in all)"; report_result; exit 0
+fi
+
+SCRATCH="$(mktemp -d)"; trap 'report_result; rm -rf "$SCRATCH"' EXIT
 export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config" XDG_CACHE_HOME="$SCRATCH/home/cache"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
 "$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1
 
-run_checks() { timeout 120 "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd 2>&1; }
+# run_checks DIR MODE: classic = the complete run (every failure reported, probes included);
+# quick = fail-fast and no probes; full = fail-fast with the probes.
+run_checks() {
+  local extra=()
+  case "$2" in
+    quick) extra=(-- --fail-fast --skip-probes) ;;
+    full) extra=(-- --fail-fast) ;;
+  esac
+  timeout 120 "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>&1
+}
 
-if ! out="$(run_checks "$SCRATCH/base")" || ! grep -q '^CHECKS PASSED' <<<"$out"; then
-  echo "baseline: unmodified project does NOT pass its checks"; echo "$out" | tail -20; exit 1
-fi
-echo "baseline: $(grep '^CHECKS PASSED' <<<"$out")"
+# judge STATUS LOG MODE sets VERDICT to CAUGHT, SURVIVED, PARTIAL (a clean quick run: nothing
+# failed, but the probes did not run) or INCONCLUSIVE, and DETAIL to say why.
+judge() {
+  local status="$1" log="$2" mode="$3"
+  VERDICT=INCONCLUSIVE; DETAIL=""
+  if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
+    VERDICT=SURVIVED
+  elif [[ "$mode" == quick ]] && grep -q '^CHECKS PARTIAL' <<<"$log" && ((status == 0)) \
+       && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+    VERDICT=PARTIAL
+  elif ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
+       && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+    VERDICT=CAUGHT; DETAIL="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"
+  else
+    DETAIL="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log" | cut -c1-70)"
+  fi
+}
 
-# ONLY=a,b reruns just the named mutations. SHARD=i SHARDS=n runs every n-th mutation starting at i (0-based), so n copies of
-# this script can run in parallel over the same list; each prints its own totals.
-mutation_index=0
+# The unmodified project must be accepted before any rejection means anything. The quick run
+# gates every mutation; the complete run (what the build requires) is only needed once a
+# mutation gets past the quick run, so it is done at the first such mutation.
+baseline_full=0
+check_baseline() { # mode
+  local out status=0
+  out="$(run_checks "$SCRATCH/base" "$1")" || status=$?
+  judge "$status" "$out" "$1"
+  if [[ "$1" == quick && "$VERDICT" != PARTIAL ]] || [[ "$1" != quick && "$VERDICT" != SURVIVED ]]; then
+    echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; exit 1
+  fi
+  echo "baseline: $(grep -m1 '^CHECKS \(PASSED\|PARTIAL\)' <<<"$out") ($1 run)"
+}
+if [[ "$FAST" == 1 ]]; then check_baseline quick; else check_baseline classic; baseline_full=1; fi
+
 mutate() { # name file old new
   local name="$1" file="$2" old="$3" new="$4" dir="$SCRATCH/m-$1"
-  if (( mutation_index++ % SHARDS != SHARD )); then return 0; fi
-  # ONLY=name,name reruns just those mutations (after fixing a check, say).
-  if [[ -n "${ONLY:-}" && ",$ONLY," != *",$1,"* ]]; then return 0; fi
+  [[ -n "${PLAN[$name]+x}" ]] || return 0
   ran=$((ran + 1))
+  local began=$EPOCHREALTIME
   cp -a "$SCRATCH/base" "$dir"
   python3 -I - "$dir/$file" "$old" "$new" <<'PY' || { echo "MUTATION NOT APPLIED: $name"; exit 1; }
 import sys
@@ -60,20 +186,28 @@ open(path, "w").write(text.replace(old, new))
 PY
   local verdict="" detail="" attempt status log
   for attempt in 1 2; do
-    status=0; log="$(run_checks "$dir")" || status=$?
-    if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
-      verdict=SURVIVED; break
-    elif ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
-         && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
-      verdict=CAUGHT; detail="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"; break
+    if [[ "$FAST" == 1 ]]; then
+      status=0; log="$(run_checks "$dir" quick)" || status=$?
+      judge "$status" "$log" quick
+      if [[ "$VERDICT" == PARTIAL ]]; then
+        ((baseline_full)) || { check_baseline full; baseline_full=1; }
+        status=0; log="$(run_checks "$dir" full)" || status=$?
+        judge "$status" "$log" full
+      fi
+    else
+      status=0; log="$(run_checks "$dir" classic)" || status=$?
+      judge "$status" "$log" classic
     fi
-    verdict=INCONCLUSIVE; detail="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log" | cut -c1-70)"
+    verdict="$VERDICT"; detail="$DETAIL"
+    [[ "$verdict" != INCONCLUSIVE ]] && break
     ((attempt == 1)) && echo "retry     $name   (inconclusive run: $detail)"
   done
+  rm -rf "$dir"
+  local took; took="$(awk -v a="$began" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1fs", b - a }')"
   case "$verdict" in
-    CAUGHT)       echo "caught    $name   ($detail)" ;;
-    SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug"; survived=$((survived + 1)) ;;
-    INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail"; inconclusive=$((inconclusive + 1)) ;;
+    CAUGHT)       echo "caught    $name   ($detail)   [$took]" ;;
+    SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug   [$took]"; survived=$((survived + 1)) ;;
+    INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail   [$took]"; inconclusive=$((inconclusive + 1)) ;;
   esac
 }
 
