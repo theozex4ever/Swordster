@@ -37,6 +37,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("colossus_cataclysm"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("colossus reference file loads", false, REFERENCE_PATH)
@@ -1503,6 +1505,8 @@ func _check_visual_independence() -> void:
 
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
+	if not RenderRateScenario.probes_enabled():
+		return
 	print("colossus: identical outcomes at low and high render rates")
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.COLOSSUS)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
