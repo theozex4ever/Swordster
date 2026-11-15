@@ -68,6 +68,8 @@ func run_all() -> void:
 	_check_removed_and_cleanup()
 	_check_pause_and_death()
 	_check_fixture_and_launch()
+	_check_progress_and_fields()
+	await _check_field_particles()
 	await _check_main_scene()
 	await _check_hud()
 	await _check_visual_independence()
@@ -481,6 +483,25 @@ func _check_slam() -> void:
 			slam_index += 1
 		hp_before = [replay_enemies[0].hp, replay_enemies[1].hp]
 	_ok("each blow is round(50 x (1 - 0.45 x distance / 118)): 50 at the centre down to 28 at the edge, both slams, nothing struck twice%s" % detail, formula_ok and slam_index == 2)
+	var cue_run: GameRun = _run_of_setup(common["setup"])
+	cue_run.take_cues()
+	var slam_cues: Array[SimCue] = []
+	var strike_cues: Array[SimCue] = []
+	for step: int in range(1, int(common["trace"]["ticks"]) + 1):
+		cue_run.step()
+		for cue: SimCue in cue_run.take_cues():
+			if cue.kind == SimCue.Kind.COLOSSUS_SLAM:
+				slam_cues.append(cue)
+			elif cue.kind == SimCue.Kind.SWORD_STRIKE:
+				strike_cues.append(cue)
+	var cues_ok: bool = slam_cues.size() == 2 and strike_cues.size() == 2
+	for i: int in mini(slam_cues.size(), 2):
+		var logged: Dictionary = slams[i]
+		cues_ok = cues_ok and not slam_cues[i].critical and slam_cues[i].element == &"poison" and slam_cues[i].radius == 118.0 and slam_cues[i].amount == (logged["area"] as Array).size()
+		cues_ok = cues_ok and slam_cues[i].position.distance_to(Vector2(float(logged["x"]), float(logged["y"]))) <= 0.01 and slam_cues[i].direction == Vector2.DOWN
+	for cue: SimCue in strike_cues:
+		cues_ok = cues_ok and cue.direction == Vector2.DOWN
+	_ok("each landing is announced by a slam cue at the impact point with its radius (118), the number of enemies in reach and the sword's element, not marked a Cataclysm; each fall begins with a strike cue pointing down", cues_ok)
 	var crit_case: Dictionary = _ref["slam"]["common_crit"]
 	var crit_run: GameRun = _run_of_setup(crit_case["setup"])
 	var crit_enemy: EnemyState = crit_run.enemies[0]
@@ -530,7 +551,7 @@ func _check_acquire() -> void:
 
 
 func _check_timing() -> void:
-	print("colossus: the fall's length depends on the altitude it started from")
+	print("colossus: a slam begun at different moments of the idle bob lands on the prototype's ticks")
 	var timing: Dictionary = _ref["timing"]
 	var wrong: Array[String] = []
 	var impacts: Array[int] = []
@@ -541,7 +562,7 @@ func _check_timing() -> void:
 			wrong.append("%d: %s" % [i, result["diff"]])
 		var run: GameRun = result["run"]
 		impacts.append(_transition_ticks(runs[i] as Dictionary, 0, "stuck")[0])
-	_ok("slams begun at eight different moments of the idle bob match the prototype on every tick (%s)" % [wrong], wrong.is_empty())
+	_ok("slams begun at eight different moments of the idle bob (the altitude the windup climbs from differs) match the prototype on every tick (%s)" % [wrong], wrong.is_empty())
 	var distinct: Dictionary = {}
 	for tick: int in impacts:
 		distinct[tick] = true
@@ -549,7 +570,7 @@ func _check_timing() -> void:
 	var gaps: Array[int] = []
 	for i: int in impacts.size():
 		gaps.append(impacts[i] - int(strikes[i]))
-	_ok("the landing ticks %s vary with when the windup began, a fall of %s ticks each; the same as the prototype's %s" % [impacts, gaps, timing["impact_ticks"]], impacts == _int_array(timing["impact_ticks"]) and distinct.size() >= 6)
+	_ok("the landing ticks %s follow when the windup began, each a fall of %s ticks after its strike (the windup's climb all but forgets where it began); the same as the prototype's %s" % [impacts, gaps, timing["impact_ticks"]], impacts == _int_array(timing["impact_ticks"]) and distinct.size() >= 6 and gaps.all(func(gap: int) -> bool: return gap == 11))
 
 
 func _int_array(values: Array) -> Array[int]:
@@ -767,6 +788,17 @@ func _check_single() -> void:
 	var slam: Dictionary = (common["slams"] as Array)[0]
 	_ok("it rises for %d ticks (0.75 s: the 45th turns it into a fall), climbing to %.0f px, and lands on tick %d (the prototype's %d), exactly on the point %s, with the area %.1f px (118 x 1.8)" % [rises, peak, landed, int(slam["tick"]), point, float(slam["radius"])],
 		rises == 44 and landed == int(slam["tick"]) and landing_spot.distance_to(point) <= 0.01 and _near(float(slam["radius"]), 212.4, 0.0001) and peak > 300.0)
+	var cat_run: GameRun = _run_of_setup(common["setup"])
+	cat_run.apply(GameCommand.ultimate(0, point))
+	var cat_cues: Array[SimCue] = []
+	for step: int in 70:
+		cat_run.step()
+		cat_cues.append_array(cat_run.take_cues())
+	var cat_slams: Array[SimCue] = cat_cues.filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.COLOSSUS_SLAM)
+	var cat_fields: Array[SimCue] = cat_cues.filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.FIELD_CREATED)
+	_ok("the landing is one slam cue marked as a Cataclysm (radius 212.4, six enemies in reach, poison) and the field one cue at the point (radius 233.64, poison)",
+		cat_slams.size() == 1 and cat_slams[0].critical and _near(cat_slams[0].radius, 212.4, 0.0001) and cat_slams[0].amount == 6 and cat_slams[0].element == &"poison" and cat_slams[0].position.distance_to(point) <= 0.01
+		and cat_fields.size() == 1 and _near(cat_fields[0].radius, 233.64, 0.001) and cat_fields[0].element == &"poison" and cat_fields[0].position.distance_to(point) <= 0.01)
 	var blow_ok: bool = true
 	var detail: String = ""
 	var check_run: GameRun = _run_of_setup(common["setup"])
@@ -784,16 +816,19 @@ func _check_single() -> void:
 		if lost != float(expected):
 			blow_ok = false
 			detail += " enemy %d lost %.0f expected %d;" % [k, lost, expected]
-	_ok("every enemy in the area took round(50 x 2.2 x (1 - 0.45 x distance / 212.4)): 110 at the centre down to 61 at the edge (%d struck)%s" % [(slam["area"] as Array).size(), detail], blow_ok and (slam["area"] as Array).size() == 6)
+	_ok("every enemy in the area took round(50 x 2.2 x (1 - 0.45 x distance / 212.4)): 110 at the centre down to 63 at 202 px (%d struck)%s" % [(slam["area"] as Array).size(), detail], blow_ok and (slam["area"] as Array).size() == 6)
 	_ok("an enemy beyond the area was left alone: the one 252 px from the point has all its health", check_enemies[6].hp == 900.0)
 	_ok("it leaves ONE field at the point: %.1f px wide (1.1 x 212.4), %.0f s of life, poison at the sword's damage; a cue announces it (%d)" % [212.4 * 1.1, 5.0, check_run.cue_count(SimCue.Kind.FIELD_CREATED)], check_run.fields.size() == 1 and check_run.cue_count(SimCue.Kind.FIELD_CREATED) == 1 and _near(check_run.fields[0].radius, 233.64, 0.001) and check_run.fields[0].position == point and check_run.fields[0].element == &"poison" and check_run.fields[0].power == 50.0)
-	var field_ticks: Array[int] = []
+	var field_ticks: Array[int] = [-1]
 	var life_run: GameRun = _run_of_setup(common["setup"])
 	life_run.apply(GameCommand.ultimate(0, point))
 	for step: int in range(1, int(common["trace"]["ticks"]) + 1):
 		life_run.step()
 		if not life_run.fields.is_empty():
 			field_ticks.append(step)
+	field_ticks.remove_at(0)
+	if field_ticks.is_empty():
+		field_ticks.append(-1)
 	var field_column: Array[int] = _int_array(common["trace"]["run"]["fields"])
 	var first_tick: int = field_column.find(1) + 1
 	var last_tick: int = field_column.rfind(1) + 1
@@ -1023,6 +1058,9 @@ func _check_pause_and_hitstop() -> void:
 	var life_run: GameRun = _run_of_setup(case["setup"])
 	life_run.apply(GameCommand.ultimate(0, _point((case["setup"]["script"] as Array)[0]["point"])))
 	_steps(life_run, 70)
+	if life_run.fields.is_empty():
+		_ok("a field stands 70 ticks after the Cataclysm", false)
+		return
 	var field: FieldState = life_run.fields[0]
 	var before: Array = [field.life, field.tick_left, life_run.tick, life_run.enemies[0].conditions.poison, life_run.gameplay_time]
 	life_run.apply(GameCommand.pause())
@@ -1079,6 +1117,15 @@ func _check_removed_and_cleanup() -> void:
 	var fresh: SwordState = restart_run.swords[0]
 	_ok("a restart in the middle of a fight (a sword was in the air, then a field stood) leaves no field, a new sword hanging at 30 px, idle, ready, not falling, and nothing left of the cues (restarts %d)" % restart_run.restarts,
 		in_the_air and field_stood and restart_run.fields.is_empty() and fresh.phase == SwordState.Phase.IDLE and fresh.ultimate_ready() and fresh.altitude == 30.0 and not fresh.cataclysm_falling and fresh.fall_speed == 0.0 and restart_run.cue_count(SimCue.Kind.FIELD_CREATED) == 0 and restart_run.take_cues().is_empty())
+	var counted: GameRun = _lone_run(_trio(0, 99.0), [_husk_at(325.0, 0.0)])
+	var orb: ProjectileState = ProjectileState.make(CENTER + Vector2(300.0, -20.0), Vector2.ZERO)
+	counted.projectiles.append(orb)
+	counted.apply(GameCommand.ultimate(0, CENTER + Vector2(300.0, -20.0)))
+	_steps(counted, 62)
+	var snapshot: Dictionary = counted.snapshot()
+	_ok("the run counts the orbs its slams destroyed (%d) and lists its fields in the observation snapshot (%d, life %s)" % [counted.projectiles_cleared, int(snapshot["field_count"]), snapshot["field_lives"]], counted.projectiles_cleared == 1 and orb.fate == ProjectileState.Fate.CLEARED and int(snapshot["field_count"]) == 1 and (snapshot["field_lives"] as Array).size() == 1)
+	counted.apply(GameCommand.restart())
+	_ok("a restart zeroes that count", counted.projectiles_cleared == 0 and int(counted.snapshot()["field_count"]) == 0)
 	var cycle: GameRun = GameRun.new(RunScenario.colossus_encounter())
 	cycle.apply(GameCommand.ultimate(1, cycle.position + Vector2(200.0, 0.0)))
 	_steps(cycle, 70)
@@ -1172,6 +1219,13 @@ func _check_fixture_and_launch() -> void:
 	_ok("the colossus encounter is a cluster of %d husks and one wave (%s husk / runner / spitter / brute) against three Colossus swords with poison, ice and fire; conditions on; no shove" % [scenario.initial_enemies.size(), counts],
 		scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and scenario.loadout.size() == 3 and scenario.loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.COLOSSUS) and scenario.loadout[0].element == &"poison" and scenario.loadout[1].element == &"ice" and scenario.loadout[2].element == &"fire"
 		and scenario.conditions_enabled and not scenario.dev_shove and scenario.waves_enabled and scenario.initial_enemies.size() == 7 and scenario.wave_kinds.size() == 16 and counts[2] == 2 and counts[3] == 2)
+	_ok("the dev cycle reaches it after the pike encounter and leaves it for the normal run, and the dev button names it",
+		RunScenario.next_encounter(RunScenario.ENCOUNTER_PIKE) == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.next_encounter(RunScenario.ENCOUNTER_COLOSSUS) == RunScenario.ENCOUNTER_NORMAL and RunScenario.encounter_title(RunScenario.ENCOUNTER_COLOSSUS) == "Colossus" and RunScenario.ENCOUNTER_CYCLE.has(RunScenario.ENCOUNTER_COLOSSUS))
+	var from_pike: GameRun = GameRun.new(RunScenario.pike_encounter())
+	from_pike.apply(GameCommand.toggle_encounter())
+	_ok("the encounter command goes from the pike encounter to the colossus one (three Colossi, restarts %d), and from it to the normal run" % from_pike.restarts, from_pike.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS and from_pike.swords.all(func(sword: SwordState) -> bool: return sword.spec.type_id == SwordDefs.COLOSSUS) and from_pike.restarts == 1)
+	from_pike.apply(GameCommand.toggle_encounter())
+	_ok("and one more press returns to the normal run", from_pike.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and from_pike.restarts == 2)
 	_ok("--encounter=colossus and ?encounter=colossus ask for it, and the normal run is still three Fang swords (the final default loadout is issue #16)",
 		LaunchOptions.scenario_for("colossus") != null and LaunchOptions.scenario_for("colossus").encounter == RunScenario.ENCOUNTER_COLOSSUS and RunScenario.new().loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.FANG))
 	var cluster_ok: bool = true
@@ -1204,6 +1258,65 @@ func _check_fixture_and_launch() -> void:
 			break
 	_ok("a played colossus encounter shows slams, Cataclysms, all three elements' fields and kills (phases %s, elements %s, kills %d, slams %d, fields %d)" % [phases.keys(), elements.keys(), fight.kills, fight.cue_count(SimCue.Kind.COLOSSUS_SLAM), fight.cue_count(SimCue.Kind.FIELD_CREATED)],
 		phases.has("strike") and phases.has("stuck") and phases.has("ult_rise") and phases.has("ult_fall") and elements.size() == 3 and fight.kills >= 8 and fight.cue_count(SimCue.Kind.FIELD_CREATED) == 3 and fight.cue_count(SimCue.Kind.COLOSSUS_SLAM) >= 8)
+
+
+## What presentation reads from the sword and the field: how far the windup or the rise has run, and how a field fades.
+func _check_progress_and_fields() -> void:
+	print("colossus: the progress and fade values the presentation reads")
+	var run: GameRun = _lone_run(_trio(0, 0.0), [_husk_at(260.0, 30.0)])
+	var sword: SwordState = run.swords[0]
+	var before: float = sword.windup_progress()
+	_steps(run, 17)
+	var mid: float = sword.windup_progress()
+	_steps(run, 40)
+	_ok("a slam's windup progress is 0 before it, %.2f halfway through 0.55 s and 0 once it is falling (%.2f)" % [mid, sword.windup_progress()], before == 0.0 and _near(mid, 0.5, 0.04) and sword.phase != SwordState.Phase.WINDUP and sword.windup_progress() == 0.0)
+	var rise: GameRun = _lone_run(_trio(0, 99.0), [_husk_at(325.0, 0.0)])
+	var cataclysm: SwordState = rise.swords[0]
+	var idle_progress: float = cataclysm.cataclysm_rise_progress()
+	rise.apply(GameCommand.ultimate(0, CENTER + Vector2(300.0, -20.0)))
+	var start_progress: float = cataclysm.cataclysm_rise_progress()
+	_steps(rise, 22)
+	var half: float = cataclysm.cataclysm_rise_progress()
+	_steps(rise, 30)
+	var falling: float = cataclysm.cataclysm_rise_progress()
+	_steps(rise, 60)
+	_ok("a Cataclysm's rise progress is 0 at rest and when it starts, %.2f halfway through 0.75 s, 1 while it falls (%.1f) and 0 again afterwards (%.1f)" % [half, falling, cataclysm.cataclysm_rise_progress()],
+		idle_progress == 0.0 and start_progress == 0.0 and _near(half, 0.49, 0.04) and falling == 1.0 and cataclysm.cataclysm_rise_progress() == 0.0)
+	var field: FieldState = FieldState.make(CENTER, 233.64, &"fire", 50.0, 5.0)
+	var full: float = field.fade()
+	field.life = 5.0 / 3.0
+	var third: float = field.fade()
+	field.life = 5.0 / 6.0
+	var half_faded: float = field.fade()
+	field.life = 0.0
+	var gone: float = field.fade()
+	_ok("a field is drawn at full strength until its last third, half strength with a sixth of its life left, and not at all at the end (%.2f, %.2f, %.2f, %.2f)" % [full, third, half_faded, gone], full == 1.0 and _near(third, 1.0, 0.0001) and _near(half_faded, 0.5, 0.0001) and gone == 0.0)
+	var exact: FieldState = FieldState.make(CENTER, 100.0, &"ice", 50.0, 5.0)
+	_ok("a field does not reach an enemy exactly on its edge (100 + 16 = 116 px away), only strictly inside it, as the prototype's `<`", not exact.reaches(EnemyState.make(EnemyDefs.HUSK, CENTER + Vector2(116.0, 0.0), 1, 0.0, 5)) and exact.reaches(EnemyState.make(EnemyDefs.HUSK, CENTER + Vector2(115.5, 0.0), 1, 0.0, 6)))
+	var husk: EnemyState = EnemyState.make(EnemyDefs.HUSK, CENTER + Vector2(249.0, 0.0), 1, 0.0, 1)
+	var brute: EnemyState = EnemyState.make(EnemyDefs.BRUTE, CENTER + Vector2(262.0, 0.0), 1, 0.0, 2)
+	field.position = CENTER
+	_ok("a field reaches an enemy whose centre is within its radius plus the enemy's own: a husk at 249 (233.64 + 16) and a brute at 262 (233.64 + 30) yes, 250 and 264 no",
+		field.reaches(husk) and field.reaches(brute) and not field.reaches(EnemyState.make(EnemyDefs.HUSK, CENTER + Vector2(250.0, 0.0), 1, 0.0, 3)) and not field.reaches(EnemyState.make(EnemyDefs.BRUTE, CENTER + Vector2(264.0, 0.0), 1, 0.0, 4)))
+
+
+## A field sheds the particles of its element (prototype `update_fields`), whether or not anything stands in it.
+func _check_field_particles() -> void:
+	print("colossus: a field sheds its element's particles")
+	for element: StringName in [&"fire", &"ice", &"poison"]:
+		var run: GameRun = GameRun.new(RunScenario.new().without_conditions())
+		run.fields.append(FieldState.make(CENTER + Vector2(200.0, 0.0), 233.0, element, 50.0, 5.0))
+		var effects: EffectsLayer = EffectsLayer.new()
+		_tree.root.add_child(effects)
+		var most: int = 0
+		var inside: bool = true
+		for i: int in 120:
+			effects.sync(run)
+			most = maxi(most, effects._embers.size())
+			inside = inside and effects._embers.all(func(ember: Dictionary) -> bool: return (Vector2(ember["pos"]) - Vector2(CENTER.x + 200.0, CENTER.y)).length() < 260.0)
+		_ok("a %s field keeps up to %d particles alive around it over 2 s (it emits about 28 a second; they last under a second)" % [element, most], most >= 4 and inside)
+		effects.queue_free()
+	await _tree.process_frame
 
 
 # ------------------------------------------------------ real Main scene
@@ -1256,7 +1369,7 @@ func _check_main_scene() -> void:
 	var effects: EffectsLayer = main._presenter._effects
 	_tick_main(main, 8)
 	await _tree.process_frame
-	_ok("while it rises the card shows ACTIVE and the layer draws the ring it will crush from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and _state_name(sword) == "ult_rise" and sword.altitude > 40.0)
+	_ok("while it rises the card shows ACTIVE and the layer draws the ring it will crush from the sword's own state (drawn: %s)" % [effects.draw_counts], hud.ultimate_status(1) == "ACTIVE" and _state_name(sword) == "ult_rise" and sword.altitude > 40.0 and effects.draw_counts.get(&"cataclysm_ring", 0) > 0)
 	var slam_seen: bool = false
 	var field_seen: bool = false
 	var highest: float = 0.0
@@ -1268,10 +1381,13 @@ func _check_main_scene() -> void:
 		field_seen = field_seen or effects.draw_counts.get(&"field", 0) > 0
 	_ok("it climbs to %.0f px, lands (%d slam cue), leaves a field the layer draws (%d draws, %d fields in the run) and the field is announced (%d cue)" % [highest, main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM), effects.draw_counts.get(&"field", 0), main.run.fields.size(), main.run.cue_count(SimCue.Kind.FIELD_CREATED)],
 		highest > 300.0 and slam_seen and field_seen and main.run.fields.size() == 1 and main.run.cue_count(SimCue.Kind.FIELD_CREATED) == 1 and effects.draw_counts.get(&"slam_telegraph", 0) > 0 or effects.draw_counts.get(&"slam_telegraph", 0) == 0 and slam_seen)
+	var cataclysm_visual: PlaceholderSwordVisual = main._presenter._sword_visuals[sword.get_instance_id()] as PlaceholderSwordVisual
+	_ok("the Colossus visual hangs where the simulation says (its drawn lift %.1f = the sword's altitude %.1f)" % [cataclysm_visual._lift, sword.altitude], _near(cataclysm_visual._lift, sword.altitude, 0.001))
 	_ok("the encounter legend counts what happened (slams %d, fields %d, live %d): %s" % [main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM), main.run.cue_count(SimCue.Kind.FIELD_CREATED), main.run.fields.size(), hud._encounter_label.text.get_slice("\n", 0)],
 		hud._encounter_label.text.contains("COLOSSUS ENCOUNTER") and hud._encounter_label.text.contains("slams %d" % main.run.cue_count(SimCue.Kind.COLOSSUS_SLAM)) and hud._encounter_label.text.contains("fields 1 (live 1)"))
 	_ok("after the Cataclysm the card counts the recharge down in whole seconds (%s)" % hud.ultimate_status(1), hud.ultimate_status(1) == "%ds" % SimMath.py_round(sword.ultimate_cooldown_left) and hud.ultimate_bar_fraction(1) > 0.0 and hud.ultimate_bar_fraction(1) < 1.0)
 	var rings_before: int = effects._rings.size()
+	var texts_first: int = effects._texts.size()
 	var slam_cue: SimCue = SimCue.make(SimCue.Kind.COLOSSUS_SLAM, CENTER, Vector2.DOWN, 3, false)
 	slam_cue.radius = 118.0
 	slam_cue.element = &"fire"
@@ -1283,7 +1399,24 @@ func _check_main_scene() -> void:
 	big_cue.element = &"ice"
 	effects.apply_cue(big_cue)
 	var texts_after: int = effects._texts.size()
-	_ok("a slam cue draws two rings and a Cataclysm's names itself ('CATACLYSM'), an automatic slam's does not", rings_after_slam == rings_before + 2 and effects._rings.size() == rings_after_slam + 2 and texts_after == texts_before + 1)
+	_ok("a slam cue draws two rings and a Cataclysm's names itself ('CATACLYSM'), an automatic slam's does not", rings_after_slam == rings_before + 2 and effects._rings.size() == rings_after_slam + 2 and texts_before == texts_first and texts_after == texts_before + 1)
+	var sparks_before: int = effects._sparks.size()
+	effects.apply_cue(slam_cue)
+	var field_cue: SimCue = SimCue.make(SimCue.Kind.FIELD_CREATED, CENTER)
+	field_cue.radius = 233.0
+	field_cue.element = &"ice"
+	var rings_field: int = effects._rings.size()
+	effects.apply_cue(field_cue)
+	var rings_after_field: int = effects._rings.size()
+	var pulse_cue: SimCue = SimCue.make(SimCue.Kind.FIELD_PULSED, CENTER, Vector2.ZERO, 2)
+	pulse_cue.radius = 233.0
+	pulse_cue.element = &"ice"
+	effects.apply_cue(pulse_cue)
+	var rings_after_pulse: int = effects._rings.size()
+	var empty_pulse: SimCue = SimCue.make(SimCue.Kind.FIELD_PULSED, CENTER, Vector2.ZERO, 0)
+	empty_pulse.radius = 233.0
+	effects.apply_cue(empty_pulse)
+	_ok("a slam throws 30 sparks (%d), a new field one ring, a pulse that dosed someone one ring and an empty pulse none" % (effects._sparks.size() - sparks_before), effects._sparks.size() - sparks_before == 30 and rings_after_field == rings_field + 1 and rings_after_pulse == rings_after_field + 1 and effects._rings.size() == rings_after_pulse)
 	var texts_now: int = effects._texts.size()
 	main._input(_key(KEY_E))
 	_ok("E while it recharges is refused and says so on screen", main.run.cue_count(SimCue.Kind.ULTIMATE_REFUSED) == 1 and effects._texts.size() == texts_now + 1)

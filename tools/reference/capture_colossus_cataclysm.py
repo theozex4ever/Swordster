@@ -416,8 +416,8 @@ def case_acquire():
         "tie_goes_to_the_first_swapped": [(-250.0, 0.0, "husk"), (250.0, 0.0, "husk")],
         "neighbours_out_of_range_count": [(150.0, 0.0, "husk"), (320.0, 0.0, "husk"), (420.0, 20.0, "husk"), (430.0, -30.0, "husk")],
         "neighbours_behind_count": [(-200.0, 0.0, "husk"), (-150.0, 60.0, "husk"), (-260.0, -50.0, "husk"), (200.0, 0.0, "husk")],
-        "edge_of_the_cluster_117": [(250.0, 0.0, "husk"), (250.0, 117.0, "husk"), (-200.0, 0.0, "husk"), (-200.0, -100.0, "husk")],
-        "edge_of_the_cluster_118": [(250.0, 0.0, "husk"), (250.0, 118.0, "husk"), (-200.0, 0.0, "husk"), (-200.0, -100.0, "husk")],
+        "edge_of_the_cluster_117": [(180.0, 0.0, "husk"), (180.0, 117.0, "husk"), (-250.0, 0.0, "husk"), (-250.0, -100.0, "husk")],
+        "edge_of_the_cluster_118": [(180.0, 0.0, "husk"), (180.0, 118.0, "husk"), (-250.0, 0.0, "husk"), (-250.0, -100.0, "husk")],
         "brute_and_runner": [(300.0, 0.0, "brute"), (340.0, 30.0, "runner"), (-100.0, 0.0, "husk"), (-130.0, 20.0, "husk")],
         "far_but_out_of_range": [(100.0, 0.0, "husk"), (400.0, 0.0, "husk"), (420.0, 20.0, "husk"), (410.0, -20.0, "husk")],
     }
@@ -429,7 +429,7 @@ def case_acquire():
         out["target_" + label] = dict(setup=setup_of(g, (0,), None), target_index=es.index(sw.target) if sw.target in es else None)
     # the radius `acquire` counts neighbours with is the type's, not the rarity's: a Mythic's slam is wider, its count is not
     g = fresh(active=(0,), rarities=(2, 0, 0))
-    es = [foe(g, (PLAYER[0] + 250.0, PLAYER[1])), foe(g, (PLAYER[0] + 250.0, PLAYER[1] + 130.0)), foe(g, (PLAYER[0] - 200.0, PLAYER[1])), foe(g, (PLAYER[0] - 200.0, PLAYER[1] - 100.0))]
+    es = [foe(g, (PLAYER[0] + 150.0, PLAYER[1])), foe(g, (PLAYER[0] + 150.0, PLAYER[1] + 130.0)), foe(g, (PLAYER[0] - 250.0, PLAYER[1])), foe(g, (PLAYER[0] - 250.0, PLAYER[1] - 100.0))]
     play(g, 1)
     out["target_mythic_counts_the_plain_radius"] = dict(setup=setup_of(g, (0,), None), target_index=es.index(g.swords[0].target) if g.swords[0].target in es else None)
     return out

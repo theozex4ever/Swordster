@@ -36,7 +36,7 @@ var _embers: Array[Dictionary] = []
 var _wedges: Array[Dictionary] = []
 var _last_sweep_angle: Dictionary = {}
 ## How many times each kind of Warden or Pike effect has been drawn (`telegraph`, `fan`, `maelstrom`,
-## `thrust_telegraph`, `skewer_aim`, `skewer_carry`, `slam_telegraph`, `field`);
+## `thrust_telegraph`, `skewer_aim`, `skewer_carry`, `slam_telegraph`, `cataclysm_ring`, `field`);
 ## checks read it to prove the layer really draws what the sword's state asks for.
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
@@ -331,6 +331,7 @@ func _draw() -> void:
 			if sword.spec.type_id == SwordDefs.WARDEN:
 				_draw_maelstrom(sword, tint)
 			if sword.spec.type_id == SwordDefs.COLOSSUS:
+				draw_counts[&"cataclysm_ring"] = draw_counts.get(&"cataclysm_ring", 0) + 1
 				_draw_impact_ring(sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)

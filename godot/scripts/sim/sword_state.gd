@@ -273,7 +273,6 @@ func begin_ultimate(run: GameRun, point: Vector2) -> void:
 	sweep_hits.clear()
 	skewer_carried.clear()
 	skewer_flying = false
-	cataclysm_falling = false
 	match spec.type_id:
 		SwordDefs.FANG:
 			# Blink straight onto the target area.
@@ -286,14 +285,15 @@ func begin_ultimate(run: GameRun, point: Vector2) -> void:
 			ultimate_time_left = SwordDefs.WARDEN_ULT_DURATION
 			ultimate_beat = SwordDefs.WARDEN_ULT_FIRST_BEAT
 			ultimate_spin = atan2(position.y - point.y, position.x - point.x)
+		SwordDefs.COLOSSUS:
+			# No move: the sword rises where it hangs, onto the point, and then falls on it.
+			cataclysm_falling = false
+			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME
 		SwordDefs.PIKE:
 			# A skill shot: the heading is the player-to-point line (the player's facing if
 			# they coincide), fixed for the whole shot.
 			dir = SimMath.norm(point - run.position, run.rng, run.facing, true)
 			ultimate_time_left = SwordDefs.PIKE_ULT_AIM_TIME
-		SwordDefs.COLOSSUS:
-			# No move: the sword rises where it hangs, onto the point, and then falls on it.
-			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME
 
 
 func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0) -> void:
@@ -321,11 +321,11 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 		velocity *= exp(-dt * 3.0)
 		position += velocity * dt
 		angle = SimMath.ang_lerp(angle, float(index) * 1.3 + 0.4, minf(1.0, dt * 4.0))
+		if spec.type_id == SwordDefs.COLOSSUS:
+			altitude = maxf(0.0, altitude - dt * SwordDefs.COLOSSUS_SINK_RATE)
 		phase = Phase.IDLE
 		ultimate_victim = null
 		skewer_carried.clear()
-		if spec.type_id == SwordDefs.COLOSSUS:
-			altitude = maxf(0.0, altitude - dt * SwordDefs.COLOSSUS_SINK_RATE)
 		return
 
 	var start_phase: Phase = phase

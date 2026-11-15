@@ -846,15 +846,15 @@
      {"type": "colossus", "rarity": 0, "element": "fire", "cd": 99.0}
     ],
     "enemies": [
-     {"kind": "husk", "x": 1550.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1550.0, "y": 1017.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
+     {"kind": "husk", "x": 1480.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1480.0, "y": 1017.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
     ],
     "orbs": [],
     "script": []
    },
-   "target_index": 2
+   "target_index": 0
   },
   "target_edge_of_the_cluster_118": {
    "setup": {
@@ -866,10 +866,10 @@
      {"type": "colossus", "rarity": 0, "element": "fire", "cd": 99.0}
     ],
     "enemies": [
-     {"kind": "husk", "x": 1550.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1550.0, "y": 1018.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
+     {"kind": "husk", "x": 1480.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1480.0, "y": 1018.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
     ],
     "orbs": [],
     "script": []
@@ -935,10 +935,10 @@
      {"type": "colossus", "rarity": 0, "element": "fire", "cd": 99.0}
     ],
     "enemies": [
-     {"kind": "husk", "x": 1550.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1550.0, "y": 1030.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
-     {"kind": "husk", "x": 1100.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
+     {"kind": "husk", "x": 1450.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1450.0, "y": 1030.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 900.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0},
+     {"kind": "husk", "x": 1050.0, "y": 800.0, "hp": 900.0, "speed_scale": 0.0, "vx": 0.0, "vy": 0.0, "stun": 0.0}
     ],
     "orbs": [],
     "script": []
