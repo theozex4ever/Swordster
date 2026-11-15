@@ -7,8 +7,7 @@ extends RefCounted
 var type_id: StringName = &"fang"
 ## Index into SwordDefs.RARITIES (0 Common, 1 Rare, 2 Mythic).
 var rarity: int = 0
-## Element identity (&"fire", &"ice", &"poison"). In this slice it only
-## colours the sword: conditions are not ported yet.
+## Element identity (&"fire", &"ice", &"poison"): the condition its blows leave.
 var element: StringName = &"fire"
 
 
@@ -18,3 +17,12 @@ static func make(type_value: StringName, rarity_value: int, element_value: Strin
 	spec.rarity = rarity_value
 	spec.element = element_value
 	return spec
+
+
+## The sword's full name ("Rare Ember Fang").
+func display_name() -> String:
+	return SwordDefs.full_name(self)
+
+
+func same_as(other: SwordSpec) -> bool:
+	return other != null and type_id == other.type_id and rarity == other.rarity and element == other.element

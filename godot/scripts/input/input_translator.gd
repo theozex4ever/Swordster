@@ -6,7 +6,8 @@ extends RefCounted
 ## Aliases preserved from the prototype (`Game.handle`): WASD or arrow keys
 ## move, P or Escape pause, Space or either Shift dash. Q, E and R trigger the
 ## ultimate of sword slots one, two and three, aimed at the mouse cursor in world
-## coordinates. R is also the restart key once the death screen is up: it sends
+## coordinates. Keys 1, 2 and 3 ask to swap the nearest dropped sword into sword slot one, two and
+## three (`GameCommand.swap`); the run refuses when none is within reach. R is also the restart key once the death screen is up: it sends
 ## the ultimate first and the restart after it, and the run refuses whichever does
 ## not apply (an ultimate once dead, a restart while alive or before the delay).
 
@@ -20,6 +21,8 @@ const DASH_KEYS: Array[Key] = [KEY_SPACE, KEY_SHIFT]
 const RESTART_KEYS: Array[Key] = [KEY_R]
 ## Ultimate keys by sword slot: Q = slot one, E = slot two, R = slot three.
 const ULTIMATE_KEYS: Array[Key] = [KEY_Q, KEY_E, KEY_R]
+## Keys 1, 2 and 3 swap the nearest dropped sword into sword slot one, two or three.
+const SWAP_KEYS: Array[Key] = [KEY_1, KEY_2, KEY_3]
 ## DEVELOPMENT FIXTURE keys (crowd encounter): F shoves nearby enemies, C
 ## switches between the normal wave and the crowd encounter.
 const SHOVE_KEYS: Array[Key] = [KEY_F]
@@ -56,6 +59,8 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 					commands.append(GameCommand.ultimate(ULTIMATE_KEYS.find(code), aim_world()))
 				if code in RESTART_KEYS:
 					commands.append(GameCommand.restart_from_key())
+			elif code in SWAP_KEYS:
+				commands.append(GameCommand.swap(SWAP_KEYS.find(code)))
 			elif code in SHOVE_KEYS:
 				commands.append(GameCommand.dev_shove())
 			elif code in ENCOUNTER_KEYS:

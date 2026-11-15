@@ -3,7 +3,7 @@ extends RefCounted
 ## Wave schedule and spawn telegraphs (game/main.py `start_wave`,
 ## `update_waves`, `spawn_point`). Waves are husk-only unless a scenario names
 ## an explicit composition (the crowd and spitter encounter fixtures); composition unlocks,
-## armed enemies and sword drops arrive with the later slices, and the scenario
+## armed enemies (arming, issue #17, only when a scenario asks: `arm_waves`) and the full wave generation arrive with the later slices, and the scenario
 ## normally asks for exactly one wave.
 
 const SPAWN_MIN_DISTANCE: float = 420.0
@@ -21,6 +21,9 @@ var wave: int = 0
 var in_wave: bool = false
 var break_left: float = 0.0
 var queue: Array[StringName] = []
+## The sword each queued enemy will carry, parallel to `queue` (null: unarmed). Rolled when the wave starts, as in
+## the prototype's `spawn_queue` of (kind, armed).
+var queue_armed: Array[SwordSpec] = []
 var spawn_timer: float = 0.0
 var markers: Array[SpawnMarker] = []
 ## True once the scenario's last wave has been cleared.
@@ -31,6 +34,7 @@ var _wave_count: int = 1
 var _husk_count: int = -1
 var _wave_kinds: Array[StringName] = []
 var _speed_jitter: bool = true
+var _arm_waves: bool = false
 
 
 func _init(scenario: RunScenario) -> void:
@@ -39,6 +43,7 @@ func _init(scenario: RunScenario) -> void:
 	_husk_count = scenario.husk_count
 	_wave_kinds = scenario.wave_kinds
 	_speed_jitter = scenario.enemy_speed_jitter
+	_arm_waves = scenario.arm_waves
 	break_left = scenario.first_wave_delay
 
 
@@ -49,7 +54,8 @@ func update(run: GameRun, dt: float) -> void:
 		spawn_timer -= dt
 		if spawn_timer <= 0.0:
 			var kind: StringName = queue.pop_front()
-			markers.append(SpawnMarker.make(kind, _spawn_point(run)))
+			var carried: SwordSpec = queue_armed.pop_front()
+			markers.append(SpawnMarker.make(kind, _spawn_point(run), carried))
 			spawn_timer = maxf(0.12, 0.42 - float(wave) * 0.02)
 	for marker: SpawnMarker in markers:
 		marker.remaining -= dt
@@ -59,7 +65,7 @@ func update(run: GameRun, dt: float) -> void:
 			var cooldown: float = 0.0
 			if marker.kind == EnemyDefs.SPITTER:
 				cooldown = run.rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)
-			var enemy: EnemyState = EnemyState.make(marker.kind, marker.position, wave, factor, run.next_serial(), phase, cooldown)
+			var enemy: EnemyState = EnemyState.make(marker.kind, marker.position, wave, factor, run.next_serial(), phase, cooldown, marker.armed)
 			run.enemies.append(enemy)
 			run.add_cue(SimCue.make(SimCue.Kind.ENEMY_SPAWNED, marker.position))
 	var waiting: Array[SpawnMarker] = []
@@ -85,12 +91,17 @@ func update(run: GameRun, dt: float) -> void:
 func _start_wave(run: GameRun) -> void:
 	wave += 1
 	queue.clear()
+	queue_armed.clear()
 	if not _wave_kinds.is_empty():
 		queue.append_array(_wave_kinds)
 	else:
 		var count: int = _husk_count if _husk_count >= 0 else 5 + wave * 3
 		for i: int in count:
 			queue.append(EnemyDefs.HUSK)
+	# Arming (prototype `start_wave`): each enemy of the wave, in order, may carry a sword. A run that does not arm its
+	# waves (every earlier fixture) draws nothing from the gameplay stream here, so it plays exactly as before.
+	for index: int in queue.size():
+		queue_armed.append(LootDefs.roll_armed(run.rng, queue[index], wave, index) if _arm_waves else null)
 	spawn_timer = FIRST_SPAWN_DELAY
 	in_wave = true
 	run.set_banner("WAVE %d" % wave, WAVE_BANNER)

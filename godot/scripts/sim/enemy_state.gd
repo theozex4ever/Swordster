@@ -39,6 +39,9 @@ var shoot_cooldown: float = 0.0
 var charge: float = 0.0
 ## Burn, poison, chill and freeze (see `EnemyConditions`).
 var conditions: EnemyConditions = EnemyConditions.new()
+## The spirit sword this enemy carries and drops where it dies (prototype `armed`), or null when it is unarmed.
+## An armed enemy has LootDefs.ARMED_HP_FACTOR times the health.
+var armed: SwordSpec = null
 
 
 static func husk(at: Vector2, wave: int, speed_factor: float, serial_value: int) -> EnemyState:
@@ -48,15 +51,16 @@ static func husk(at: Vector2, wave: int, speed_factor: float, serial_value: int)
 ## A freshly spawned enemy of any ported type. `speed_factor` is the prototype's
 ## uniform(0.9, 1.12) draw (times any scenario scale); `phase` its `t` draw.
 ## `shoot_cooldown_value` is the spitter's starting cooldown (prototype
-## uniform(1.5, 3.0)); other types ignore it.
-static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: float, serial_value: int, phase: float = 0.0, shoot_cooldown_value: float = 0.0) -> EnemyState:
+## uniform(1.5, 3.0)); other types ignore it. `armed_spec` is the sword it carries, if any.
+static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: float, serial_value: int, phase: float = 0.0, shoot_cooldown_value: float = 0.0, armed_spec: SwordSpec = null) -> EnemyState:
 	var def: EnemyDefs = EnemyDefs.of(kind_value)
 	var enemy: EnemyState = EnemyState.new()
 	enemy.kind = kind_value
 	enemy.serial = serial_value
 	enemy.position = at
 	enemy.radius = def.radius
-	enemy.max_hp = def.hp * (1.0 + EnemyDefs.HP_PER_WAVE * float(wave - 1))
+	enemy.max_hp = def.hp * (1.0 + EnemyDefs.HP_PER_WAVE * float(wave - 1)) * (LootDefs.ARMED_HP_FACTOR if armed_spec != null else 1.0)
+	enemy.armed = armed_spec
 	enemy.hp = enemy.max_hp
 	enemy.speed = def.speed * speed_factor
 	enemy.damage = def.damage

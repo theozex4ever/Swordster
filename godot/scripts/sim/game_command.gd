@@ -3,13 +3,13 @@ extends RefCounted
 ## One gameplay command. Keyboard and touch input both translate into these;
 ## automated checks submit the very same commands.
 
-enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE }
+enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE, SWAP }
 
 var kind: Kind = Kind.MOVE
 ## Only meaningful for MOVE. Magnitude is clamped to 1 by the run.
 var axis: Vector2 = Vector2.ZERO
-## Only meaningful for ULTIMATE: the sword slot (0 = Q, 1 = E, 2 = R), the world
-## point it is aimed at, and whether to aim at the nearest enemy instead (touch).
+## Only meaningful for ULTIMATE and SWAP: the sword slot (ultimate: 0 = Q, 1 = E, 2 = R; swap: 0 = key 1, 1 = key 2, 2 = key 3), the world
+## point an ULTIMATE is aimed at, and whether to aim at the nearest enemy instead (touch).
 var slot: int = 0
 var point: Vector2 = Vector2.ZERO
 var at_nearest: bool = false
@@ -68,6 +68,15 @@ static func ultimate_at_nearest(slot_value: int) -> GameCommand:
 	var command: GameCommand = _of(Kind.ULTIMATE)
 	command.slot = slot_value
 	command.at_nearest = true
+	return command
+
+
+## Swaps the nearest pickup within reach into sword slot `slot_value` (keys 1 / 2 / 3 are slots 0 / 1 / 2). Refused
+## while paused or dead, when the slot holds no sword and when no pickup is within reach (that one also produces a visible
+## refusal cue). The old sword comes back as a pickup and the slot keeps its ultimate recharge.
+static func swap(slot_value: int) -> GameCommand:
+	var command: GameCommand = _of(Kind.SWAP)
+	command.slot = slot_value
 	return command
 
 
