@@ -962,6 +962,14 @@ func _check_removed_and_corpses() -> void:
 		beats.size() == 1 and beats[0].amount == 1 and _near(run4.trauma, float(beat["trauma"]), SCALAR_TOL) and corpse.hp == hp_dead4 and not bool(beat["hp_changed"]) and run4.kills == int(beat["kills"]) and run4.motes.size() == int(beat["motes"]))
 	_ok("the same corpse is still pulled toward the centre like the prototype's (%.4f px, to x %.3f; the prototype %.4f px, x %.3f)" % [corpse.position.distance_to(position_dead), corpse.position.x, float(beat["moved"]), float(beat["x"])],
 		_near(corpse.position.distance_to(position_dead), float(beat["moved"]), POSITION_TOL) and _near(corpse.position.x, float(beat["x"]), POSITION_TOL) and _near(corpse.position.y, float(beat["y"]), POSITION_TOL))
+	# A beat with nothing at all inside its reach makes no shake and its cue reports nobody.
+	var empty_run: GameRun = _lone_scenario(warden, [{"kind": "husk", "x": CENTER.x + 900.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}])
+	empty_run.apply(GameCommand.ultimate(0, CENTER + Vector2(250.0, 0.0)))
+	empty_run.take_cues()
+	_steps(empty_run, 10)
+	var empty_beats: Array[SimCue] = empty_run.take_cues().filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.MAELSTROM_BEAT)
+	_ok("a beat with no enemy inside its reach shakes nothing and its cue reports nobody (beats %d, amount %d, trauma %.3f)" % [empty_beats.size(), empty_beats[0].amount if not empty_beats.is_empty() else -1, empty_run.trauma],
+		empty_beats.size() == 1 and empty_beats[0].amount == 0 and empty_run.trauma == 0.0)
 	# The reviewer's scenario: two Maelstroms, the first one's burst kills a 5 hp husk and leaves a 28 hp one
 	# at 1 hp; the second whirl still pulls the corpse, which then takes part in the crowd's collisions.
 	var two_whirls: Dictionary = _ref["maelstrom_corpses"]["two_whirls"]
