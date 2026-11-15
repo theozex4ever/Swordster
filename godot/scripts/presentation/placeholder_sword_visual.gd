@@ -3,7 +3,10 @@ extends SwordVisual
 ## Temporary drawn sword: a tinted blade that rides above its shadow. Fang is a thin
 ## needle; Warden a longer, broader blade with a heavy crossguard and pommel; Pike a long thin
 ## shaft ending in a leaf-shaped head; Colossus a huge, broad slab of a blade that hangs point-down
-## above its shadow, so the four read apart at a glance. Length, width and lift are this visual's own numbers and do not
+## above its shadow, so the four read apart at a glance. The rarity shows twice: the blade is as much larger as
+## the rarity's size factor (Rare 1.08, Mythic 1.18) and a glow rings it, in the rarity's colour for a Rare or Mythic sword
+## and the element's for a Common one; a freshly swapped-in sword's glow flares. A sword lying in the arena as a drop
+## hovers point-down over its shadow. Length, width and lift are this visual's own numbers and do not
 ## feed reach (that is `SwordState`). A Colossus is drawn as high above the ground as the simulation's altitude
 ## says (the height is read, never changed).
 
@@ -27,6 +30,13 @@ var _color: Color = Color.WHITE
 var _warden: bool = false
 var _pike: bool = false
 var _colossus: bool = false
+## The rarity's size factor (it scales the drawn blade and its glow), the glow's colour, the swap flare (1 -> 0) and
+## whether this visual is a dropped sword resting in the arena (it then hovers at `_hover` instead of lifting by phase).
+var _scale: float = 1.0
+var _glow: Color = Color.WHITE
+var _flash: float = 0.0
+var _resting: bool = false
+var _hover: float = 0.0
 ## A Colossus's height above the ground as the simulation reports it (px).
 var _altitude: float = 0.0
 var _angle: float = -PI / 2.0
@@ -44,6 +54,8 @@ func _on_setup(spec: SwordSpec) -> void:
 	_warden = spec.type_id == SwordDefs.WARDEN
 	_pike = spec.type_id == SwordDefs.PIKE
 	_colossus = spec.type_id == SwordDefs.COLOSSUS
+	_scale = SwordDefs.RARITY_SIZE[spec.rarity]
+	_glow = SwordDefs.RARITY_COLORS[spec.rarity] if spec.rarity > 0 else _color
 	queue_redraw()
 
 
@@ -51,11 +63,20 @@ func _on_altitude(height: float) -> void:
 	_altitude = height
 
 
+func _on_flash(amount: float) -> void:
+	_flash = amount
+
+
+func _on_hover(height: float) -> void:
+	_resting = true
+	_hover = height
+
+
 func _on_pose(angle: float, phase: int) -> void:
 	_angle = angle
 	_phase = phase
 	var attacking: bool = phase == SwordState.Phase.WINDUP or phase == SwordState.Phase.STRIKE or phase == SwordState.Phase.ULTIMATE
-	_lift = _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)
+	_lift = _hover if _resting else _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)
 	if phase == SwordState.Phase.ULTIMATE:
 		_afterimages.append({"world": position, "angle": angle})
 		while _afterimages.size() > AFTERIMAGE_LIMIT:
@@ -66,14 +87,17 @@ func _on_pose(angle: float, phase: int) -> void:
 
 
 func _draw() -> void:
-	var l: float = COLOSSUS_BLADE_LENGTH if _colossus else PIKE_BLADE_LENGTH if _pike else WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH
-	var w: float = COLOSSUS_BLADE_WIDTH if _colossus else PIKE_BLADE_WIDTH if _pike else WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH
+	var l: float = (COLOSSUS_BLADE_LENGTH if _colossus else PIKE_BLADE_LENGTH if _pike else WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH) * _scale
+	var w: float = (COLOSSUS_BLADE_WIDTH if _colossus else PIKE_BLADE_WIDTH if _pike else WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH) * _scale
 	if _colossus:
 		# The shadow stays on the ground and shrinks and fades as the blade climbs.
 		var high: float = clampf(_altitude / 260.0, 0.0, 1.0)
 		draw_circle(Vector2(0.0, 6.0), lerpf(26.0, 12.0, high), Color(0.0, 0.0, 0.0, lerpf(0.34, 0.12, high)))
 	else:
 		draw_circle(Vector2(0.0, 6.0), 11.0 if _warden or _pike else 8.0, Color(0.0, 0.0, 0.0, 0.3))
+	# The rarity's glow rings the blade (prototype: a glow of 0.75 blade lengths, brighter while a swapped-in sword's slot flashes).
+	draw_circle(Vector2(0.0, -_lift), l * 0.75, Color(_glow, 0.1 + 0.2 * _flash))
+	draw_circle(Vector2(0.0, -_lift), l * 0.4, Color(_glow, 0.12 + 0.2 * _flash))
 	# Viper Flurry afterimages: faint copies of the blade where it just was, so the
 	# darts read as streaks (each is stored in world space, drawn relative to the blade).
 	for i: int in _afterimages.size():

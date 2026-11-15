@@ -27,6 +27,18 @@ func apply_altitude(height: float) -> void:
 	_on_altitude(height)
 
 
+## Called every fixed tick for an equipped sword with how strongly its slot has just been refreshed (1 right after a
+## swap, easing to 0): a visual may brighten for it or ignore it. Cosmetic only.
+func apply_flash(amount: float) -> void:
+	_on_flash(amount)
+
+
+## Called every fixed tick INSTEAD of `apply_altitude` for a sword that lies in the arena as a dropped pickup: the
+## height, in px, it hovers above its shadow (bobbing). A pickup is posed point-down (`apply_pose` is given the angle).
+func apply_hover(height: float) -> void:
+	_on_hover(height)
+
+
 ## Called when the visual is first shown so interpolation does not smear.
 func snap() -> void:
 	reset_physics_interpolation()
@@ -41,4 +53,12 @@ func _on_pose(_angle: float, _phase: int) -> void:
 
 
 func _on_altitude(_height: float) -> void:
+	pass
+
+
+func _on_flash(_amount: float) -> void:
+	pass
+
+
+func _on_hover(_height: float) -> void:
 	pass

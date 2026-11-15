@@ -27,6 +27,12 @@ func apply_conditions(view: ConditionView) -> void:
 	_on_conditions(view)
 
 
+## Called once right after `setup` with the spirit sword the enemy carries, or null when it is unarmed: a visual may
+## show it. The sword drops where the enemy dies whatever the visual does with this.
+func apply_armed(spec: SwordSpec) -> void:
+	_on_armed(spec)
+
+
 func snap() -> void:
 	reset_physics_interpolation()
 
@@ -36,6 +42,10 @@ func _on_setup(_kind: StringName) -> void:
 
 
 func _on_conditions(_view: ConditionView) -> void:
+	pass
+
+
+func _on_armed(_spec: SwordSpec) -> void:
 	pass
 
 
