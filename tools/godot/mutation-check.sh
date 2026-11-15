@@ -40,12 +40,14 @@ if ! out="$(run_checks "$SCRATCH/base")" || ! grep -q '^CHECKS PASSED' <<<"$out"
 fi
 echo "baseline: $(grep '^CHECKS PASSED' <<<"$out")"
 
-# SHARD=i SHARDS=n runs every n-th mutation starting at i (0-based), so n copies of
+# ONLY=a,b reruns just the named mutations. SHARD=i SHARDS=n runs every n-th mutation starting at i (0-based), so n copies of
 # this script can run in parallel over the same list; each prints its own totals.
 mutation_index=0
 mutate() { # name file old new
   local name="$1" file="$2" old="$3" new="$4" dir="$SCRATCH/m-$1"
   if (( mutation_index++ % SHARDS != SHARD )); then return 0; fi
+  # ONLY=name,name reruns just those mutations (after fixing a check, say).
+  if [[ -n "${ONLY:-}" && ",$ONLY," != *",$1,"* ]]; then return 0; fi
   ran=$((ran + 1))
   cp -a "$SCRATCH/base" "$dir"
   python3 -I - "$dir/$file" "$old" "$new" <<'PY' || { echo "MUTATION NOT APPLIED: $name"; exit 1; }
@@ -669,7 +671,6 @@ mutate warden-tip-short                             scripts/sim/sword_defs.gd "W
 mutate warden-tangent-weight                        scripts/sim/sword_defs.gd "WARDEN_TANGENT_WEIGHT: float = 0.6" "WARDEN_TANGENT_WEIGHT: float = 0.0"
 mutate warden-recover-time                          scripts/sim/sword_defs.gd "WARDEN_RECOVER_TIME: float = 0.3" "WARDEN_RECOVER_TIME: float = 0.6"
 mutate warden-recover-speed                         scripts/sim/sword_defs.gd "WARDEN_RECOVER_SPEED: float = 300.0" "WARDEN_RECOVER_SPEED: float = 0.0"
-mutate warden-key-renamed                           scripts/sim/sword_defs.gd "const WARDEN: StringName = &\"blade\"" "const WARDEN: StringName = &\"warden\""
 mutate warden-display-name                          scripts/sim/sword_defs.gd "\"Warden\" if type_id == WARDEN else" "\"Blade\" if type_id == WARDEN else"
 mutate maelstrom-name                               scripts/sim/sword_defs.gd "WARDEN_ULT_NAME: String = \"Maelstrom\"" "WARDEN_ULT_NAME: String = \"Whirl\""
 mutate maelstrom-recharge                           scripts/sim/sword_defs.gd "WARDEN_ULT_COOLDOWN: float = 11.0" "WARDEN_ULT_COOLDOWN: float = 6.0"

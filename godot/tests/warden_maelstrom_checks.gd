@@ -1133,12 +1133,13 @@ func _check_main_scene() -> void:
 	burst.element = &"ice"
 	var sparks_before: int = effects._sparks.size()
 	effects.apply_cue(burst)
+	var rings_after_burst: int = effects._rings.size()
 	var started: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, Vector2.RIGHT, 1)
 	started.origin = sword.position
 	effects.apply_cue(started)
 	var area_ring: Dictionary = effects._rings[effects._rings.size() - 1]
 	_ok("a beat draws one ring from 0.6 x the reach out to it, the burst two rings and sparks, and a Maelstrom's start a ring closing from the blades' reach (%.1f)" % float(area_ring["r0"]),
-		rings_after_beat == rings_before + 1 and effects._rings[rings_before]["r1"] == 138.0 and effects._rings.size() >= rings_after_beat + 3 and effects._sparks.size() > sparks_before and _near(float(area_ring["r0"]), sword.ultimate_area_radius(), 0.001) and not _near(float(area_ring["r0"]), SwordDefs.FANG_ULT_RADIUS, 1.0))
+		rings_after_beat == rings_before + 1 and effects._rings[rings_before]["r1"] == 138.0 and rings_after_burst == rings_after_beat + 2 and effects._rings.size() == rings_after_burst + 2 and effects._sparks.size() > sparks_before and _near(float(area_ring["r0"]), sword.ultimate_area_radius(), 0.001) and not _near(float(area_ring["r0"]), SwordDefs.FANG_ULT_RADIUS, 1.0))
 	var texts_before: int = main._presenter._effects._texts.size()
 	main._input(_key(KEY_E))
 	_ok("E while it recharges is refused and says so on screen", main.run.cue_count(SimCue.Kind.ULTIMATE_REFUSED) == 1 and main._presenter._effects._texts.size() == texts_before + 1)
