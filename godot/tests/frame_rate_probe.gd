@@ -6,7 +6,8 @@ extends SceneTree
 ## per frame, at 240 fps one tick every four frames, and the digest must not
 ## notice. `--probe=rate` plays the crowd fight, `--probe=rate-spitters` the
 ## orbs-and-parries fight, `--probe=rate-flurry` the Viper Flurry fight, `--probe=rate-conditions`
-## the fight of burning, poisoned and freezing packs. With `--probe=launch` it instead reports which
+## the fight of burning, poisoned and freezing packs, `--probe=rate-warden` the fight of sweeping
+## Wardens and Maelstroms. With `--probe=launch` it instead reports which
 ## scenario a Main scene picks when it is given none (the launch-option path).
 ##
 ##   godot --headless --path godot --fixed-fps 20 --script res://tests/frame_rate_probe.gd -- --probe=rate
@@ -31,7 +32,9 @@ func _initialize() -> void:
 		_script_name = RenderRateScenario.FLURRY
 	if mode == "rate-conditions":
 		_script_name = RenderRateScenario.CONDITIONS
-	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions":
+	if mode == "rate-warden":
+		_script_name = RenderRateScenario.WARDEN
+	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden":
 		_main.scenario = RenderRateScenario.scenario(_script_name)
 	root.add_child(_main)
 	if mode == "launch":

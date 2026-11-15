@@ -81,5 +81,10 @@ func play_cue(cue: SimCue) -> void:
 			play("parry")
 		SimCue.Kind.ENEMY_FROZEN:
 			play("parry")
+		SimCue.Kind.MAELSTROM_BEAT:
+			if cue.amount > 0:
+				play("strike")
+		SimCue.Kind.MAELSTROM_BURST:
+			play("strike")
 		_:
 			pass

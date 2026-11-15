@@ -50,8 +50,10 @@ var _ult_bars: Array[ColorRect] = []
 var _ult_badges: Array[ColorRect] = []
 ## Each card's element tag (FIRE / ICE / POISON), in the element's colour.
 var _ult_elements: Array[Label] = []
+## Each card's sword type line ("Fang", "Warden"), under the recharge bar.
+var _ult_types: Array[Label] = []
 
-const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 62.0)
+const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 78.0)
 const ULT_KEYS: Array[String] = ["Q", "E", "R"]
 
 
@@ -194,12 +196,17 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	var bar: ColorRect = _make_rect(card, Color.WHITE)
 	bar.position = Vector2(8.0, 50.0)
 	bar.size = Vector2(0.0, 5.0)
+	var type_label: Label = _make_label(card, "")
+	type_label.position = Vector2(8.0, 56.0)
+	type_label.size = Vector2(ULT_CARD_SIZE.x - 16.0, 20.0)
+	type_label.add_theme_font_size_override("font_size", 14)
 	_ult_cards.append(card)
 	_ult_names.append(name_label)
 	_ult_status.append(status_label)
 	_ult_bars.append(bar)
 	_ult_badges.append(badge)
 	_ult_elements.append(element_label)
+	_ult_types.append(type_label)
 
 
 ## What the slot's card says: READY, ACTIVE while the ultimate runs, or the whole
@@ -237,6 +244,8 @@ func _show_ultimates(run: GameRun) -> void:
 		_ult_status[slot].modulate = tint if ready or active else Color(0.62, 0.6, 0.7)
 		_ult_elements[slot].text = String(sword.spec.element).to_upper()
 		_ult_elements[slot].modulate = tint
+		_ult_types[slot].text = "%s sword" % SwordDefs.display_name(sword.spec.type_id)
+		_ult_types[slot].modulate = Color(0.78, 0.78, 0.86) if ready or active else Color(0.55, 0.53, 0.62)
 		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
 		_ult_bars[slot].color = tint
 		_ult_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 if active else sword.ultimate_charge())
@@ -323,6 +332,9 @@ func _show_encounter(run: GameRun) -> void:
 	if run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS:
 		_encounter_label.text = "SPITTER ENCOUNTER (dev fixture)   foes left: %d spitter, %d husk   orbs fired %d, parried %d\nSpitters glow, then spit an orb: dash through it or let a striking Fang sweep it away.   %s" % [
 			left[EnemyDefs.SPITTER], left[EnemyDefs.HUSK], run.cue_count(SimCue.Kind.PROJECTILE_FIRED), run.cue_count(SimCue.Kind.PROJECTILE_PARRIED), switch_hint]
+	elif run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN:
+		_encounter_label.text = "WARDEN ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   maelstroms finished %d, hits landed %d\nSweeps alternate. E / R: Maelstrom pulls foes in, then bursts. Q: Viper Flurry.   %s" % [
+			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.MAELSTROM_BURST), run.cue_count(SimCue.Kind.ENEMY_HIT), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:
 		var frozen: int = 0
 		var burning: int = 0

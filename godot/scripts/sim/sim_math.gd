@@ -35,6 +35,11 @@ static func ang_lerp(a: float, b: float, t: float) -> float:
 	return a + d * t
 
 
+## Cubic ease-out, 0 -> 1 (prototype `ease_out`).
+static func ease_out(t: float) -> float:
+	return 1.0 - pow(1.0 - t, 3.0)
+
+
 ## Python 3 `round(x)`: halves round to the nearest EVEN integer (24.5 -> 24),
 ## unlike GDScript's `roundi`, which rounds halves away from zero.
 static func py_round(x: float) -> int:

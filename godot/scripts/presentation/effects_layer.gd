@@ -11,7 +11,9 @@ extends Node2D
 ## shed their own particles (rising embers on a burning enemy, green drips on a poisoned
 ## one, ice motes on a chilled one) and cue bursts: FROZEN when an enemy freezes, a shatter
 ## when it dies frozen, a fire ring when a burning enemy dies, a coloured number for each
-## damage-over-time landing. Purely visual: it reads the
+## damage-over-time landing. A Warden's sweep is telegraphed during its windup (the arc it will
+## cut) and leaves a fading fan along the arc it cut; its Maelstrom shows the reach of its blades,
+## the range it pulls from, spinning arcs, a ring at every beat and a burst at the end. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -24,6 +26,13 @@ var _streaks: Array[Dictionary] = []
 var _last_sword_at: Dictionary = {}
 ## Element particles (embers, drips, ice motes): pos, vel, life, max, color, size.
 var _embers: Array[Dictionary] = []
+## The fading fan a Warden's sweep leaves (one wedge per tick), and the heading each sweeping
+## sword was drawn at last tick.
+var _wedges: Array[Dictionary] = []
+var _last_sweep_angle: Dictionary = {}
+## How many times each kind of Warden effect has been drawn (`telegraph`, `fan`, `maelstrom`);
+## checks read it to prove the layer really draws what the sword's state asks for.
+var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -34,6 +43,8 @@ func clear() -> void:
 	_sparks.clear()
 	_streaks.clear()
 	_embers.clear()
+	_wedges.clear()
+	_last_sweep_angle.clear()
 	_last_sword_at.clear()
 	queue_redraw()
 
@@ -56,6 +67,10 @@ func sync(run: GameRun) -> void:
 		for streak: Dictionary in _streaks:
 			streak["life"] = float(streak["life"]) - dt
 		_streaks = _streaks.filter(func(st: Dictionary) -> bool: return float(st["life"]) > 0.0)
+		for wedge: Dictionary in _wedges:
+			wedge["life"] = float(wedge["life"]) - dt
+		_wedges = _wedges.filter(func(wd: Dictionary) -> bool: return float(wd["life"]) > 0.0)
+		_add_sweep_wedges(run)
 		for ember: Dictionary in _embers:
 			ember["life"] = float(ember["life"]) - dt
 			ember["pos"] = Vector2(ember["pos"]) + Vector2(ember["vel"]) * dt
@@ -79,6 +94,21 @@ func _add_dart_streaks(run: GameRun) -> void:
 			if from.distance_to(sword.position) > 12.0 and _streaks.size() < MAX_EFFECTS:
 				_streaks.append({"from": from, "to": sword.position, "life": 0.18, "max": 0.18, "color": _sword_color(sword.spec)})
 		_last_sword_at[key] = sword.position
+
+
+## While a Warden sweeps, every tick adds the wedge between last tick's heading and this one.
+func _add_sweep_wedges(run: GameRun) -> void:
+	for sword: SwordState in run.swords:
+		if sword.spec.type_id != SwordDefs.WARDEN:
+			continue
+		var key: int = sword.get_instance_id()
+		if sword.phase == SwordState.Phase.STRIKE:
+			var from_angle: float = _last_sweep_angle.get(key, sword.sweep_from)
+			if absf(sword.angle - from_angle) > 0.001 and _wedges.size() < MAX_EFFECTS:
+				_wedges.append({"pivot": sword.sweep_pivot, "from": from_angle, "to": sword.angle, "life": 0.28, "max": 0.28, "color": _sword_color(sword.spec), "length": sword.length})
+			_last_sweep_angle[key] = sword.angle
+		else:
+			_last_sweep_angle.erase(key)
 
 
 static func _sword_color(spec: SwordSpec) -> Color:
@@ -168,6 +198,15 @@ func apply_cue(cue: SimCue) -> void:
 			_add_text(cue.position + Vector2(0.0, -20.0), "PARRY", PlaceholderEnemyVisual.SPIT_GLOW, 0.55, 20)
 		SimCue.Kind.ULTIMATE_STARTED:
 			_apply_ultimate_started(cue)
+		SimCue.Kind.MAELSTROM_BEAT:
+			var beat_tint: Color = element_color(cue.element)
+			_add_ring(cue.position, cue.radius * 0.6, cue.radius, 0.2, Color(beat_tint, 0.9), 2.0)
+		SimCue.Kind.MAELSTROM_BURST:
+			var burst_tint: Color = element_color(cue.element).lerp(Color.WHITE, 0.4)
+			_add_ring(cue.position, 20.0, cue.radius * 1.6, 0.4, Color(burst_tint, 0.95), 5.0)
+			_add_ring(cue.position, 10.0, cue.radius, 0.25, Color(1.0, 1.0, 1.0, 0.8), 3.0)
+			for i: int in 30:
+				_add_spark(cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(300.0, 800.0)), _rng.randf_range(0.15, 0.4), burst_tint)
 		SimCue.Kind.ULTIMATE_REFUSED:
 			if _run != null:
 				_add_text(cue.position + Vector2(0.0, -46.0), "recharging %ds" % cue.amount, Color(0.62, 0.6, 0.78), 0.5, 22)
@@ -183,7 +222,7 @@ func _apply_ultimate_started(cue: SimCue) -> void:
 	var sword: SwordState = _run.swords[cue.amount]
 	var tint: Color = _sword_color(sword.spec)
 	_add_ring(cue.origin, 4.0, 40.0, 0.25, Color(tint, 0.9), 2.0)
-	_add_ring(cue.position, SwordDefs.FANG_ULT_RADIUS, 10.0, 0.3, Color(tint, 0.95), 3.0)
+	_add_ring(sword.ultimate_point, sword.ultimate_area_radius(), 10.0, 0.3, Color(tint, 0.95), 3.0)
 	_add_text(_run.position + Vector2(0.0, -56.0), SwordDefs.ultimate_name(sword.spec.type_id).to_upper(), tint.lerp(Color.WHITE, 0.3), 1.0, 32)
 
 
@@ -192,9 +231,9 @@ func _add_ring(at: Vector2, r0: float, r1: float, life: float, color: Color, wid
 		_rings.append({"pos": at, "r0": r0, "r1": r1, "life": life, "max": life, "color": color, "width": width})
 
 
-func _add_spark(at: Vector2, velocity: Vector2, life: float) -> void:
+func _add_spark(at: Vector2, velocity: Vector2, life: float, color: Color = Color(0.85, 1.0, 0.65)) -> void:
 	if _sparks.size() < MAX_EFFECTS:
-		_sparks.append({"pos": at, "vel": velocity, "life": life, "max": life})
+		_sparks.append({"pos": at, "vel": velocity, "life": life, "max": life, "color": color})
 
 
 func _add_text(at: Vector2, text: String, color: Color, life: float, size: int) -> void:
@@ -217,11 +256,22 @@ func _draw() -> void:
 		draw_circle(mote.position, 3.0, Color(0.75, 1.0, 0.92))
 	for projectile: ProjectileState in _run.projectiles:
 		_draw_projectile(projectile)
+	for wedge: Dictionary in _wedges:
+		draw_counts[&"fan"] = draw_counts.get(&"fan", 0) + 1
+		var wedge_fade: float = clampf(float(wedge["life"]) / float(wedge["max"]), 0.0, 1.0)
+		var span: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
+		var mid: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
+		draw_arc(Vector2(wedge["pivot"]), mid, float(wedge["from"]), float(wedge["to"]), 6, Color(Color(wedge["color"]).lerp(Color.WHITE, 0.55), 0.55 * wedge_fade), span)
 	for sword: SwordState in _run.swords:
+		if sword.phase == SwordState.Phase.WINDUP and sword.spec.type_id == SwordDefs.WARDEN:
+			_draw_sweep_telegraph(sword)
 		if sword.phase == SwordState.Phase.ULTIMATE:
 			var tint: Color = _sword_color(sword.spec)
-			draw_arc(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, 0.0, TAU, 48, Color(tint, 0.35), 2.0)
-			draw_circle(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, Color(tint, 0.06))
+			var area: float = sword.ultimate_area_radius()
+			draw_arc(sword.ultimate_point, area, 0.0, TAU, 48, Color(tint, 0.35), 2.0)
+			draw_circle(sword.ultimate_point, area, Color(tint, 0.06))
+			if sword.spec.type_id == SwordDefs.WARDEN:
+				_draw_maelstrom(sword, tint)
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
 	for ember: Dictionary in _embers:
@@ -234,7 +284,7 @@ func _draw() -> void:
 		var fade: float = clampf(float(spark["life"]) / float(spark["max"]), 0.0, 1.0)
 		var head: Vector2 = Vector2(spark["pos"])
 		var tail: Vector2 = head - Vector2(spark["vel"]) * 0.025
-		draw_line(tail, head, Color(0.85, 1.0, 0.65, fade), 2.0)
+		draw_line(tail, head, Color(Color(spark["color"]), fade), 2.0)
 	for ring: Dictionary in _rings:
 		var t: float = 1.0 - float(ring["life"]) / float(ring["max"])
 		var color: Color = ring["color"]
@@ -248,6 +298,38 @@ func _draw() -> void:
 		var at: Vector2 = Vector2(text["pos"])
 		draw_string(font, at + Vector2(2.0, 2.0), String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), Color(0.0, 0.0, 0.0, a))
 		draw_string(font, at, String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), color)
+
+
+## The arc a Warden is about to cut: a faint band along the whole sweep that brightens as the
+## windup runs out, so a strike can be read before it lands. Follows the target like the sweep.
+func _draw_sweep_telegraph(sword: SwordState) -> void:
+	draw_counts[&"telegraph"] = draw_counts.get(&"telegraph", 0) + 1
+	var u: float = 1.0 - clampf(sword.timer / sword.windup, 0.0, 1.0)
+	var span: float = sword.length * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
+	var mid: float = sword.length * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
+	var tint: Color = _sword_color(sword.spec)
+	draw_arc(sword.sweep_pivot, mid, sword.sweep_from, sword.sweep_to, 24, Color(tint, 0.05 + 0.15 * u), span)
+	draw_arc(sword.sweep_pivot, sword.length * SwordDefs.WARDEN_TIP, sword.sweep_from, sword.sweep_to, 24, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## A running Maelstrom: the range it pulls from (dashed), spinning arcs inside the reach of its
+## blades, and the pull's inward ticks on every enemy it is dragging.
+func _draw_maelstrom(sword: SwordState, tint: Color) -> void:
+	draw_counts[&"maelstrom"] = draw_counts.get(&"maelstrom", 0) + 1
+	var centre: Vector2 = sword.ultimate_point
+	var pull: float = sword.maelstrom_pull_range()
+	for dash: int in 36:
+		var start: float = float(dash) * TAU / 36.0
+		draw_arc(centre, pull, start, start + TAU / 72.0, 4, Color(tint, 0.22), 2.0)
+	for arm: int in 4:
+		var base_angle: float = sword.ultimate_spin * 0.5 + float(arm) * TAU / 4.0
+		draw_arc(centre, sword.maelstrom_reach() * 0.55, base_angle, base_angle + 1.0, 10, Color(tint, 0.55), 3.0)
+		draw_arc(centre, sword.maelstrom_reach() * 0.9, -base_angle, -base_angle + 0.8, 10, Color(tint, 0.4), 2.0)
+	for enemy: EnemyState in _run.enemies:
+		var offset: Vector2 = centre - enemy.position
+		var dist: float = offset.length()
+		if not enemy.dead and SwordDefs.WARDEN_ULT_PULL_MIN < dist and dist < pull:
+			draw_line(enemy.position, enemy.position + offset / dist * 18.0, Color(tint, 0.55), 2.0)
 
 
 ## An orb: a green glow, a body and a bright core, with a short streak behind it

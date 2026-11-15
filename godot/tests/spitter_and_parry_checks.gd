@@ -875,33 +875,35 @@ func _check_encounter_and_cycle() -> void:
 	_ok("the spitter encounter is one wave of %d spitters and %d husks with the three-Fang fixture loadout and no shove" % [spitters, husks], spitters == 5 and husks == 3 and scenario.wave_kinds.size() == 8 and scenario.loadout.size() == 3 and not scenario.dev_shove and scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and scenario.waves_enabled)
 	var run: GameRun = GameRun.new(RunScenario.new().without_conditions())
 	var visited: Array[StringName] = [run.scenario.encounter]
-	for i: int in 4:
+	for i: int in 5:
 		run.apply(GameCommand.toggle_encounter())
 		visited.append(run.scenario.encounter)
-	_ok("the dev command cycles normal -> crowd -> spitters -> conditions -> normal, restarting each time (%s)" % [visited], visited == [&"", &"crowd", &"spitters", &"conditions", &""] and run.restarts == 4)
+	_ok("the dev command cycles normal -> crowd -> spitters -> conditions -> warden -> normal, restarting each time (%s)" % [visited], visited == [&"", &"crowd", &"spitters", &"conditions", &"warden", &""] and run.restarts == 5)
 	var from_spitters: GameRun = GameRun.new(RunScenario.spitter_encounter().without_conditions())
 	from_spitters.apply(GameCommand.toggle_encounter())
 	_ok("a run that began in the spitter encounter continues to the conditions encounter (issue #11)", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS)
+	from_spitters.apply(GameCommand.toggle_encounter())
+	_ok("then to the warden encounter (issue #13)", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_WARDEN)
 	from_spitters.apply(GameCommand.toggle_encounter())
 	_ok("then to the normal run", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and from_spitters.scenario.wave_kinds.is_empty())
 	from_spitters.apply(GameCommand.toggle_encounter())
 	_ok("and then to the crowd", from_spitters.scenario.encounter == RunScenario.ENCOUNTER_CROWD)
 	var wall: GameRun = GameRun.new(RunScenario.wall_encounter().without_conditions())
-	for i: int in 4:
+	for i: int in 5:
 		wall.apply(GameCommand.toggle_encounter())
-	_ok("the wall encounter keeps the crowd slot: spitters, conditions, normal, then the pinned crowd again", wall.scenario.encounter == RunScenario.ENCOUNTER_CROWD and wall.enemies.size() == 14 and not wall.scenario.waves_enabled)
+	_ok("the wall encounter keeps the crowd slot: spitters, conditions, warden, normal, then the pinned crowd again", wall.scenario.encounter == RunScenario.ENCOUNTER_CROWD and wall.enemies.size() == 14 and not wall.scenario.waves_enabled)
 	var custom: RunScenario = RunScenario.new().without_conditions()
 	custom.seed = 77
 	var custom_run: GameRun = GameRun.new(custom)
-	for i: int in 4:
+	for i: int in 5:
 		custom_run.apply(GameCommand.toggle_encounter())
 	_ok("a custom scenario is the normal slot and returns after the cycle", custom_run.scenario == custom)
 	var launched_spitters: RunScenario = LaunchOptions.scenario_for("spitters")
 	var launched_crowd: RunScenario = LaunchOptions.scenario_for("crowd")
 	var launched_wall: RunScenario = LaunchOptions.scenario_for("wall")
 	_ok("the launch option asks for the spitter encounter", launched_spitters != null and launched_spitters.encounter == RunScenario.ENCOUNTER_SPITTERS and launched_crowd != null and launched_crowd.encounter == RunScenario.ENCOUNTER_CROWD and launched_wall != null and launched_wall.encounter == RunScenario.ENCOUNTER_CROWD and LaunchOptions.scenario_for("nonsense") == null)
-	_ok("the dev button names where it leads: %s" % [[RunScenario.encounter_title(RunScenario.next_encounter(&"")), RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")), RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")), RunScenario.encounter_title(RunScenario.next_encounter(&"conditions"))]],
-		RunScenario.encounter_title(RunScenario.next_encounter(&"")) == "Crowd" and RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")) == "Spitters" and RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")) == "Conditions" and RunScenario.encounter_title(RunScenario.next_encounter(&"conditions")) == "Normal")
+	_ok("the dev button names where it leads: %s" % [[RunScenario.encounter_title(RunScenario.next_encounter(&"")), RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")), RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")), RunScenario.encounter_title(RunScenario.next_encounter(&"conditions")), RunScenario.encounter_title(RunScenario.next_encounter(&"warden"))]],
+		RunScenario.encounter_title(RunScenario.next_encounter(&"")) == "Crowd" and RunScenario.encounter_title(RunScenario.next_encounter(&"crowd")) == "Spitters" and RunScenario.encounter_title(RunScenario.next_encounter(&"spitters")) == "Conditions" and RunScenario.encounter_title(RunScenario.next_encounter(&"conditions")) == "Warden" and RunScenario.encounter_title(RunScenario.next_encounter(&"warden")) == "Normal")
 	var played: RunScenario = RunScenario.spitter_encounter().without_conditions()
 	played.seed = 21
 	played.first_wave_delay = 0.2
@@ -991,7 +993,9 @@ func _check_main_scene() -> void:
 	await _tree.process_frame
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
-	_ok("the dev button returns (via the conditions encounter) to the normal run: no enemies, no orbs, controls and legend hidden", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and main.run.enemies.is_empty() and main.run.projectiles.is_empty() and not main._hud._encounter_label.visible and main._hud._encounter_button.text == "Dev: Crowd (restarts)", main._hud._encounter_button.text)
+	main._hud._encounter_button.button_down.emit()
+	await _tree.process_frame
+	_ok("the dev button returns (via the conditions and warden encounters) to the normal run: no enemies, no orbs, controls and legend hidden", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and main.run.enemies.is_empty() and main.run.projectiles.is_empty() and not main._hud._encounter_label.visible and main._hud._encounter_button.text == "Dev: Crowd (restarts)", main._hud._encounter_button.text)
 	main.queue_free()
 	await _tree.process_frame
 	# Silhouettes: every type reads differently without final art.

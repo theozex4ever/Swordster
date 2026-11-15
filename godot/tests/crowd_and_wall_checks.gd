@@ -786,7 +786,9 @@ func _check_restart_with_crowd() -> void:
 	run.apply(GameCommand.toggle_encounter())
 	_ok("then the conditions encounter (issue #11)", run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS and run.restarts == 3)
 	run.apply(GameCommand.toggle_encounter())
-	_ok("and the one after that restores the normal scenario", not run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and run.restarts == 4)
+	_ok("then the warden encounter (issue #13)", run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN and run.restarts == 4)
+	run.apply(GameCommand.toggle_encounter())
+	_ok("and the one after that restores the normal scenario", not run.scenario.dev_shove and run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and run.restarts == 5)
 	_ok("nothing from the crowd fight survives the switch: enemies, motes, counters, markers, cues",
 		run.enemies.is_empty() and run.motes.is_empty() and run.kills == 0 and run.combo == 0 and run.director.markers.is_empty() and run.director.queue.is_empty()
 		and run.cue_count(SimCue.Kind.ENEMY_KILLED) == 0 and run.cue_count(SimCue.Kind.WALL_SLAM) == 0 and run.take_cues().is_empty())
@@ -796,7 +798,8 @@ func _check_restart_with_crowd() -> void:
 	crowd_first.apply(GameCommand.toggle_encounter())
 	crowd_first.apply(GameCommand.toggle_encounter())
 	crowd_first.apply(GameCommand.toggle_encounter())
-	_ok("a run that began as the crowd encounter reaches the plain run after the spitters and the conditions encounter", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
+	crowd_first.apply(GameCommand.toggle_encounter())
+	_ok("a run that began as the crowd encounter reaches the plain run after the spitters, conditions and warden encounters", not crowd_first.scenario.dev_shove and crowd_first.scenario.wave_kinds.is_empty())
 
 
 # ------------------------------------------------------ real Main scene
@@ -852,12 +855,15 @@ func _check_main_scene() -> void:
 	_ok("the dev button leads from the crowd to the spitter encounter and clears the arena (no shove there)", main.run.scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and main.run.enemies.is_empty() and main._presenter.visual_count() == 3 and not main._hud._shove_button.visible)
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
-	_ok("pressing it again leads to the conditions encounter, and once more to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS and main._hud._encounter_label.visible)
+	_ok("pressing it again leads to the conditions encounter, then the warden encounter, and once more to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS and main._hud._encounter_label.visible)
+	main._hud._encounter_button.button_down.emit()
+	await _tree.process_frame
+	_ok("the warden encounter shows its legend and the mixed Fang / Warden / Warden loadout", main.run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN and main._hud._encounter_label.text.contains("WARDEN") and main.run.swords.size() == 3 and main.run.swords[1].spec.type_id == SwordDefs.WARDEN)
 	main._hud._encounter_button.button_down.emit()
 	await _tree.process_frame
 	_ok("pressing it once more returns to the plain run", main.run.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and not main._hud._encounter_label.visible)
 	_press(main, KEY_C)
-	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 4)
+	_ok("C switches to the crowd encounter again", main.run.scenario.dev_shove and main.run.restarts == 5)
 	main._sfx.unlock()
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.WALL_SLAM, Vector2.ZERO, Vector2.ZERO, 9))
