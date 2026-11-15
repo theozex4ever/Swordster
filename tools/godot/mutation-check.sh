@@ -15,11 +15,14 @@
 # Speed (issue #35). Nearly all of a full run_checks.gd run (about 45 s) is the render-rate
 # probes: sub-Godot processes at 5/20/60/240 fps in each fight group. Almost every mutation is
 # rejected by a behavioural check long before them, so each mutation is judged in two steps:
-#   1. quick: `run_checks.gd -- --fail-fast --skip-probes` stops at the first failing check
-#      and never launches a probe (a few seconds). A clean failure verdict here is CAUGHT;
-#      it is the same verdict the full run would give, because the quick run only runs
+#   1. focused: the same quick run restricted to the check group of the mutation's section
+#      (`--focus=warden_maelstrom`, see godot/tests/check_focus.gd), so the most relevant
+#      checks run first and most mutations end in a second or two.
+#   2. quick: `run_checks.gd -- --fail-fast --skip-probes` stops at the first failing check
+#      and never launches a probe (a few seconds). A clean failure verdict in step 1 or 2 is
+#      CAUGHT; it is the same verdict the full run would give, because these runs only run
 #      fewer checks and any check that fails there fails there too.
-#   2. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
+#   3. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
 #      never "CHECKS PASSED") is the project run again with the probes, still fail-fast.
 #      Only a full run that prints "CHECKS PASSED" makes a mutation SURVIVED.
 # FAST=0 restores the original behaviour (one complete, non-fail-fast run per mutation) and
@@ -128,13 +131,29 @@ cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
 
 # run_checks DIR MODE: classic = the complete run (every failure reported, probes included);
 # quick = fail-fast and no probes; full = fail-fast with the probes.
-run_checks() {
+run_checks() { # dir mode [focus group]
   local extra=()
   case "$2" in
     quick) extra=(-- --fail-fast --skip-probes) ;;
     full) extra=(-- --fail-fast) ;;
   esac
+  [[ -z "${3:-}" ]] || extra+=("--focus=$3")
   timeout 120 "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>&1
+}
+
+# The check group a section belongs to, named like its file without `_checks.gd`: "none" for
+# core (run_checks.gd's own checks), the table for the early slices, and for any later section
+# the one group file that starts with the section's key or whose first word is the key's prefix
+# (pike -> pike_skewer_checks.gd). Empty means "no known group": the focused step is skipped.
+declare -A FOCUS_OF=([core]=none [fang]=survival_loop [runners]=crowd_and_wall [spitters]=spitter_and_parry
+                     [viper]=viper_flurry [elemental]=elemental_condition [warden]=warden_maelstrom)
+focus_group() {
+  local key="$1" file stem
+  if [[ -n "${FOCUS_OF[$key]+x}" ]]; then echo "${FOCUS_OF[$key]}"; return; fi
+  for file in "$REPO"/godot/tests/*_checks.gd; do
+    stem="${file##*/}"; stem="${stem%_checks.gd}"
+    if [[ "$stem" == "$key"* || "$key" == "${stem%%_*}"* ]]; then echo "$stem"; return; fi
+  done
 }
 
 # judge STATUS LOG MODE sets VERDICT to CAUGHT, SURVIVED, PARTIAL (a clean quick run: nothing
@@ -170,6 +189,9 @@ check_baseline() { # mode
 }
 if [[ "$FAST" == 1 ]]; then check_baseline quick; else check_baseline classic; baseline_full=1; fi
 
+declare -A FOCUS_CACHE=()
+for key in "${SECTION_KEYS[@]}"; do FOCUS_CACHE[$key]="$(focus_group "$key")"; done
+
 mutate() { # name file old new
   local name="$1" file="$2" old="$3" new="$4" dir="$SCRATCH/m-$1"
   [[ -n "${PLAN[$name]+x}" ]] || return 0
@@ -184,11 +206,18 @@ if text.count(old) != 1:
     raise SystemExit(1)
 open(path, "w").write(text.replace(old, new))
 PY
-  local verdict="" detail="" attempt status log
+  local verdict="" detail="" attempt status log focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
   for attempt in 1 2; do
     if [[ "$FAST" == 1 ]]; then
-      status=0; log="$(run_checks "$dir" quick)" || status=$?
-      judge "$status" "$log" quick
+      VERDICT=PARTIAL
+      if [[ -n "$focus" ]]; then
+        status=0; log="$(run_checks "$dir" quick "$focus")" || status=$?
+        judge "$status" "$log" quick
+      fi
+      if [[ "$VERDICT" == PARTIAL ]]; then
+        status=0; log="$(run_checks "$dir" quick)" || status=$?
+        judge "$status" "$log" quick
+      fi
       if [[ "$VERDICT" == PARTIAL ]]; then
         ((baseline_full)) || { check_baseline full; baseline_full=1; }
         status=0; log="$(run_checks "$dir" full)" || status=$?

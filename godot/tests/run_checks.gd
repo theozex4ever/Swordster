@@ -14,6 +14,8 @@ extends SceneTree
 ##                  have not started yet are skipped.
 ##   --skip-probes  skip the render-rate probes (RenderRateScenario.probes_enabled()). A run
 ##                  without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
+##   --focus=<g>    run only the check group(s) named <g> (see CheckFocus), after run_checks.gd's
+##                  own checks; the mutation checker tries the group a mutation belongs to first.
 ## Without them, every check runs and every failure is reported, as the build requires.
 
 const EPS: float = 0.001
