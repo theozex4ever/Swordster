@@ -28,6 +28,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("survival_loop"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_check.call("reference file loads", false, REFERENCE_PATH)

@@ -32,6 +32,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("spitter_and_parry"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("spitter reference file loads", false, REFERENCE_PATH)
@@ -1038,6 +1040,8 @@ func _check_visual_independence() -> void:
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
 	print("spitters: identical outcomes at low and high render rates")
+	if not RenderRateScenario.probes_enabled():
+		return
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.SPITTERS)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
 	_ok("the scripted fight does something worth comparing (orbs %d, parried %d, player hurt %d, alive %s)" % [int(headless["shot_cues"]), int(headless["parry_cues"]), int(headless["hurt_cues"]), not bool(headless["dead"])],

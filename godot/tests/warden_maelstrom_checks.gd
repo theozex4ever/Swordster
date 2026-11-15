@@ -36,6 +36,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("warden_maelstrom"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("warden reference file loads", false, REFERENCE_PATH)
@@ -1265,6 +1267,8 @@ func _check_visual_independence() -> void:
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
 	print("warden: identical outcomes at low and high render rates")
+	if not RenderRateScenario.probes_enabled():
+		return
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.WARDEN)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
 	_ok("the scripted fight does something worth comparing (whirls %d, refused %d, beats %d, bursts %d, hits %d, kills %d, alive %s)" % [int(headless["ultimate_cues"]), int(headless["refused_cues"]), int(headless["beat_cues"]), int(headless["burst_cues"]), int(headless["hit_cues"]), int(headless["kills"]), not bool(headless["dead"])],

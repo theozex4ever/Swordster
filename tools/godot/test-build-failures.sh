@@ -360,7 +360,8 @@ for crash in 'kill -SEGV $$' 'exit 3'; do
   verdict=PASS
   ((status == 1)) || verdict="FAIL(exit $status, wanted 1)"
   if grep -q '^caught ' "$sb/run.log"; then verdict="FAIL(a crash counted as caught)"; fi
-  [[ "$(grep -c '^INCONCLUSIVE ' "$sb/run.log")" == 14 ]] || verdict="FAIL(not all 14 mutations inconclusive)"
+  mutations="$(grep -c '^mutate[[:space:]]' "$sb/repo/tools/godot/mutation-check.sh")"
+  [[ "$(grep -c '^INCONCLUSIVE ' "$sb/run.log")" == "$mutations" ]] || verdict="FAIL(not all $mutations mutations inconclusive)"
   printf '%-44s exit=%-3s %s\n    %s\n' "mutation checker, print-then-'$crash'" "$status" "$verdict" "$(grep -m1 '^INCONCLUSIVE' "$sb/run.log" | cut -c1-120)"
   [[ "$verdict" == PASS ]] || { failures=$((failures + 1)); tail -n 12 "$sb/run.log"; }
 done

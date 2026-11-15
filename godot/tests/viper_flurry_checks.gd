@@ -34,6 +34,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("viper_flurry"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("flurry reference file loads", false, REFERENCE_PATH)
@@ -1041,6 +1043,8 @@ func _check_visual_independence() -> void:
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
 	print("flurry: identical outcomes at low and high render rates")
+	if not RenderRateScenario.probes_enabled():
+		return
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.FLURRY)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
 	_ok("the scripted fight does something worth comparing (flurries %d, refused %d, darts %d, kills %d, alive %s)" % [int(headless["ultimate_cues"]), int(headless["refused_cues"]), int(headless["hit_cues"]), int(headless["kills"]), not bool(headless["dead"])],

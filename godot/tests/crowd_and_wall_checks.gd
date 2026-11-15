@@ -34,6 +34,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("crowd_and_wall"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("crowd reference file loads", false, REFERENCE_PATH)
@@ -913,6 +915,8 @@ func _check_visual_independence() -> void:
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
 	print("crowd: identical outcomes at low and high render rates")
+	if not RenderRateScenario.probes_enabled():
+		return
 	var headless: Dictionary = RenderRateScenario.play_headless()
 	# Probe output travels as JSON text, so compare both sides after the same round trip.
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))

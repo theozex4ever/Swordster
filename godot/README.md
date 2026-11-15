@@ -221,10 +221,12 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   concurrency group, so they never queue behind or replace one another and every
   commit on `main` keeps its pair (parallel runs are possible). Pushes to a
   branch without a pull request are not built.
-- **Not run in CI:** `tools/godot/test-build-failures.sh` (dozens of sandboxed
-  builds, minutes of runtime) and `tools/godot/mutation-check.sh` (tests the
-  checks themselves, not the build) are tooling self-tests run by hand when the
-  script or checks change.
+- **Not run by `build.yml`:** `tools/godot/test-build-failures.sh` (dozens of
+  sandboxed builds, minutes of runtime) is a tooling self-test run by hand when
+  the script changes. The mutation checker (`tools/godot/mutation-check.sh`, which
+  tests the checks themselves, not the build) has its own workflow,
+  `.github/workflows/mutation.yml`: the full pass on every push to `main` and on
+  manual dispatch, never on a pull request. See *Mutation checks* under *Checks*.
 - **Where the build is:** open the run (Actions → *Build*, or `gh run list
   --workflow build.yml`). Each successful run uploads one artifact named
   `swordster-<build-id>` containing `<build-id>/` with the Windows ZIP, the Web
@@ -265,9 +267,99 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one; a crash or timeout is reported as inconclusive, not as caught.
+  See *Mutation checks* below for the per-PR procedure.
 - `tools/godot/test-build-failures.sh` runs `build-godot.sh` in sandboxes against
   representative failures (plus crashed-and-retried steps and overlapping runs) and
   requires the specific exit code and no new or damaged pair.
+
+### Mutation checks
+
+The checker lists every deliberate bug (about 450) in sections, one per slice
+(`# --- <title> (slice #N)` in the script), after an ungrouped `core` block of
+simulation basics (speed, pause and resume, restart, the diagonal and wall clamps).
+A mutation is **caught** only when `run_checks.gd` itself rejects it (exit 1, a
+`CHECKS FAILED` verdict, at least one `  FAIL` line, no script error); a crash,
+timeout or missing verdict is **inconclusive**; a project the checks accept is
+**survived**. Either of the last two fails the run.
+
+How it is fast. Nearly all of a complete `run_checks.gd` run (about 45 s) is the
+render-rate probes, sub-Godot processes at 5/20/60/240 fps, and most of the rest is
+the groups the mutation has nothing to do with. So each mutation is judged in steps
+(the **fast** mode, the local default), each only when the one before found nothing:
+
+1. **Focused**: `run_checks.gd -- --fail-fast --skip-probes --focus=<group>` runs the
+   checks of the mutation's own section (`warden_maelstrom` for the Warden section;
+   `core` runs only `run_checks.gd`'s own checks) and stops at the first failing one.
+   Most mutations end here, in about two seconds.
+2. **Quick**: the same without `--focus`, over every group.
+3. **Full**: the same with the probes. Only a complete `CHECKS PASSED` here makes a
+   mutation a survivor.
+
+Steps 1 and 2 end in `CHECKS PARTIAL` (never `CHECKS PASSED`, which the build
+requires) when nothing failed; so does any run with a `--focus`, even `--focus=none`
+or one naming every group. They run a subset of the full run's checks, so a
+failure there is a failure of the full run too. Crashes, timeouts and script errors
+in a step that never reached a clean failure stay inconclusive.
+
+**Fast and classic modes differ in one case.** `FAST=0` is the **classic** mode: one
+complete, non-fail-fast run per mutation, probes included, and the strict definition of
+*caught*: the whole run must end in the ordinary failure verdict, so a mutation that
+fails a check cleanly but then crashes, times out or hits a script error in a *later*
+check is **inconclusive**. The fast mode stops at the first clean failure and never
+reaches those later checks, so it counts that mutation as **caught** locally: a clean
+assertion failure reported through `run_checks.gd`'s verdict path is genuine
+behavioural evidence, and the fast mode trades the later-crash information for speed.
+**The CI full pass runs the classic mode** (`FAST=0` in `mutation.yml`) and is the
+authoritative verdict; a mutation the fast mode called caught that crashes later turns
+up there as inconclusive. `tools/godot/test-mutation-runner.sh` pins this: the same
+crash-after-failure mutant must be caught in fast mode and inconclusive in classic mode.
+
+A check group takes part by starting its `run_all()` with
+`if not CheckFocus.includes("<file name without _checks.gd>"): return` and its
+render-rate check with `if not RenderRateScenario.probes_enabled(): return`, as the
+existing groups do. A group without those lines is not wrong, only slower: it runs
+in every step. The section's group is found by the table in the script (the early
+slices) or, for a later section, by a group file whose name starts with the section's
+key (`pike` finds `pike_skewer_checks.gd`).
+
+Selection (all of these compose):
+
+| Variable | Effect |
+| --- | --- |
+| `SECTIONS=pike,warden` | only those sections **plus `core`**. A section is the first word of its header title (`SECTIONS=list` prints them) or its slice number (`SECTIONS=14`). `CORE=0` leaves core out; unset or `all` selects every section. An unknown name is refused. |
+| `ONLY=name,name` | only the named mutations (an unknown name is refused); combined with `SECTIONS`, only those inside the chosen sections. |
+| `SHARD=i SHARDS=n` | every n-th mutation of the selection starting at `i`, so `n` copies run in parallel over the same list. |
+| `FAST=0` | the strict classic mode described above (default `FAST=1`). |
+
+A new section needs no registration: append its `mutate` lines under a
+`# --- <title> (slice #N)` header and it becomes selectable.
+
+Per-PR procedure for a slice:
+
+1. While developing, run the sections the PR touches plus `core`, split over the
+   cores you have: `SECTIONS=pike,core` (core is implied) with `SHARD=$i SHARDS=8`
+   in eight terminals, or a single process for a small section. It needs the pinned
+   Godot: `./build-godot.sh --bootstrap-only` first.
+2. After fixing a check or the code a survivor pointed at, rerun only those
+   mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
+   whole section for each fix.
+3. Do not run the full pass for the PR. After merge, the *Mutation checks* workflow
+   runs every section on `main` in the classic mode (12 shards), and its *all shards*
+   job fails unless the whole matrix succeeded and every shard's result file is
+   present, records exit status 0 and shows every mutation caught (no survivor, no
+   inconclusive, none not applied). A failed, cancelled or timed-out shard fails it
+   even if the other shards' files look clean. A survivor found there is fixed in a
+   follow-up with `ONLY=`.
+
+Each shard prints one line per mutation (with its time) and ends with
+`RESULT shard=… mode=… ran=… caught=… survived=… inconclusive=… not_applied=…`.
+`caught` counts only mutations that were applied and cleanly rejected. A mutation
+whose search text no longer matches exactly once is **not applied**: reported on its own
+line (`MUTATION NOT APPLIED: <name>`), never caught, and it fails the run. The checker
+itself is covered by `tools/godot/test-mutation-runner.sh` (stale mutations, the
+crash-after-failure difference, `CHECKS PARTIAL` for focused runs, and the CI summary
+logic against synthetic result sets); run it by hand when `mutation-check.sh`,
+`mutation-summary.sh` or the workflow change.
 
 ## Layout
 
