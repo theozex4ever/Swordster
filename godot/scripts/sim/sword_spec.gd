@@ -22,4 +22,3 @@ static func make(type_value: StringName, rarity_value: int, element_value: Strin
 ## The sword's full name ("Rare Ember Fang").
 func display_name() -> String:
 	return SwordDefs.full_name(self)
-
