@@ -38,3 +38,19 @@ _Avoid_: Status effect, debuff
 
 **Rarity**:
 A sword's Common, Rare or Mythic quality, independent of its type and element.
+
+**Armed enemy**:
+An enemy carrying one spirit sword, with a sword type, element and rarity of its
+own. When it dies the sword lies where it fell.
+_Avoid_: Loot enemy
+
+**Sword drop**:
+A spirit sword lying in the arena, left by an armed enemy or put back by a swap,
+until it is claimed or expires.
+_Avoid_: Pickup item, loot
+
+**Swap**:
+The player's replacement of the spirit sword in a chosen sword slot by the nearest
+sword drop within reach; the replaced sword becomes a sword drop and the slot
+keeps its ultimate's recharge fraction.
+_Avoid_: Equip
