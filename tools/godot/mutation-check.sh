@@ -1964,6 +1964,8 @@ mutate pickup-card-offered-when-dead           scripts/hud.gd "var near: PickupS
 mutate pickup-card-x-unclamped                 scripts/hud.gd "clampf(screen_at.x + 40.0, PICKUP_CARD_MARGIN, maxf(PICKUP_CARD_MARGIN, view.x - PICKUP_CARD_SIZE.x - PICKUP_CARD_MARGIN))," "screen_at.x + 40.0,"
 mutate pickup-card-y-unclamped                 scripts/hud.gd "clampf(screen_at.y - PICKUP_CARD_SIZE.y - 40.0, PICKUP_CARD_MARGIN, maxf(PICKUP_CARD_MARGIN, view.y - PICKUP_CARD_SIZE.y - ULT_CARD_SIZE.y - 40.0)))" "screen_at.y - PICKUP_CARD_SIZE.y - 40.0)"
 mutate pickup-card-over-the-slot-cards         scripts/hud.gd "view.y - PICKUP_CARD_SIZE.y - ULT_CARD_SIZE.y - 40.0" "view.y - PICKUP_CARD_SIZE.y - 40.0"
+mutate pickup-card-too-narrow-for-its-text         scripts/hud.gd "const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)" "const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)"
+mutate pickup-card-comparison-font-grows          scripts/hud.gd "		compare.add_theme_font_size_override(\"font_size\", 14)" "		compare.add_theme_font_size_override(\"font_size\", 17)"
 mutate pickup-card-comparison-lost             scripts/hud.gd "			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
 " ""
 mutate pickup-card-name-colour-lost            scripts/hud.gd "	_pickup_lines[0].modulate = tint

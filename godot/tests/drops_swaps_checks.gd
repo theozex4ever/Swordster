@@ -60,6 +60,7 @@ func run_all() -> void:
 	_check_fight()
 	await _check_main_scene()
 	await _check_hud()
+	await _check_card_text_bounds()
 	await _check_encounter()
 	await _check_visual_independence()
 	await _check_render_rates()
@@ -1217,6 +1218,71 @@ func _check_main_scene() -> void:
 	var sword_visuals: int = presenter.get_children().filter(func(child: Node) -> bool: return child is SwordVisual).size()
 	_ok("restarting frees every drop's visual and the swapped swords' (%d sword visuals left: the three equipped; %d drops tracked)" % [sword_visuals, presenter.pickup_visual_count()], sword_visuals == 3 and presenter.pickup_visual_count() == 0 and run.pickups.is_empty())
 	main.queue_free()
+	await _tree.process_frame
+
+
+## The text of the pickup card, not just its panel, stays inside the panel and the view: every one of the 36 swords (four
+## types, three rarities, three elements) offered against the longest-named equipped swords, with the drop in the middle and at
+## each corner of the view, at six window sizes. A label counts by the room its text needs (`get_minimum_size`), since a label
+## wider than its panel draws past it whatever the panel's own rectangle says.
+func _check_card_text_bounds() -> void:
+	print("drops and swaps: every line of the pickup card stays inside its panel and the view")
+	var window: Window = Window.new()
+	window.size = Vector2i(1280, 720)
+	window.content_scale_size = Vector2i(1280, 720)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	_tree.root.add_child(window)
+	var hud: Hud = Hud.new()
+	window.add_child(hud)
+	await _tree.process_frame
+	hud.show_state(false, false)
+	var all_specs: Array[SwordSpec] = []
+	for type_id: StringName in [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS]:
+		for rarity: int in 3:
+			for element: StringName in SwordDefs.ELEMENT_ORDER:
+				all_specs.append(SwordSpec.make(type_id, rarity, element))
+	# the equipped swords whose names take the most room (measured with the card's own font and size)
+	var probe: Label = hud._pickup_compare[0]
+	var longest: SwordSpec = all_specs[0]
+	var longest_width: float = 0.0
+	for spec: SwordSpec in all_specs:
+		var width: float = probe.get_theme_font("font").get_string_size(SwordDefs.full_name(spec), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		if width > longest_width:
+			longest_width = width
+			longest = spec
+	var run: GameRun = _run_of([_spec_array(longest), _spec_array(longest), _spec_array(longest)])
+	var sizes: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1084, 720), Vector2i(1000, 563), Vector2i(1920, 1080), Vector2i(800, 1280), Vector2i(1280, 1024)]
+	var problems: Array[String] = []
+	var measured: int = 0
+	var widest: float = 0.0
+	var widest_label: String = ""
+	for size: Vector2i in sizes:
+		window.size = size
+		await _tree.process_frame
+		await _tree.process_frame
+		var view: Rect2 = window.get_visible_rect()
+		var targets: Array[Vector2] = [view.size * 0.5, Vector2(view.size.x - 2.0, 2.0), view.size - Vector2(2.0, 2.0), Vector2(2.0, 2.0), Vector2(2.0, view.size.y - 2.0)]
+		for target: Vector2 in targets:
+			for spec: SwordSpec in all_specs:
+				run.pickups.clear()
+				var pickup: PickupState = _put(run, _spec_array(spec), 10.0, 0.0)
+				run.camera = pickup.position - (target - view.size * 0.5)
+				hud.show_run(run)
+				var panel: Rect2 = hud.pickup_card_rect()
+				for label: Label in hud._pickup_lines + hud._pickup_compare:
+					if not label.visible or label.text.is_empty():
+						continue
+					measured += 1
+					var text_rect: Rect2 = Rect2(label.get_global_rect().position, label.get_minimum_size())
+					var right_edge: float = text_rect.end.x - panel.position.x
+					if right_edge > widest:
+						widest = right_edge
+						widest_label = label.text
+					if not panel.grow(0.5).encloses(text_rect) or not view.grow(0.5).encloses(text_rect):
+						problems.append("%s window %s target %s: '%s' %s outside panel %s" % [SwordDefs.full_name(spec), size, target, label.text, text_rect, panel])
+	_ok("the text of every pickup card line, 36 swords x 5 places x 6 window sizes (%d lines measured, the widest reaching %.0f px into its panel: '%s'), lies inside the panel and the view (%d outside: %s)" % [measured, widest, widest_label, problems.size(), problems.slice(0, 2)], problems.is_empty() and measured > 0)
+	window.queue_free()
 	await _tree.process_frame
 
 

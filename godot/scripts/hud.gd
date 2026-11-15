@@ -72,7 +72,9 @@ var _pickup_style: StyleBoxFlat
 const CONVERGE_LABEL_X: float = 150.0
 const CONVERGE_BAR_WIDTH: float = 150.0
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 98.0)
-const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)
+## Wide enough for the longest comparison line ("1  Common Venom Colossus   DMG -26   SPD +0.3/s   RNG +100" needs 430 px at the
+## card's 14 px font from the 12 px margin: `DropsSwapsChecks._check_card_text_bounds` measures all 36 swords, so a longer name fails it).
+const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)
 const PICKUP_CARD_MARGIN: float = 10.0
 const ULT_KEYS: Array[String] = ["Q", "E", "R"]
 
