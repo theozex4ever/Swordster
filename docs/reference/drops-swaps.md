@@ -178,12 +178,33 @@ all counters. Checks: `_check_rules`.
 
 ## Validation
 
-See the pull request for the counts and builds: `./build-godot.sh --checks-only`, a clean `./build-godot.sh`, the section
-`SECTIONS=drops` of `tools/godot/mutation-check.sh` (fast mode) and the full fast pass, every capture script byte-identical twice,
-the Web export driven by browser key events in headless Chromium, and the shipped Windows build under Wine.
+Linux, Godot 4.7.2-stable. Branch `feat/17-drops-swaps`, started from `origin/main` `82470e9` (which contains all four sword
+types, the conditions and the fast mutation runner). Issue #16 (Converge and the default loadout) was still open and merges first:
+nothing below includes it, and the checks name their loadouts explicitly so they do not depend on the default.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1649` (143 of them are `drops_swaps_checks.gd`'s, 9 of those the render-rate probes; three existing checks gained a step for the new dev-cycle entry). Full build OK on a clean tree: `20261115-181022-fec81ae76` (its `SHA256SUMS` verifies, and so does the one inside the ZIP; the Web and Wine evidence below is from it). |
+| `tools/godot/mutation-check.sh` | **988 of 988** deliberate bugs caught, 0 inconclusive, 0 survived, 0 not applied: one complete pass in the runner's fast mode (`SHARDS=4`, 247 each) on head `fec81ae`. 198 of them are this slice's `drops` section (`SECTIONS=drops`); 14 earlier ones had search text the refactor of `SwordState.equip` and the dev cycle made stale, and were updated (same bug, new text). |
+| Reference regeneration | `capture_drops_swaps.py` rerun twice gives output byte-identical to itself and to the committed JSON; the eight earlier captures rerun on this head give output byte-identical (`cmp`) to their committed JSON, which this PR does not touch. |
+| Low/high render rates | The scripted fight (Fang, Warden and Colossus kill eight armed foes standing close, their swords drop, a Cataclysm and a Viper Flurry start recharges, two refused swaps, seven swaps into all three slots, drops left lying) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to the bare simulation's: drops, swaps, refusals, loadout, every lying sword's position and life, recharges, kills, positions. |
+| Per-tick comparison with the prototype | Swapped-in sword pose, velocity, heading, cooldown, recharge, flash and (Colossus) height for 150 ticks per type; every pickup's life for the first 420 ticks of seven scripts and its removal tick; 36 swaps and ten chained swaps field by field. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261115-181022-fec81ae76`, served over HTTP with `?encounter=drops` and driven only by browser key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=drops`): **1** right after the engine starts, with nothing lying about, is refused (the "no sword within reach" tag over the player); then the player walks about (WASD) while the armed foes come and die, and **1, 2, 3** are pressed in turn each round, the page paused with **P** for every screenshot (the software-rendered page takes seconds per screenshot while the game runs on). The shots show the drops lying with their rings, pillars of light and names, the card of the sword in reach with its comparison against the three equipped swords, swaps landing (the name over the player, the old sword lying beside the claimed spot, the legend counting "dropped 8, swapped 2"), a Mythic slot with its gold border and tag, and refusals. Console: the three Godot start-up lines, no errors. The timing of presses against drops is the browser\'s, not the simulation\'s. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The same build: the full build\'s ZIP extracted unmodified, its own `SHA256SUMS` verified (all five files OK), the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <frames> --fixed-fps 30 --quit-after 900 -- --encounter=drops` (a scratch Wine prefix; the movie writer recorded the game\'s own 1280x720 viewport): engine-side frames, no desktop capture, no input, nothing added to the game. The frames show the drops encounter\'s HUD and legend, armed foes carrying their swords, **drops of every rarity lying with their pillars of light, and the pickup card with its comparison for a Mythic Frost Fang within reach of the stationary player**, the legend counting the drops (13 by the last frame). **What this does not show:** a swap or a refusal in the Windows build. No key event was sent to the shipped build (no autopilot exists in the game), so 1 / 2 / 3 in a Windows build belong to the deferred device matrix (#6/#22); swaps and refusals are shown in the Web build. |
+
+Screenshots (in `docs/reference/drops-swaps/`):
+[`web-drops-refused-no-pickup.png`](drops-swaps/web-drops-refused-no-pickup.png) (1 with nothing in reach),
+[`web-drops-first-drops.png`](drops-swaps/web-drops-first-drops.png) (the first drops, "Mythic Frost Fang" announced),
+[`web-drops-card-and-swap.png`](drops-swaps/web-drops-card-and-swap.png) (a swap and the card of the sword it put back),
+[`web-drops-mythic-slot.png`](drops-swaps/web-drops-mythic-slot.png) (slot one a Mythic Warden: gold border and tag),
+[`wine-shipped-drops-card.png`](drops-swaps/wine-shipped-drops-card.png) and
+[`wine-shipped-drops-mythic-card.png`](drops-swaps/wine-shipped-drops-mythic-card.png) (shipped pack, no input).
 
 ## What was not verified
 
-- Real-Windows input and real-device touch (issues #6, #22 and #20, by standing ruling).
+- Real-Windows input and real-device touch (issues #6, #22 and #20, by standing ruling). Windows evidence is engine-side frames
+  of the shipped pack under Wine with no input: no swap key was sent to it.
+- That the final default loadout and Converge (issue #16, still open when this was validated) leave these checks green: they
+  name their loadouts, but the merge has not been run.
 - Swapping with the touch buttons (issue #20) and the final default loadout (issue #16).
 - Multi-wave arming in a normal run (issue #18); the rolls themselves are pinned, but no normal run uses them yet.
