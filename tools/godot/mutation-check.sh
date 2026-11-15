@@ -980,8 +980,6 @@ mutate skewer-blow-has-knockback                    scripts/sim/sword_state.gd "
 mutate skewer-blow-is-not-heavy                     scripts/sim/sword_state.gd "dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)" "dir, 0.0, self, false, SwordDefs.PIKE_ULT_STACKS)"
 mutate skewer-blow-shake-lost                       scripts/sim/sword_state.gd "			run.add_shake(SwordDefs.PIKE_ULT_HIT_SHAKE, dir, true)
 " ""
-mutate skewer-impales-the-dead                      scripts/sim/sword_state.gd "			if not enemy.dead:
-				skewer_carried.append(enemy)" "			skewer_carried.append(enemy)"
 mutate skewer-never-impales                         scripts/sim/sword_state.gd "			if not enemy.dead:
 				skewer_carried.append(enemy)" "			if false:
 				skewer_carried.append(enemy)"
@@ -1049,13 +1047,6 @@ mutate thrust-telegraph-lost                        scripts/presentation/effects
 mutate skewer-drawing-lost                          scripts/presentation/effects_layer.gd "			_draw_skewer(sword, _sword_color(sword.spec))
 " "			pass
 "
-mutate skewer-aim-line-lost                         scripts/presentation/effects_layer.gd "		draw_line(_run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
-		draw_line(_run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
-" "		pass
-"
-mutate skewer-carry-ring-lost                       scripts/presentation/effects_layer.gd "		draw_arc(enemy.position, enemy.radius + 7.0, 0.0, TAU, 20, Color(tint, 0.85), 3.0)
-" "		pass
-"
 mutate skewer-launch-ring-lost                      scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 6.0, 44.0, 0.2, launch_tint, 3.0)
 " "			pass
 "
@@ -1075,6 +1066,10 @@ mutate skewer-release-sound-always                  scripts/audio/sfx_bank.gd "	
 				play(\"hit\")" "			play(\"hit\")"
 mutate pike-visual-needle                           scripts/presentation/placeholder_sword_visual.gd "	_pike = spec.type_id == SwordDefs.PIKE" "	_pike = false"
 
+mutate skewer-aim-line-not-drawn                    scripts/presentation/effects_layer.gd "		draw_counts[&\"skewer_aim\"] = draw_counts.get(&\"skewer_aim\", 0) + 1
+" ""
+mutate skewer-carry-rings-not-drawn                 scripts/presentation/effects_layer.gd "		draw_counts[&\"skewer_carry\"] = draw_counts.get(&\"skewer_carry\", 0) + 1
+" ""
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

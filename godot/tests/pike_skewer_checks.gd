@@ -888,6 +888,7 @@ func _check_skewer_rules() -> void:
 	_ok("once the recharge is over Q fires again, now west", run_g.swords[0].phase == SwordState.Phase.ULTIMATE and run_g.swords[0].dir.distance_to(_point(again["dir"])) <= DIR_TOL and String(again["state"]) == "ult")
 	var others: Dictionary = rules["others_keep_thrusting"]
 	var run_o: GameRun = _run_of_setup(others["setup"])
+	var behind: EnemyState = run_o.enemies[0]
 	run_o.apply(GameCommand.ultimate(0, CENTER + Vector2(400.0, 0.0)))
 	var swept: bool = false
 	var states_30: Array[String] = []
@@ -896,7 +897,7 @@ func _check_skewer_rules() -> void:
 		if tick == 29:
 			states_30 = _states(run_o)
 		swept = swept or run_o.swords[1].phase != SwordState.Phase.IDLE or run_o.swords[2].phase != SwordState.Phase.IDLE
-	_ok("while slot 1 skewers, slots 2 and 3 keep thrusting at the enemy behind the player (states at tick 30: %s)" % [states_30], swept == bool(others["others_thrust"]) and _same_strings(states_30, others["states_at_30"]) and run_o.enemies[0].hp < 100000.0 == bool(others["husk_damaged"]))
+	_ok("while slot 1 skewers, slots 2 and 3 keep thrusting at the enemy behind the player (states at tick 30: %s)" % [states_30], swept == bool(others["others_thrust"]) and _same_strings(states_30, others["states_at_30"]) and (behind.hp < 100000.0) == bool(others["husk_damaged"]))
 
 
 func _check_skewer_parry() -> void:
@@ -1102,6 +1103,11 @@ func _check_fixture_and_launch() -> void:
 		and scenario.conditions_enabled and not scenario.dev_shove and scenario.waves_enabled and scenario.initial_enemies.size() == 6 and scenario.wave_kinds.size() == 12 and counts[2] == 2 and scenario.start_position.y == 700.0)
 	_ok("--encounter=pike and ?encounter=pike ask for it, and the normal run is still three Fang swords (the final default loadout is issue #16)",
 		LaunchOptions.scenario_for("pike") != null and LaunchOptions.scenario_for("pike").encounter == RunScenario.ENCOUNTER_PIKE and RunScenario.new().loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.FANG))
+	var column_ok: bool = true
+	for placement: EnemyPlacement in scenario.initial_enemies:
+		var north: float = scenario.start_position.y - placement.position.y
+		column_ok = column_ok and north > 300.0 and north < 650.0 and absf(placement.position.x - scenario.start_position.x) < 80.0
+	_ok("the column of six stands 300 to 650 px north of the player, in a line a Skewer north passes through (and the wall is north of it)", column_ok and scenario.start_position.y - 650.0 > 0.0)
 	var fixed: RunScenario = RunScenario.pike_encounter()
 	fixed.seed = 17
 	var run: GameRun = GameRun.new(fixed)
@@ -1184,20 +1190,25 @@ func _check_main_scene() -> void:
 		launch_heard = launch_heard or main._sfx.played.has("strike")
 	_ok("in flight it rings the enemies it carries (%d draws) and the launch and the release are cues (launched %d, released %d)" % [effects.draw_counts.get(&"skewer_carry", 0), main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), main.run.cue_count(SimCue.Kind.SKEWER_RELEASED)],
 		carry_seen and main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED) == 1 and main.run.cue_count(SimCue.Kind.SKEWER_RELEASED) == 1 and main.run.cue_count(SimCue.Kind.ENEMY_HIT) >= 3)
+	_ok("the encounter legend counts what happened (skewers launched 1, wall slams %d): %s" % [main.run.cue_count(SimCue.Kind.WALL_SLAM), hud._encounter_label.text.get_slice("\n", 0)],
+		main.run.cue_count(SimCue.Kind.WALL_SLAM) >= 1 and hud._encounter_label.text.contains("skewers launched 1") and hud._encounter_label.text.contains("wall slams %d" % main.run.cue_count(SimCue.Kind.WALL_SLAM)))
 	_ok("after the Skewer the card counts the recharge down in whole seconds (%s)" % hud.ultimate_status(1), hud.ultimate_status(1) == "%ds" % SimMath.py_round(sword.ultimate_cooldown_left) and hud.ultimate_bar_fraction(1) > 0.0 and hud.ultimate_bar_fraction(1) < 1.0)
 	var rings_before: int = effects._rings.size()
 	var launched: SimCue = SimCue.make(SimCue.Kind.SKEWER_LAUNCHED, CENTER, Vector2.RIGHT)
 	effects.apply_cue(launched)
 	var rings_after_launch: int = effects._rings.size()
-	var released: SimCue = SimCue.make(SimCue.Kind.SKEWER_RELEASED, CENTER, Vector2.RIGHT, 4, true)
 	var texts_before: int = effects._texts.size()
-	effects.apply_cue(released)
+	effects.apply_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, CENTER, Vector2.RIGHT, 4, true))
+	var rings_after_release: int = effects._rings.size()
+	var texts_after_release: int = effects._texts.size()
+	effects.apply_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, CENTER, Vector2.RIGHT, 0, false))
+	var texts_after_empty: int = effects._texts.size()
 	var started: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, Vector2.RIGHT, 1)
 	started.origin = sword.position
 	var rings_before_start: int = effects._rings.size()
 	effects.apply_cue(started)
-	_ok("a launch draws a ring, a release a ring and a 'SLAM x4' number, and a Skewer's start draws no landing ring (a skill shot has no area)",
-		rings_after_launch == rings_before + 1 and effects._rings.size() == rings_before_start + 1 and effects._texts.size() >= texts_before + 1)
+	_ok("a launch draws one ring, a release one ring and a 'SLAM x4' number (an empty release no number), and a Skewer's start draws only its own ring, no landing ring (a skill shot has no area)",
+		rings_after_launch == rings_before + 1 and rings_after_release == rings_after_launch + 1 and texts_after_release == texts_before + 1 and texts_after_empty == texts_after_release and effects._rings.size() == rings_before_start + 1)
 	var texts_now: int = effects._texts.size()
 	main._input(_key(KEY_E))
 	_ok("E while it recharges is refused and says so on screen", main.run.cue_count(SimCue.Kind.ULTIMATE_REFUSED) == 1 and effects._texts.size() == texts_now + 1)
@@ -1209,10 +1220,14 @@ func _check_main_scene() -> void:
 	_ok("while the Pikes thrust, the windup shows the line it will cut (drawn: %s)" % [effects.draw_counts], telegraph_seen)
 	await _tree.create_timer(0.1).timeout
 	main._sfx.played.clear()
+	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_LAUNCHED, Vector2.ZERO, Vector2.RIGHT))
+	var launch_is_heard: bool = main._sfx.played.has("strike")
+	main._sfx.played.clear()
+	await _tree.create_timer(0.1).timeout
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, Vector2.ZERO, Vector2.ZERO, 0))
 	var silent_release: bool = main._sfx.played.is_empty()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, Vector2.ZERO, Vector2.ZERO, 3))
-	_ok("a release that flung something is heard, one that flung nothing is silent", silent_release and main._sfx.played.has("hit"), "%s" % [main._sfx.played])
+	_ok("the launch is heard (a thrust's sound), a release that flung something is heard, one that flung nothing is silent", launch_is_heard and silent_release and main._sfx.played.has("hit"), "%s" % [main._sfx.played])
 	var pike_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._pike:
