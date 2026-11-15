@@ -550,7 +550,7 @@ func _update_maelstrom(run: GameRun, dt: float) -> void:
 ## by the sword's whole step with their velocity zeroed and at least 0.5 s of stun (they are
 ## carried even into and past a wall: the enemy's own movement clamps them), and every orb the
 ## segment touches within 14 is parried. The flight ends when the range is spent or the tip leaves
-## the arena shrunk by 20 px: whatever is still impaled is flung along the heading (1100 px/s at a
+## the arena shrunk by 20 px in each dimension (10 per side): whatever is still impaled is flung along the heading (1100 px/s at a
 ## wall, where the stunned enemy slams, 750 at the range limit) with at least 0.6 s of stun, and the
 ## sword recovers (kicked back from a wall, carried on at the range limit).
 func _update_skewer(run: GameRun, dt: float) -> void:
@@ -603,8 +603,9 @@ func _update_skewer(run: GameRun, dt: float) -> void:
 		run.add_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall))
 
 
-## The prototype's `WORLD.inflate(-20, -20).collidepoint(tip)`: pygame's rectangle contains its
-## left and top edges and not its right and bottom ones, as Godot's `Rect2.has_point` does.
+## The prototype's `WORLD.inflate(-20, -20).collidepoint(tip)`: the rectangle loses 20 px of width and
+## of height (10 px per side), and pygame's rectangle contains its left and top edges and not its right
+## and bottom ones, as Godot's `Rect2.has_point` does.
 func _inside_skewer_arena(point: Vector2) -> bool:
 	var margin: float = SwordDefs.PIKE_ULT_WALL_MARGIN
 	return point.x >= GameRun.WORLD.position.x + margin and point.x < GameRun.WORLD.end.x - margin \

@@ -199,10 +199,11 @@ const PIKE_ULT_HIT_SHAKE: float = 0.12
 const PIKE_ULT_CARRY_STUN: float = 0.5
 const PIKE_ULT_PARRY_PAD: float = 14.0
 ## The flight ends when the range is spent or the tip leaves the arena shrunk by WALL_MARGIN on
-## every side. Whatever is still impaled is flung along the heading at RELEASE_SPEED (at the
+## every side (the prototype's `WORLD.inflate(-20, -20)` removes 20 px from the width and from the
+## height, so 10 px from each side). Whatever is still impaled is flung along the heading at RELEASE_SPEED (at the
 ## wall, where it slams) or RELEASE_SPEED_RANGE (at the range limit), stunned for at least
 ## RELEASE_STUN; the sword recovers for RECOVER_TIME, kicked back from a wall.
-const PIKE_ULT_WALL_MARGIN: float = 20.0
+const PIKE_ULT_WALL_MARGIN: float = 10.0
 const PIKE_ULT_RELEASE_SPEED_RANGE: float = 750.0
 const PIKE_ULT_RELEASE_SPEED_WALL: float = 1100.0
 const PIKE_ULT_RELEASE_STUN: float = 0.6
