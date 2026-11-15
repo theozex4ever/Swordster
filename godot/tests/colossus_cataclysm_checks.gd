@@ -912,9 +912,10 @@ func _check_conditions() -> void:
 	_ok("a fire Cataclysm leaves every enemy it struck burning at (1.5 + 0.2 x power) x 3 doses = %.1f per second for 3 s, and the field's dose cannot weaken it" % ConditionDefs.burn_dps(power, 3),
 		fire_enemies.all(func(e: EnemyState) -> bool: return e.conditions.is_burning() and _near(e.conditions.burn_dps, ConditionDefs.burn_dps(power, 3), 0.001) and _near(e.conditions.burn, 3.0, 0.001)))
 	var no_conditions: GameRun = GameRun.new(_scenario({"conditions": false, "swords": _trio(0, 99.0), "enemies": [_husk_at(325.0, -5.0)]}))
+	var plain_husk: EnemyState = no_conditions.enemies[0]
 	no_conditions.apply(GameCommand.ultimate(0, CENTER + Vector2(300.0, -20.0)))
 	_steps(no_conditions, 120)
-	_ok("in a condition-free fixture the field still stands and pulses but applies nothing (%d pulses, poison %d)" % [no_conditions.cue_count(SimCue.Kind.FIELD_PULSED), no_conditions.enemies[0].conditions.poison_stacks], no_conditions.cue_count(SimCue.Kind.FIELD_PULSED) >= 2 and no_conditions.enemies[0].conditions.poison_stacks == 0)
+	_ok("in a condition-free fixture the field still stands and pulses but applies nothing (%d pulses, poison %d)" % [no_conditions.cue_count(SimCue.Kind.FIELD_PULSED), plain_husk.conditions.poison_stacks], no_conditions.cue_count(SimCue.Kind.FIELD_PULSED) >= 2 and plain_husk.conditions.poison_stacks == 0)
 
 
 func _check_field_reach() -> void:
@@ -1141,10 +1142,10 @@ func _check_removed_and_cleanup() -> void:
 	_ok("the player dies during a windup: the sword goes idle and its altitude sinks from %.0f px to %.0f at 120 px/s, with no slam" % [high, death_run.swords[0].altitude], high > 100.0 and death_run.swords[0].phase == SwordState.Phase.IDLE and death_run.swords[0].altitude < high - 20.0 and death_run.cue_count(SimCue.Kind.COLOSSUS_SLAM) == 0)
 	# Two fields at one spot and an enemy leaving the run alive while standing in them: nothing breaks.
 	var leave: GameRun = _lone_run(_trio(0, 99.0), [_husk_at(325.0, 0.0), _husk_at(260.0, 20.0)], true)
+	var standing: EnemyState = leave.enemies[0]
 	leave.apply(GameCommand.ultimate(0, CENTER + Vector2(300.0, -20.0)))
 	leave.apply(GameCommand.ultimate(1, CENTER + Vector2(300.0, -20.0)))
 	_steps(leave, 62)
-	var standing: EnemyState = leave.enemies[0]
 	leave.enemies.erase(standing)
 	var poison_before: int = standing.conditions.poison_stacks
 	_steps(leave, 120)
