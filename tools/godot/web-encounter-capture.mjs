@@ -131,7 +131,7 @@ if (scenario === "drops") {
   await key("Digit1", "1", 49);
   console.log("1 (swap into slot one) right after engine start, with nothing lying about: refused");
 }
-await sleep(scenario === "wall" || scenario === "pike" || scenario === "colossus" || scenario === "drops" ? 500 : 5000);
+await sleep(scenario === "drops" ? 0 : scenario === "wall" || scenario === "pike" || scenario === "colossus" ? 500 : 5000);
 if (scenario !== "wall" && scenario !== "pike" && scenario !== "colossus" && scenario !== "drops") await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
