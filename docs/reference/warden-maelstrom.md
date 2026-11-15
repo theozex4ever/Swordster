@@ -288,7 +288,26 @@ Each is a scope or correctness decision of slice #13, not a rebalance.
 
 ## Validation
 
-PLACEHOLDER_VALIDATION
+Linux, Godot 4.7.2-stable. Base `origin/main` `066041d`; branch `feat/13-warden-maelstrom`.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1165` (159 of them in `warden_maelstrom_checks.gd`; the earlier slices' dev-encounter cycle checks were extended by one step). Full build OK on a clean tree: `20261115-004119-fa9ab5b65` (head `fa9ab5b`); `sha256sum -c SHA256SUMS` over the pair passes. |
+| `tools/godot/mutation-check.sh` | **453 of 453** deliberate bugs caught, 0 inconclusive, 0 survived on the final list. Evidence: one full pass in 8 parallel shards (`SHARD=i SHARDS=8`) on commit `43e2dbb` caught 452 of 454 with one survivor (`maelstrom-burst-ring-lost`: the ring check only counted rings, now exact) and one inconclusive (`warden-key-renamed`: renaming the type id trips an assertion in `SwordState.equip`, a crash and never a behavioural rejection, so the mutation was removed; the identity is asserted by the definitions check). The survivor, and the two earlier-flagged `placement-health-dropped` (a crash in an early version of this file's checks, since made index-safe) and `heavy-hit-causes-hitstop` (its anchor was moved by this slice's edit of `hit_enemy`), were rerun with `ONLY=...` (new filter) on the final checks and are caught. 111 of the 453 are this slice's (Warden constants, sweep rules, Maelstrom rules, fixtures, HUD, effects, sound, visual). The only later game-code change is the legend text (`fa9ab5b`); no mutation touches it. |
+| Reference regeneration | All six captures (`capture_warden_maelstrom.py`, `capture_fang_survival_loop.py`, `capture_crowd_and_walls.py`, `capture_spitters_and_parries.py`, `capture_viper_flurry.py`, `capture_elemental_conditions.py`) rerun on the head give output byte-identical (`cmp`) to the committed JSON; the five earlier JSON files are unchanged in this PR, as is `game/`. |
+| Low/high render rates | The scripted Warden fight (a Fang and two Wardens, six ultimates including two Maelstroms still whirling when it ends, three refused presses, sweeps and whirls through fourteen husks, three runners, two brutes and two tough posts) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time. |
+| Per-tick comparison with the prototype | Sword pose, velocity, side, timers, recharge and every enemy's position, health, knockback, stun (and every condition field in the condition cases) match on every tick of every captured trace, plus 156 arc-coverage and 322 parry probe points, with no tolerance used beyond the float noise of the capture's rounding. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261115-004119-fa9ab5b65` served over HTTP with `?encounter=warden` and driven with browser mouse-move and key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=warden`): the Wardens sweep (fan of the arc, damage numbers 17 / 7), **E** at the cursor starts a Maelstrom (reach ring, dashed pull range, spinning arcs, the card reads ACTIVE then `8s`), **R** starts the other slot's, **E** while recharging is refused, **Q** is Viper Flurry. Screenshots below. Console: the three Godot start-up lines, no errors. The frame pacing of the capture is the browser's, not a measurement. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | Build `20261115-004119-fa9ab5b65`: the full build's ZIP extracted unmodified, its own `SHA256SUMS` verified, the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <frames> --fixed-fps 30 --quit-after 450 -- --encounter=warden`: engine-side frames of the game's own viewport (no desktop capture, no input, nothing added to the game). The frames show the warden encounter's HUD (the three cards **Q Viper Flurry / E Maelstrom / R Maelstrom READY**, with the "Fang sword" / "Warden sword" lines), the Fang and two Wardens with their broad blades, the husks arriving, and a Warden's sweep cutting with its fan and a hit number. **What this does not show:** a Maelstrom in the Windows build. No key or mouse event was sent to the shipped build (no autopilot exists in the game), so Q/E/R input in a Windows build belongs to the deferred device matrix (#6/#22); the Maelstrom itself is shown in the Web build. |
+
+The game code of both exports is the head `fa9ab5b`; everything committed after it is documentation and screenshots.
+
+Screenshots (in `docs/reference/warden-maelstrom/`):
+[`web-warden-maelstrom-active.png`](warden-maelstrom/web-warden-maelstrom-active.png) (a Maelstrom whirling, the telegraph of the other Warden's coming arc),
+[`web-warden-sweep-fan-and-recharge.png`](warden-maelstrom/web-warden-sweep-fan-and-recharge.png) (the fan a sweep leaves; E counting down),
+[`web-warden-r-maelstrom.png`](warden-maelstrom/web-warden-r-maelstrom.png),
+[`wine-shipped-warden-hud-ready.png`](warden-maelstrom/wine-shipped-warden-hud-ready.png) and
+[`wine-shipped-warden-sweep.png`](warden-maelstrom/wine-shipped-warden-sweep.png) (shipped pack, no input).
 
 ## What was not verified
 
