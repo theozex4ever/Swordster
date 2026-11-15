@@ -91,7 +91,7 @@ func _placement(setup: Dictionary) -> EnemyPlacement:
 
 ## No waves and no swords: only what the case itself puts in the arena.
 func _arena(setups: Array, swords: Array[SwordSpec] = []) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 31
 	scenario.waves_enabled = false
 	scenario.crit_chance = 0.0
@@ -736,7 +736,7 @@ func _check_exactly_once() -> void:
 
 	# A whole fight: spitters only, so every PLAYER_HURT is an orb and each fired
 	# orb is accounted for exactly once.
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 17
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -875,7 +875,7 @@ func _check_encounter_and_cycle() -> void:
 	var spitters: int = scenario.wave_kinds.count(EnemyDefs.SPITTER)
 	var husks: int = scenario.wave_kinds.count(EnemyDefs.HUSK)
 	_ok("the spitter encounter is one wave of %d spitters and %d husks with the three-Fang fixture loadout and no shove" % [spitters, husks], spitters == 5 and husks == 3 and scenario.wave_kinds.size() == 8 and scenario.loadout.size() == 3 and not scenario.dev_shove and scenario.encounter == RunScenario.ENCOUNTER_SPITTERS and scenario.waves_enabled)
-	var run: GameRun = GameRun.new(RunScenario.new().without_conditions())
+	var run: GameRun = GameRun.new(RunScenario.fang_fixture().without_conditions())
 	var visited: Array[StringName] = [run.scenario.encounter]
 	for i: int in 7:
 		run.apply(GameCommand.toggle_encounter())
@@ -898,7 +898,7 @@ func _check_encounter_and_cycle() -> void:
 	for i: int in 7:
 		wall.apply(GameCommand.toggle_encounter())
 	_ok("the wall encounter keeps the crowd slot: spitters, conditions, warden, pike, colossus, normal, then the pinned crowd again", wall.scenario.encounter == RunScenario.ENCOUNTER_CROWD and wall.enemies.size() == 14 and not wall.scenario.waves_enabled)
-	var custom: RunScenario = RunScenario.new().without_conditions()
+	var custom: RunScenario = RunScenario.fang_fixture().without_conditions()
 	custom.seed = 77
 	var custom_run: GameRun = GameRun.new(custom)
 	for i: int in 7:
@@ -933,7 +933,7 @@ func _check_encounter_and_cycle() -> void:
 
 func _check_normal_run_unchanged() -> void:
 	print("spitters: the normal run is unchanged")
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 5
 	var run: GameRun = GameRun.new(scenario)
 	var kinds: Dictionary = {}

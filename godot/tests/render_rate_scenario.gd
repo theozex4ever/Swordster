@@ -174,7 +174,7 @@ static func scenario(name: String = CROWD) -> RunScenario:
 
 
 static func _spitter_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 8
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -196,7 +196,7 @@ static func _spitter_scenario() -> RunScenario:
 
 
 static func _flurry_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 12
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
@@ -216,7 +216,7 @@ static func _flurry_scenario() -> RunScenario:
 
 
 static func _warden_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 13
 	scenario.waves_enabled = false
 	scenario.loadout = RunScenario.warden_fixture_loadout()
@@ -250,7 +250,7 @@ static func _warden_scenario() -> RunScenario:
 
 
 static func _pike_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 14
 	scenario.waves_enabled = false
 	scenario.loadout = RunScenario.pike_fixture_loadout()
@@ -278,7 +278,7 @@ static func _pike_scenario() -> RunScenario:
 
 
 static func _colossus_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 15
 	scenario.waves_enabled = false
 	var specs: Array[SwordSpec] = []
@@ -322,7 +322,7 @@ static func _pike_post(kind: StringName, at: Vector2, hp: float = PIKE_HP) -> En
 
 
 static func _conditions_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 11
 	scenario.waves_enabled = false
 	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]

@@ -57,10 +57,21 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if _is_user_gesture(event):
 		_unlock_audio()
+	# A mouse click is only a Converge when nothing in the HUD took it (the Pause, Restart and Dev
+	# buttons), so it is translated in `_unhandled_input`; here it only keeps the pointer current.
+	if event is InputEventMouseButton:
+		input.pointer = (event as InputEventMouseButton).position
+		return
 	for command: GameCommand in input.handle_event(event):
 		_submit(command)
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		_hud.refresh_stick()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		for command: GameCommand in input.handle_event(event):
+			_submit(command)
 
 
 func _physics_process(_delta: float) -> void:

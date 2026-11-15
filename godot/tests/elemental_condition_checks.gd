@@ -96,7 +96,7 @@ func _phase_name(phase: int) -> String:
 ## The scenario a reference spec describes: its swords, parked unless the spec says otherwise,
 ## its enemies as placements, no waves, no crits.
 func _scenario_of(spec: Dictionary) -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 61
 	scenario.waves_enabled = false
 	scenario.crit_chance = 0.0
@@ -565,7 +565,7 @@ func _check_deaths_exactly_once() -> void:
 	var burning_run: GameRun = burning["run"]
 	_ok("a burning enemy that poison kills still sets its neighbour alight (burn %.2f s on the neighbour, one kill)" % float(_at(burning, 59, 1)["burn"]), float(_at(burning, 59, 1)["burn"]) > 0.0 and burning_run.kills == 1 and burning_run.cue_count(SimCue.Kind.FIRE_SPREAD) == 1)
 	# a condition death while a Viper Flurry has the enemy as its victim: no strike on the corpse, no second kill
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.seed = 62
 	scenario.waves_enabled = false
 	scenario.crit_chance = 0.0
@@ -647,7 +647,7 @@ func _check_flurry_darts() -> void:
 # ------------------------------------------------- entry points, flag
 func _check_afflict_entry_and_fixture_flag() -> void:
 	print("conditions: the afflict entry point (shared with fields) and the condition-free fixture")
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.waves_enabled = false
 	var specs: Array[SwordSpec] = []
 	scenario.loadout = specs
@@ -671,7 +671,7 @@ func _check_afflict_entry_and_fixture_flag() -> void:
 	run.afflict(husk, &"fire", 99.0)
 	_ok("an unknown element does nothing, and a dead enemy takes no dose (burn stays %.2f)" % husk.conditions.burn, husk.conditions.burn == burn_before)
 	# a blow that carries several doses (the prototype's Warden, Pike and Colossus pass 2 or 3) applies them all
-	var multi_scenario: RunScenario = RunScenario.new()
+	var multi_scenario: RunScenario = RunScenario.fang_fixture()
 	multi_scenario.waves_enabled = false
 	multi_scenario.crit_chance = 0.0
 	var multi_swords: Array[SwordSpec] = [SwordSpec.make(&"fang", 0, &"poison"), SwordSpec.make(&"fang", 0, &"ice"), SwordSpec.make(&"fang", 0, &"fire")]
@@ -695,8 +695,8 @@ func _check_afflict_entry_and_fixture_flag() -> void:
 	plain_run.afflict(plain_run.enemies[0], &"ice", 7.0)
 	var plain_conditions: EnemyConditions = plain_run.enemies[0].conditions
 	_ok("a condition-free fixture (the earlier slices' references were captured without them) applies nothing", not plain_conditions.is_burning() and plain_conditions.poison <= 0.0 and plain_conditions.chill <= 0.0)
-	_ok("the game's own scenarios apply conditions: the default, the crowd, the spitters and the conditions encounter", RunScenario.new().conditions_enabled and RunScenario.crowd_encounter().conditions_enabled and RunScenario.spitter_encounter().conditions_enabled and RunScenario.conditions_encounter().conditions_enabled and RunScenario.wall_encounter().conditions_enabled)
-	var swords: GameRun = GameRun.new(RunScenario.new())
+	_ok("the game's own scenarios apply conditions: the default, the crowd, the spitters and the conditions encounter", RunScenario.fang_fixture().conditions_enabled and RunScenario.crowd_encounter().conditions_enabled and RunScenario.spitter_encounter().conditions_enabled and RunScenario.conditions_encounter().conditions_enabled and RunScenario.wall_encounter().conditions_enabled)
+	var swords: GameRun = GameRun.new(RunScenario.fang_fixture())
 	var elements: Array[StringName] = []
 	for sword: SwordState in swords.swords:
 		elements.append(sword.spec.element)
@@ -717,7 +717,7 @@ func _check_survival_band() -> void:
 	var minimum_hp: float = 100.0
 	var times: Array[float] = []
 	for seed_value: int in range(1, 9):
-		var scenario: RunScenario = RunScenario.new()
+		var scenario: RunScenario = RunScenario.fang_fixture()
 		scenario.seed = seed_value
 		var run: GameRun = GameRun.new(scenario)
 		var ticks_taken: int = 0

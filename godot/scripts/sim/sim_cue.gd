@@ -63,6 +63,9 @@ enum Kind {
 	## A field dosed the enemies standing in it (`position` = its centre, `radius` = its radius, `amount` = how
 	## many living enemies it dosed, `element` = its element).
 	FIELD_PULSED,
+	## A Converge went out (`position` = the point it was aimed at, after the range clamp, `amount` = how
+	## many swords took the command; a sword that was striking, buried or in its ultimate did not).
+	CONVERGE,
 }
 
 var kind: Kind = Kind.DASH

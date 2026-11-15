@@ -92,8 +92,9 @@ var encounter: StringName = ENCOUNTER_NORMAL
 var start_position: Vector2 = GameRun.WORLD.get_center()
 ## Starting health; negative means full health.
 var start_health: float = -1.0
-## Equipped spirit swords, one per sword slot (slot 1 first).
-var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()
+## Equipped spirit swords, one per sword slot (slot 1 first). The default is the prototype's own start:
+## Fang (poison), Warden (ice) and Colossus (fire). A fixture names its own loadout (`fang_fixture`).
+var loadout: Array[SwordSpec] = RunScenario.default_loadout()
 ## Starting `cd` of each sword slot. Empty: drawn from uniform(0.2, 0.6) as in
 ## the prototype. Fixtures fill it to be deterministic.
 var sword_start_cooldowns: Array[float] = []
@@ -139,10 +140,27 @@ func without_conditions() -> RunScenario:
 	return self
 
 
-## DEVELOPMENT FIXTURE, not the final default loadout: three Fang swords (one
-## per sword slot) so the first combat slice exercises all three slots while
-## Warden, Pike and Colossus are not ported yet. The prototype's own default is
-## Fang / Warden / Colossus with poison / ice / fire.
+## The prototype's default loadout (`Game.reset`): Fang (poison), Warden (ice) and Colossus (fire), all
+## Common, one per sword slot. Every normal run starts with it; Pike joins through drops (issue #17).
+static func default_loadout() -> Array[SwordSpec]:
+	var specs: Array[SwordSpec] = []
+	specs.append(SwordSpec.make(SwordDefs.FANG, 0, &"poison"))
+	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &"ice"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"fire"))
+	return specs
+
+
+## A run that equips the three-Fang fixture loadout instead of the default one: what the earlier slices'
+## references and the dev encounters that never changed it (crowd, spitters, conditions) were built on.
+static func fang_fixture() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.loadout = fang_fixture_loadout()
+	return scenario
+
+
+## DEVELOPMENT FIXTURE, not the default loadout: three Fang swords (one per sword slot) that the first
+## combat slice (#8) and its references were built on. The prototype's own default is Fang / Warden /
+## Colossus with poison / ice / fire (`default_loadout`).
 static func fang_fixture_loadout() -> Array[SwordSpec]:
 	var specs: Array[SwordSpec] = []
 	specs.append(SwordSpec.make(&"fang", 0, &"poison"))
@@ -192,7 +210,7 @@ static func colossus_fixture_loadout() -> Array[SwordSpec]:
 ## would not field runners or brutes before wave 2; the composition is a
 ## deliberate fixture, not a wave-generation rule (issue #18).
 static func crowd_encounter() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.encounter = ENCOUNTER_CROWD
 	scenario.wave_kinds = CROWD_WAVE.duplicate()
 	scenario.dev_shove = true
@@ -220,7 +238,7 @@ static func wall_encounter() -> RunScenario:
 ## spitters in from wave 3; the composition is a fixture, not a wave-generation
 ## rule (issue #18). No shove: nothing here needs a heavy blow.
 static func spitter_encounter() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.encounter = ENCOUNTER_SPITTERS
 	scenario.wave_kinds = SPITTER_WAVE.duplicate()
 	scenario.first_wave_delay = 1.0
@@ -234,7 +252,7 @@ static func spitter_encounter() -> RunScenario:
 ## not field runners or brutes before wave 2; the composition is a fixture, not a
 ## wave-generation rule (issue #18).
 static func conditions_encounter() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new()
+	var scenario: RunScenario = RunScenario.fang_fixture()
 	scenario.encounter = ENCOUNTER_CONDITIONS
 	scenario.wave_kinds = CONDITIONS_WAVE.duplicate()
 	scenario.first_wave_delay = 1.0

@@ -26,6 +26,17 @@ const RARITY_RANGE: Array[float] = [1.0, 1.06, 1.12]
 const RARITY_SIZE: Array[float] = [1.0, 1.08, 1.18]
 const RARITY_NAMES: Array[String] = ["Common", "Rare", "Mythic"]
 
+## Converge (prototype `CONVERGE_CD`, `Game.converge`, `Sword.command`, `Sword.begin`): the player's coordinated
+## command. One command makes every equipped sword that is not striking, buried or in its ultimate begin an
+## attack at the (clamped) point with CONVERGE_WINDUP_FACTOR of the type's windup and CONVERGE_BOOST times its
+## damage; the target is the enemy nearest the point within CONVERGE_TARGET_RADIUS of it. The point is pulled
+## back to CONVERGE_RANGE from the player, and the next command waits CONVERGE_COOLDOWN gameplay seconds.
+const CONVERGE_COOLDOWN: float = 2.5
+const CONVERGE_RANGE: float = 460.0
+const CONVERGE_TARGET_RADIUS: float = 90.0
+const CONVERGE_BOOST: float = 1.5
+const CONVERGE_WINDUP_FACTOR: float = 0.6
+
 ## Fang: close / rapid (prototype `SWORD_TYPES["fang"]`).
 const FANG_LENGTH: float = 34.0
 const FANG_RANGE: float = 175.0
