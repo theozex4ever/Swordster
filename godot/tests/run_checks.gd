@@ -61,6 +61,8 @@ func _run_all() -> void:
 	await pike.run_all()
 	var colossus: ColossusCataclysmChecks = ColossusCataclysmChecks.new(_check, self)
 	await colossus.run_all()
+	var converge: ConvergeChecks = ConvergeChecks.new(_check, self)
+	await converge.run_all()
 	if _failed == 0 and _total > 0:
 		print(_passed_line())
 		quit(0)
@@ -142,7 +144,7 @@ func _drag(index: int, at: Vector2) -> InputEventScreenDrag:
 # ---------------------------------------------------------------- checks
 ## Seeded, wave-free scenario so scene-level movement checks stay deterministic.
 func _quiet_scenario() -> RunScenario:
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.seed = 3
 	scenario.waves_enabled = false
 	return scenario
@@ -208,7 +210,7 @@ func _check_movement() -> void:
 	var wall_s: GameRun = _run_with(Vector2.DOWN, 900)
 	_check("south wall clamps position", absf(wall_s.position.y - inner.end.y) < EPS, str(wall_s.position))
 
-	var scenario: RunScenario = RunScenario.new().without_conditions()
+	var scenario: RunScenario = RunScenario.fang_fixture().without_conditions()
 	scenario.start_position = Vector2(100.0, 200.0)
 	_check("scenario controls the start position", _near(GameRun.new(scenario).position, Vector2(100.0, 200.0)))
 

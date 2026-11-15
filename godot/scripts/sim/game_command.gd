@@ -3,12 +3,12 @@ extends RefCounted
 ## One gameplay command. Keyboard and touch input both translate into these;
 ## automated checks submit the very same commands.
 
-enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE }
+enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE, CONVERGE, TOGGLE_RANGES }
 
 var kind: Kind = Kind.MOVE
 ## Only meaningful for MOVE. Magnitude is clamped to 1 by the run.
 var axis: Vector2 = Vector2.ZERO
-## Only meaningful for ULTIMATE: the sword slot (0 = Q, 1 = E, 2 = R), the world
+## Only meaningful for ULTIMATE (and `point` / `at_nearest` for CONVERGE): the sword slot (0 = Q, 1 = E, 2 = R), the world
 ## point it is aimed at, and whether to aim at the nearest enemy instead (touch).
 var slot: int = 0
 var point: Vector2 = Vector2.ZERO
@@ -69,6 +69,29 @@ static func ultimate_at_nearest(slot_value: int) -> GameCommand:
 	command.slot = slot_value
 	command.at_nearest = true
 	return command
+
+
+## Converge: all equipped swords strike a world point (the mouse cursor in world coordinates, or a tapped
+## arena point). Refused while paused or dead and while the shared cooldown runs; a point farther than the
+## command's range is pulled back onto it, measured from the player.
+static func converge(world_point: Vector2) -> GameCommand:
+	var command: GameCommand = _of(Kind.CONVERGE)
+	command.point = world_point
+	return command
+
+
+## Same, aimed at the nearest living enemy, or 300 px ahead of the player when there is none (the
+## prototype's touch Converge button, `Game.auto_aim`).
+static func converge_at_nearest() -> GameCommand:
+	var command: GameCommand = _of(Kind.CONVERGE)
+	command.at_nearest = true
+	return command
+
+
+## Shows or hides the attack ranges (Tab or G): a ring around the player per equipped sword. Ignored
+## while paused or dead, as in the prototype.
+static func toggle_ranges() -> GameCommand:
+	return _of(Kind.TOGGLE_RANGES)
 
 
 ## DEVELOPMENT FIXTURE: launches the enemies around the player like a heavy
