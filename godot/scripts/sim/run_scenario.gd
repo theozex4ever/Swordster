@@ -317,10 +317,11 @@ static func colossus_encounter() -> RunScenario:
 ## DEVELOPMENT FIXTURE for issue #17, not the final default loadout: Fang, Warden and Colossus (poison / ice / fire, the
 ## prototype's own default) so drops of every type can be swapped into any slot and the ultimate recharge each slot keeps can be watched.
 static func drops_fixture_loadout() -> Array[SwordSpec]:
+	var types: Array[StringName] = [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS]
+	var elements: Array[StringName] = [&"poison", &"ice", &"fire"]
 	var specs: Array[SwordSpec] = []
-	specs.append(SwordSpec.make(SwordDefs.FANG, 0, &"poison"))
-	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &"ice"))
-	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &"fire"))
+	for slot: int in types.size():
+		specs.append(SwordSpec.make(types[slot], 0, elements[slot]))
 	return specs
 
 

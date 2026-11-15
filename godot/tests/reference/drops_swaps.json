@@ -2776,6 +2776,46 @@
     "rarity_roll": 0.5,
     "element_index": 2,
     "armed": null
+   },
+   {
+    "wave": 2,
+    "index": 0,
+    "kind": "husk",
+    "arm_roll": 0.0,
+    "drop_draw": 9.0,
+    "rarity_roll": 0.5,
+    "element_index": 2,
+    "armed": ["colossus", 0, "poison"]
+   },
+   {
+    "wave": 2,
+    "index": 0,
+    "kind": "husk",
+    "arm_roll": 0.99,
+    "drop_draw": 9.0,
+    "rarity_roll": 0.5,
+    "element_index": 2,
+    "armed": null
+   },
+   {
+    "wave": 2,
+    "index": 1,
+    "kind": "husk",
+    "arm_roll": 0.0,
+    "drop_draw": 9.0,
+    "rarity_roll": 0.5,
+    "element_index": 2,
+    "armed": ["colossus", 0, "poison"]
+   },
+   {
+    "wave": 2,
+    "index": 1,
+    "kind": "husk",
+    "arm_roll": 0.99,
+    "drop_draw": 9.0,
+    "rarity_roll": 0.5,
+    "element_index": 2,
+    "armed": null
    }
   ],
   "shape": {
@@ -3141,6 +3181,31 @@
    "count": 2769
   }
  },
+ "blink": [
+  {"life": 45.0, "drawn": true},
+  {"life": 10.0, "drawn": true},
+  {"life": 6.0, "drawn": true},
+  {"life": 5.99, "drawn": true},
+  {"life": 5.9, "drawn": true},
+  {"life": 5.876, "drawn": true},
+  {"life": 5.8, "drawn": false},
+  {"life": 5.7, "drawn": true},
+  {"life": 5.63, "drawn": true},
+  {"life": 5.6, "drawn": false},
+  {"life": 5.5, "drawn": false},
+  {"life": 5.25, "drawn": false},
+  {"life": 5.0, "drawn": false},
+  {"life": 4.9, "drawn": true},
+  {"life": 4.2, "drawn": true},
+  {"life": 3.0, "drawn": false},
+  {"life": 2.5, "drawn": false},
+  {"life": 1.0, "drawn": false},
+  {"life": 0.5, "drawn": false},
+  {"life": 0.2, "drawn": true},
+  {"life": 0.13, "drawn": true},
+  {"life": 0.1, "drawn": false},
+  {"life": 0.01, "drawn": false}
+ ],
  "reach": {
   "single": [
    {"dist": 0.0, "direction": [1.0, 0.0], "swapped": true, "pickups_after": 1},

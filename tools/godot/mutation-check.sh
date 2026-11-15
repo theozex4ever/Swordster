@@ -428,7 +428,7 @@ mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.
 mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_wave_kinds)" "		queue.append_array([])"
 mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
 mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
-mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run)))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run)))"
+mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run), carried))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run), carried))"
 mutate stun-flag-dropped    scripts/presentation/run_presenter.gd "enemy.hp / enemy.max_hp, enemy.stun > 0.0, enemy.telegraph())" "enemy.hp / enemy.max_hp, false, enemy.telegraph())"
 mutate brute-drawn-small    scripts/presentation/placeholder_enemy_visual.gd "			return 30.0" "			return 16.0"
 mutate runner-same-colour   scripts/presentation/placeholder_enemy_visual.gd "const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)" "const RUNNER_COLOR: Color = Color(0.84, 0.28, 0.34)"
@@ -490,7 +490,7 @@ mutate spitter-shoots-over-the-dead scripts/sim/enemy_state.gd "		if run.dead:
 mutate spitter-telegraph-lost      scripts/sim/enemy_state.gd "return clampf(charge / EnemyDefs.SPITTER_CHARGE_TIME, 0.0, 1.0)" "return 0.0"
 mutate spawned-spitter-no-cooldown scripts/sim/wave_director.gd "cooldown = run.rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
 mutate placed-spitter-no-cooldown-draw scripts/sim/game_run.gd "cooldown = rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
-mutate placement-cooldown-dropped  scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0))" "placement.phase, 0.0)"
+mutate placement-cooldown-dropped  scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0), placement.armed)" "placement.phase, 0.0, placement.armed)"
 mutate placement-charge-dropped    scripts/sim/game_run.gd "		enemy.charge = placement.charge
 " ""
 mutate projectile-never-moves      scripts/sim/game_run.gd "projectile.position += projectile.velocity * dt" "projectile.position += Vector2.ZERO"
@@ -602,7 +602,7 @@ mutate flurry-recharge-not-armed   scripts/sim/sword_state.gd "	ultimate_cooldow
 	boost = 1.0"
 mutate flurry-recharge-pauses      scripts/sim/sword_state.gd "	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)" "	if phase != Phase.ULTIMATE:
 		ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)"
-mutate flurry-recharge-ignores-rarity scripts/sim/sword_state.gd "SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate flurry-recharge-ignores-rarity scripts/sim/sword_state.gd "SwordDefs.ultimate_recharge_of(spec_value)" "SwordDefs.ultimate_cooldown(spec_value.type_id)"
 mutate flurry-starts-on-cooldown   scripts/sim/sword_state.gd "	sword.position = at
 " "	sword.position = at
 	sword.ultimate_cooldown_left = sword.ultimate_cooldown
@@ -836,7 +836,7 @@ mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if condi
 mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
 	return self" "	return self"
 mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
-mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
+mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
 mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
 			return RunScenario.conditions_encounter()" "		\"conditions\":
@@ -946,12 +946,12 @@ mutate sweep-cue-lost                               scripts/sim/sword_state.gd "
 
 
 ## Warden's windup"
-mutate warden-uses-fang-damage                      scripts/sim/sword_state.gd "	sword.damage = SwordDefs.base_damage(type_id) * SwordDefs.RARITY_DAMAGE[rarity]" "	sword.damage = SwordDefs.FANG_DAMAGE * SwordDefs.RARITY_DAMAGE[rarity]"
-mutate warden-uses-fang-range                       scripts/sim/sword_state.gd "	sword.attack_range = SwordDefs.base_range(type_id) * SwordDefs.RARITY_RANGE[rarity]" "	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]"
-mutate warden-uses-fang-cooldown                    scripts/sim/sword_state.gd "	sword.cooldown = SwordDefs.base_cooldown(type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]"
+mutate warden-uses-fang-damage                      scripts/sim/sword_state.gd "	sword.damage = SwordDefs.damage_of(spec_value)" "	sword.damage = SwordDefs.FANG_DAMAGE * SwordDefs.RARITY_DAMAGE[rarity]"
+mutate warden-uses-fang-range                       scripts/sim/sword_state.gd "	sword.attack_range = SwordDefs.range_of(spec_value)" "	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]"
+mutate warden-uses-fang-cooldown                    scripts/sim/sword_state.gd "	sword.cooldown = SwordDefs.cooldown_of(spec_value)" "	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]"
 mutate warden-uses-fang-knockback                   scripts/sim/sword_state.gd "	sword.knock = SwordDefs.base_knock(type_id)" "	sword.knock = SwordDefs.FANG_KNOCK"
 mutate warden-rarity-size-lost                      scripts/sim/sword_state.gd "	sword.size_scale = SwordDefs.RARITY_SIZE[rarity]" "	sword.size_scale = 1.0"
-mutate warden-rarity-recharge-lost                  scripts/sim/sword_state.gd "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate warden-rarity-recharge-lost                  scripts/sim/sword_state.gd "	sword.ultimate_cooldown = SwordDefs.ultimate_recharge_of(spec_value)" "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id)"
 mutate hit-stop-always-fang                         scripts/sim/game_run.gd "(sword.hit_stop if sword != null else SwordDefs.FANG_HITSTOP) * (CRIT_HITSTOP_FACTOR" "SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR"
 mutate hit-shake-always-fang                        scripts/sim/game_run.gd "add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS" "add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS"
 mutate maelstrom-blinks-like-flurry                 scripts/sim/sword_state.gd "			ultimate_spin = atan2(position.y - point.y, position.x - point.x)" "			position = point
@@ -1005,7 +1005,7 @@ mutate maelstrom-keeps-the-old-hit-set              scripts/sim/sword_state.gd "
 mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "		SwordDefs.WARDEN:
 			return maelstrom_reach()" "		SwordDefs.WARDEN:
 			return SwordDefs.FANG_ULT_RADIUS"
-mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
+mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 " "		RunScenario.new(),
 "
@@ -1224,7 +1224,7 @@ mutate skewer-death-keeps-carrying                  scripts/sim/sword_state.gd "
 mutate skewer-area-radius-nonzero                   scripts/sim/sword_state.gd "		SwordDefs.PIKE:
 			return 0.0" "		SwordDefs.PIKE:
 			return 100.0"
-mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_COLOSSUS]"
+mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate pike-encounter-slot-lost                     scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
 " "		RunScenario.new(),
 "
@@ -1545,7 +1545,7 @@ mutate orbs-cleared-as-parried                      scripts/sim/game_run.gd "pro
 mutate orbs-cleared-counter-kept-on-restart         scripts/sim/game_run.gd "	projectiles_cleared = 0
 " ""
 mutate snapshot-field-count-lost                    scripts/sim/game_run.gd "		\"field_count\": fields.size()," "		\"field_count\": 0,"
-mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_WARDEN, ENCOUNTER_PIKE]"
+mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_DROPS]"
 mutate colossus-encounter-slot-lost                 scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
 " "		RunScenario.new(),
 "
@@ -1604,7 +1604,7 @@ mutate slam-sound-lost                              scripts/audio/sfx_bank.gd "	
 			play(\"hit\")" "		SimCue.Kind.COLOSSUS_SLAM:
 			pass"
 mutate colossus-visual-needle                       scripts/presentation/placeholder_sword_visual.gd "	_colossus = spec.type_id == SwordDefs.COLOSSUS" "	_colossus = false"
-mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
+mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _hover if _resting else _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = _hover if _resting else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
 mutate colossus-visual-altitude-ignored             scripts/presentation/placeholder_sword_visual.gd "func _on_altitude(height: float) -> void:
 	_altitude = height" "func _on_altitude(height: float) -> void:
 	pass"

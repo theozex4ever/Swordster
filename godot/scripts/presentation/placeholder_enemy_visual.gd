@@ -39,6 +39,8 @@ var _telegraph: float = 0.0
 var _conditions: ConditionView = ConditionView.new()
 ## The sword this enemy carries (null when unarmed): drawn beside it. Cosmetic: the drop is the simulation's.
 var _armed: SwordSpec = null
+## How many times the carried sword has been drawn (checks read it to prove an armed enemy really shows its sword).
+var carried_draws: int = 0
 ## Cosmetic clock for spinning parts; advances once per fixed tick.
 var _clock: float = 0.0
 
@@ -227,6 +229,7 @@ func _draw_spit_telegraph(radius: float) -> void:
 ## The sword an armed enemy carries (prototype: the sword drawn at 0.6 of its size beside the body, bobbing, in its element's
 ## colour inside a glow in its rarity's colour), so the choice a kill offers can be read before it is made.
 func _draw_carried_sword(radius: float) -> void:
+	carried_draws += 1
 	var side: Vector2 = Vector2(-_facing.y, _facing.x)
 	var at: Vector2 = side * (radius + 12.0) - Vector2(0.0, 10.0 + sin(_clock * 3.0) * 3.0)
 	var rarity: int = _armed.rarity

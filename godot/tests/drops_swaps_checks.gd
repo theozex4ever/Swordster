@@ -47,6 +47,7 @@ func run_all() -> void:
 	_check_armed_waves()
 	_check_death_drops()
 	_check_life()
+	_check_blink()
 	_check_reach()
 	_check_swaps()
 	_check_returned_drops()
@@ -81,7 +82,8 @@ func _spec_array(spec: SwordSpec) -> Array:
 
 
 func _same(spec: SwordSpec, values: Array) -> bool:
-	return spec.same_as(_spec(values))
+	var other: SwordSpec = _spec(values)
+	return spec.type_id == other.type_id and spec.rarity == other.rarity and spec.element == other.element
 
 
 ## A run with the given swords in its slots (all parked, so nothing attacks), no enemies and no waves.
@@ -348,6 +350,24 @@ func _check_arming() -> void:
 	_ok("rolled from the gameplay stream a husk arms about 20 %% of the time (%.3f) and a brute about 75 %% (%.3f)" % [float(armed_husks) / float(samples), float(armed_brutes) / float(samples)],
 		_near(float(armed_husks) / float(samples), 0.2, 0.03) and _near(float(armed_brutes) / float(samples), 0.75, 0.03))
 	_ok("a wave-3 brute's sword is Mythic about 14 %% of the time (0.08 + 0.15 x 0.5 = 0.135; %.3f)" % [float(mythic_brutes) / float(armed_brutes)], _near(float(mythic_brutes) / float(armed_brutes), 0.135, 0.03))
+	var types: Dictionary = {}
+	var element_counts: Dictionary = {}
+	var drawn: RandomNumberGenerator = RandomNumberGenerator.new()
+	drawn.seed = 12
+	var armed_total: int = 0
+	for i: int in 8000:
+		var spec: SwordSpec = LootDefs.roll_armed(drawn, EnemyDefs.BRUTE, 4, 6)
+		if spec != null:
+			armed_total += 1
+			types[spec.type_id] = types.get(spec.type_id, 0) + 1
+			element_counts[spec.element] = element_counts.get(spec.element, 0) + 1
+	var type_ok: bool = true
+	for i: int in LootDefs.DROP_TYPES.size():
+		type_ok = type_ok and _near(float(types.get(LootDefs.DROP_TYPES[i], 0)) / float(armed_total), LootDefs.DROP_WEIGHTS[i] / LootDefs.total_drop_weight(), 0.025)
+	var element_ok: bool = true
+	for element: StringName in SwordDefs.ELEMENT_ORDER:
+		element_ok = element_ok and _near(float(element_counts.get(element, 0)) / float(armed_total), 1.0 / 3.0, 0.03)
+	_ok("the %d swords rolled for wave-4 brutes follow the drop weights (Fang 30 %%, Warden 30 %%, Pike 25 %%, Colossus 16 %%: %s) and the three elements equally (%s)" % [armed_total, types, element_counts], type_ok and element_ok)
 	var first: RandomNumberGenerator = RandomNumberGenerator.new()
 	first.seed = 9
 	var guaranteed_pike: bool = true
@@ -419,6 +439,21 @@ func _check_armed_waves() -> void:
 		if enemy.armed != null:
 			armed_enemies.append(enemy)
 	var hp_ok: bool = armed_enemies.all(func(enemy: EnemyState) -> bool: return _near(enemy.max_hp, EnemyDefs.of(enemy.kind).hp * LootDefs.ARMED_HP_FACTOR, 1e-6))
+	# arming follows the enemy's own kind: a wave of brutes arms about three in four, a wave of husks about one in five
+	var armed_by_kind: Dictionary = {}
+	for kind: StringName in [EnemyDefs.BRUTE, EnemyDefs.HUSK]:
+		var kind_scenario: RunScenario = RunScenario.new()
+		kind_scenario.seed = 44
+		kind_scenario.arm_waves = true
+		var many: Array[StringName] = []
+		for i: int in 60:
+			many.append(kind)
+		kind_scenario.wave_kinds = many
+		var kind_run: GameRun = GameRun.new(kind_scenario)
+		while kind_run.director.wave == 0 and kind_run.tick < 400:
+			kind_run.step()
+		armed_by_kind[kind] = kind_run.director.queue_armed.filter(func(spec: SwordSpec) -> bool: return spec != null).size()
+	_ok("a wave of 60 brutes arms about 45 of them and one of 60 husks about 14 (%s), each by its own kind's chance" % [armed_by_kind], int(armed_by_kind[EnemyDefs.BRUTE]) >= 38 and int(armed_by_kind[EnemyDefs.HUSK]) <= 26 and int(armed_by_kind[EnemyDefs.HUSK]) >= 6)
 	_ok("every sword queued for the wave reaches an enemy of its own kind (%d queued armed, %d standing armed or dead, all with 1.35 x health: %s)" % [expected_armed, armed_enemies.size(), hp_ok], expected_armed >= 2 and armed_enemies.size() >= 1 and hp_ok and travel.director.queue.is_empty())
 
 
@@ -556,6 +591,20 @@ func _check_life() -> void:
 	_ok("after 2699 ticks (44.98 s) the drop still lies (life %.4f)" % young.life, early.pickups.has(young) and young.life > 0.0 and young.life < 0.05)
 	_steps(early, 2)
 	_ok("and is gone by tick 2701", not early.pickups.has(young))
+
+
+func _check_blink() -> void:
+	print("drops and swaps: a drop blinks before it goes")
+	var wrong: Array[String] = []
+	var hidden: int = 0
+	for entry: Variant in _ref["blink"]:
+		var row: Dictionary = entry as Dictionary
+		var pickup: PickupState = PickupState.make(SwordSpec.make(&"lance", 2, &"ice"), Vector2.ZERO, 1)
+		pickup.life = float(row["life"])
+		hidden += 1 if pickup.blink_hidden() else 0
+		if pickup.blink_hidden() == bool(row["drawn"]):
+			wrong.append(str(row["life"]))
+	_ok("in its last six seconds a drop is hidden on every other eighth of a second, exactly when the prototype draws nothing (%d lives, %d hidden, wrong at %s)" % [(_ref["blink"] as Array).size(), hidden, wrong], wrong.is_empty() and hidden >= 8 and hidden < (_ref["blink"] as Array).size() - 8)
 
 
 # --------------------------------------------------------------- reach
@@ -837,6 +886,7 @@ func _check_cues() -> void:
 	run.try_swap(2)
 	cues = run.take_cues()
 	var swapped: Array[SimCue] = cues.filter(func(cue: SimCue) -> bool: return cue.kind == SimCue.Kind.SWORD_SWAPPED)
+	_ok("the run's snapshot counts the drops lying (%d)" % int(run.snapshot()["pickup_count"]), int(run.snapshot()["pickup_count"]) == run.pickups.size() and run.pickups.size() == 1)
 	_ok("a swap is announced once with the slot, the new sword, where the pickup lay and where the old one came down", swapped.size() == 1 and swapped[0].amount == 2 and swapped[0].spec.display_name() == "Mythic Venom Colossus" and swapped[0].position.distance_to(enemy.position) < 0.001 and absf(swapped[0].origin.y - enemy.position.y - 24.0) < 0.001)
 	run.try_swap(0)
 	run.try_swap(0)
@@ -989,6 +1039,10 @@ func _check_main_scene() -> void:
 	_ok("Common swords show no rarity tag and the grey border (tags: '%s' '%s' '%s')" % [hud._ult_rarities[0].text, hud._ult_rarities[1].text, hud._ult_rarities[2].text], hud._ult_rarities[0].text == "" and hud._ult_rarities[1].text == "" and hud._ult_rarities[2].text == "")
 	main._input(_key(KEY_1))
 	_ok("pressing 1 with nothing in reach refuses: a refusal cue, nothing changes, and a refusal is shown", run.cue_count(SimCue.Kind.SWAP_REFUSED) == 1 and _specs_of(run) == _default_specs() and effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "no sword within reach"))
+	var common_drop: PickupState = _put(run, ["fang", 0, "fire"], -250.0, 0.0)
+	_tick_main(main, 2)
+	await _tree.process_frame
+	_ok("a Common drop (out of reach) is drawn with its ring and glows but no pillar of light (drawn %s)" % [effects.draw_counts], effects.draw_counts.get(&"pickup_ring", 0) > 0 and effects.draw_counts.get(&"pickup_glow_rarity", 0) > 0 and effects.draw_counts.get(&"pickup_glow_element", 0) > 0 and effects.draw_counts.get(&"pickup_beam", 0) == 0 and presenter.pickup_visual_count() == 1)
 	var mythic: PickupState = _put(run, ["lance", 2, "ice"], 30.0, -20.0)
 	var rare: PickupState = _put(run, ["fang", 1, "fire"], -300.0, 0.0)
 	_tick_main(main, 2)
@@ -998,11 +1052,19 @@ func _check_main_scene() -> void:
 	var reference_card: Array[String] = PickupCard.lines(spec)
 	_ok("a Mythic Frost Pike drop in reach shows its card: %s" % [shown], hud.pickup_card_visible() and shown == reference_card and shown[0] == "Mythic Frost Pike" and shown[5] == "press 1 / 2 / 3 to swap")
 	var compare: Array[String] = hud.pickup_card_comparisons()
-	_ok("the card compares it with each equipped sword: %s" % [compare], compare.size() == 3 and compare[0].begins_with("1  Common Venom Fang   DMG +") and compare[1].begins_with("2  Common Frost Warden") and compare[2].begins_with("3  Common Ember Colossus   DMG ") and compare[0] == PickupCard.compare_to(spec, 0, run.swords[0].spec))
-	_ok("a drop out of reach (300 px away) has no card, only the nearest in reach does", hud.pickup_card_lines()[0] == "Mythic Frost Pike" and presenter.pickup_visual_count() == 2)
+	_ok("the card compares it with each equipped sword: %s" % [compare], compare == ["1  Common Venom Fang   DMG +35   SPD -2.3/s   RNG +307", "2  Common Frost Warden   DMG +25   SPD -0.2/s   RNG +237", "3  Common Ember Colossus   DMG -8   SPD +0.5/s   RNG +152"])
+	_ok("a drop out of reach (300 px away) has no card, only the nearest in reach does", hud.pickup_card_lines()[0] == "Mythic Frost Pike" and presenter.pickup_visual_count() == 3)
+	_ok("the card's name is in the Mythic colour and its element line in the element's (%s / %s)" % [hud._pickup_lines[0].modulate, hud._pickup_lines[3].modulate], hud._pickup_lines[0].modulate.is_equal_approx(SwordDefs.RARITY_COLORS[2]) and hud._pickup_lines[3].modulate.is_equal_approx(PlaceholderSwordVisual.ELEMENT_COLORS[&"ice"]) and hud._pickup_style.border_color.is_equal_approx(SwordDefs.RARITY_COLORS[2]))
 	var view: Rect2 = main.get_viewport().get_visible_rect()
 	_ok("the card lies inside the view (%s in %s) and clear of the sword cards" % [hud.pickup_card_rect(), view], view.grow(0.5).encloses(hud.pickup_card_rect()) and [0, 1, 2].all(func(slot: int) -> bool: return not hud.pickup_card_rect().intersects(hud._ult_cards[slot].get_global_rect())))
-	_ok("both drops are drawn: a pickup visual for each, the ground ring and glows, and a pillar of light for the Mythic and the Rare (drawn %s)" % [effects.draw_counts], effects.draw_counts.get(&"pickup_ring", 0) > 0 and effects.draw_counts.get(&"pickup_glow_rarity", 0) > 0 and effects.draw_counts.get(&"pickup_glow_element", 0) > 0 and effects.draw_counts.get(&"pickup_beam", 0) >= 12)
+	_ok("both drops are drawn: a pickup visual for each, the ground ring and glows, and a pillar of light for the Mythic and the Rare (drawn %s)" % [effects.draw_counts], effects.draw_counts.get(&"pickup_ring", 0) > 0 and effects.draw_counts.get(&"pickup_glow_rarity", 0) > 0 and effects.draw_counts.get(&"pickup_glow_element", 0) > 0 and effects.draw_counts.get(&"pickup_beam", 0) >= 12 and effects.draw_counts.get(&"pickup_beam", 0) % 6 == 0)
+	common_drop.life = 5.8
+	var rings_before: int = effects.draw_counts.get(&"pickup_ring", 0)
+	_tick_main(main, 1)
+	await _tree.process_frame
+	var rings_drawn: int = effects.draw_counts.get(&"pickup_ring", 0) - rings_before
+	_ok("a drop in the hidden half of its blink is not drawn (the layer drew %d of 3 rings and its visual is hidden: %s)" % [rings_drawn, not (presenter._pickup_visuals[common_drop.get_instance_id()] as Node2D).visible], rings_drawn == 2 and not (presenter._pickup_visuals[common_drop.get_instance_id()] as Node2D).visible and (presenter._pickup_visuals[mythic.get_instance_id()] as Node2D).visible)
+	common_drop.life = 45.0
 	var visual: PlaceholderSwordVisual = null
 	for child: Node in presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._resting and (child as PlaceholderSwordVisual)._scale == SwordDefs.RARITY_SIZE[2]:
@@ -1012,14 +1074,22 @@ func _check_main_scene() -> void:
 	await _tree.process_frame
 	var swords: Array = _specs_of(run)
 	_ok("pressing 2 puts the Mythic Frost Pike into slot two and nothing else (%s)" % [swords], swords == [["fang", 0, "poison"], ["lance", 2, "ice"], ["colossus", 0, "fire"]] and not run.pickups.has(mythic) and run.pickups.has(rare))
-	_ok("it is announced and heard: a swap cue, the chime, a ring and the sword's name over the player", run.cue_count(SimCue.Kind.SWORD_SWAPPED) == 1 and main._sfx.played.has("chime") and effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "Mythic Frost Pike") and effects._rings.size() > 0)
+	_ok("it is announced and heard: a swap cue, the chime, a gold ring, sparks and the sword's name over the player", run.cue_count(SimCue.Kind.SWORD_SWAPPED) == 1 and main._sfx.played.has("chime") and effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "Mythic Frost Pike" and (text["color"] as Color).is_equal_approx(SwordDefs.RARITY_COLORS[2]))
+		and effects._rings.any(func(ring: Dictionary) -> bool: return (ring["color"] as Color).is_equal_approx(SwordDefs.RARITY_COLORS[2])) and effects._sparks.size() >= 20)
 	_tick_main(main, 2)
 	await _tree.process_frame
 	_ok("slot two's card now names the Mythic Frost Pike (%s, tag '%s') in the Mythic colour and flashes (back %s vs slot one %s)" % [hud._ult_names[1].text, hud._ult_rarities[1].text, hud._ult_backs[1].color, hud._ult_backs[0].color],
 		hud._ult_names[1].text == "Skewer" and hud._ult_types[1].text.begins_with("Pike sword") and hud._ult_rarities[1].text == "MYTHIC" and hud._ult_rarities[1].modulate.is_equal_approx(SwordDefs.RARITY_COLORS[2]) and hud._ult_backs[1].color.r > hud._ult_backs[0].color.r + 0.02)
 	var equipped: PlaceholderSwordVisual = presenter._sword_visuals[run.swords[1].get_instance_id()] as PlaceholderSwordVisual
-	_ok("the equipped Mythic Pike is drawn bigger than the Common ones (x%.2f) with the gold glow" % equipped._scale, _near(equipped._scale, 1.18, 1e-6) and equipped._glow.is_equal_approx(SwordDefs.RARITY_COLORS[2]) and presenter._sword_visuals[run.swords[0].get_instance_id()]._scale == 1.0)
-	_ok("the old Common Frost Warden lies where the Mythic one was (a pickup visual per drop: %d, swords %d)" % [presenter.pickup_visual_count(), presenter._sword_visuals.size()], presenter.pickup_visual_count() == 2 and presenter._sword_visuals.size() == 3 and run.pickups.size() == 2)
+	var common_visual: PlaceholderSwordVisual = presenter._sword_visuals[run.swords[0].get_instance_id()] as PlaceholderSwordVisual
+	_ok("the equipped Mythic Pike is drawn bigger than the Common ones (x%.2f) with the gold glow, flaring from the swap (%.2f); a Common sword glows in its element's colour" % [equipped._scale, equipped._flash], _near(equipped._scale, 1.18, 1e-6) and equipped._glow.is_equal_approx(SwordDefs.RARITY_COLORS[2]) and equipped._flash > 0.5 and common_visual._scale == 1.0 and common_visual._flash == 0.0 and common_visual._glow.is_equal_approx(PlaceholderSwordVisual.ELEMENT_COLORS[&"poison"]))
+	_ok("slot cards take their rarity's colour as a border: Mythic gold on slot two, a dimmed grey on the Common slot one", (hud._ult_borders[1].get_theme_stylebox("panel") as StyleBoxFlat).border_color.is_equal_approx(SwordDefs.RARITY_COLORS[2]) and (hud._ult_borders[0].get_theme_stylebox("panel") as StyleBoxFlat).border_color.is_equal_approx(SwordDefs.RARITY_COLORS[0].darkened(0.3)))
+	_ok("the old Common Frost Warden lies where the Mythic one was (a pickup visual per drop: %d, swords %d)" % [presenter.pickup_visual_count(), presenter._sword_visuals.size()], presenter.pickup_visual_count() == 3 and presenter._sword_visuals.size() == 3 and run.pickups.size() == 3 and run.pickups.has(common_drop))
+	var armed_foe: EnemyState = EnemyState.make(EnemyDefs.HUSK, run.position + Vector2(500.0, 0.0), 1, 0.0, 77, 0.0, 0.0, SwordSpec.make(&"fang", 1, &"fire"))
+	run.enemies.append(armed_foe)
+	run.kill(armed_foe, Vector2.RIGHT)
+	_tick_main(main, 1)
+	_ok("an armed foe's death rings and names its sword in the rarity's colour (Rare Ember Fang)", run.cue_count(SimCue.Kind.SWORD_DROPPED) == 1 and effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "Rare Ember Fang" and (text["color"] as Color).is_equal_approx(SwordDefs.RARITY_COLORS[1])) and effects._rings.any(func(ring: Dictionary) -> bool: return (ring["color"] as Color).is_equal_approx(SwordDefs.RARITY_COLORS[1])))
 	# refusal when only far pickups remain
 	run.position = Vector2(1900.0, 400.0)
 	_tick_main(main, 2)
@@ -1027,6 +1097,10 @@ func _check_main_scene() -> void:
 	var refusals: int = run.cue_count(SimCue.Kind.SWAP_REFUSED)
 	main._input(_key(KEY_3))
 	_ok("walking away hides the card; pressing 3 refuses again and shows it", not hud.pickup_card_visible() and run.cue_count(SimCue.Kind.SWAP_REFUSED) == refusals + 1 and _specs_of(run) == swords)
+	hud.restart_pressed.emit()
+	await _tree.process_frame
+	var sword_visuals: int = presenter.get_children().filter(func(child: Node) -> bool: return child is SwordVisual).size()
+	_ok("restarting frees every drop's visual and the swapped swords' (%d sword visuals left: the three equipped; %d drops tracked)" % [sword_visuals, presenter.pickup_visual_count()], sword_visuals == 3 and presenter.pickup_visual_count() == 0 and run.pickups.is_empty())
 	main.queue_free()
 	await _tree.process_frame
 
@@ -1067,6 +1141,10 @@ func _check_hud() -> void:
 	hud.show_run(run)
 	await _tree.process_frame
 	_ok("and so does a drop at the edge of the view (%s)" % hud.pickup_card_rect(), visible_rect.grow(0.5).encloses(hud.pickup_card_rect()))
+	run.camera = run.position + Vector2(10.0, 0.0) + visible_rect.size * 0.5 - Vector2(120.0, 690.0)
+	hud.show_run(run)
+	await _tree.process_frame
+	_ok("a drop at the bottom left of the view gets its card clear of the sword cards (%s)" % hud.pickup_card_rect(), visible_rect.grow(0.5).encloses(hud.pickup_card_rect()) and [0, 1, 2].all(func(slot: int) -> bool: return not hud.pickup_card_rect().intersects(hud._ult_cards[slot].get_global_rect())))
 	run.pickups.clear()
 	hud.show_run(run)
 	_ok("the card goes with the drop", not hud.pickup_card_visible() and hud.pickup_card_lines().is_empty())
@@ -1097,6 +1175,13 @@ func _check_encounter() -> void:
 	_ok("its loadout is Fang, Warden and Colossus with poison, ice and fire, and it is not the default scenario", _specs_of(GameRun.new(scenario)) == _default_specs() and RunScenario.new().arm_waves == false and RunScenario.new().encounter == RunScenario.ENCOUNTER_NORMAL)
 	_ok("--encounter=drops / ?encounter=drops start it; anything else does not", LaunchOptions.scenario_for("drops").encounter == RunScenario.ENCOUNTER_DROPS and LaunchOptions.scenario_for("bogus") == null)
 	_ok("the dev cycle ends with it and returns to the normal run", RunScenario.ENCOUNTER_CYCLE[RunScenario.ENCOUNTER_CYCLE.size() - 1] == RunScenario.ENCOUNTER_DROPS and RunScenario.next_encounter(RunScenario.ENCOUNTER_COLOSSUS) == RunScenario.ENCOUNTER_DROPS and RunScenario.next_encounter(RunScenario.ENCOUNTER_DROPS) == RunScenario.ENCOUNTER_NORMAL and RunScenario.encounter_title(RunScenario.ENCOUNTER_DROPS) == "Drops")
+	var waved: RunScenario = RunScenario.drops_encounter()
+	waved.seed = 3
+	var waved_run: GameRun = GameRun.new(waved)
+	while waved_run.director.wave == 0 and waved_run.tick < 400:
+		waved_run.step()
+	var wave_kinds: Array[StringName] = waved_run.director.queue.duplicate()
+	_ok("its wave is the ten-enemy mixed one, armed by the prototype's rule (first two armed, the first with a Pike): %s" % [wave_kinds], waved.wave_kinds.size() == 10 and waved_run.director.queue_armed.size() == 10 and waved_run.director.queue_armed[0] != null and waved_run.director.queue_armed[0].type_id == SwordDefs.PIKE and waved_run.director.queue_armed[1] != null and wave_kinds.has(EnemyDefs.BRUTE) and wave_kinds.has(EnemyDefs.SPITTER))
 	var colossus: GameRun = GameRun.new(RunScenario.colossus_encounter())
 	colossus.apply(GameCommand.toggle_encounter())
 	_ok("the C key leads from the colossus encounter to the drops encounter and restarts in it (12 armed foes standing)", colossus.scenario.encounter == RunScenario.ENCOUNTER_DROPS and colossus.enemies.filter(func(e: EnemyState) -> bool: return e.armed != null).size() == 12)
@@ -1118,6 +1203,29 @@ func _check_encounter() -> void:
 			else:
 				unarmed_visuals += 1
 	_ok("every armed foe is drawn carrying its sword (%d armed visuals, %d unarmed)" % [armed_visuals, unarmed_visuals], armed_visuals == 12 and unarmed_visuals == 0)
+	var armed_standing: int = main.run.enemies.filter(func(enemy_state: EnemyState) -> bool: return enemy_state.armed != null).size()
+	var carried_drawn: bool = true
+	for child: Node in main._presenter.get_children():
+		if child is PlaceholderEnemyVisual:
+			carried_drawn = carried_drawn and (child as PlaceholderEnemyVisual).carried_draws > 0
+	_ok("each carried sword is really drawn (every armed visual has drawn it)", carried_drawn and armed_visuals == 12)
+	var victim: EnemyState = main.run.enemies[0]
+	main.run.kill(victim, Vector2.RIGHT)
+	main.run.position = victim.position + Vector2(10.0, 0.0)
+	_tick_main(main, 1)
+	main._input(_key(KEY_1))
+	_tick_main(main, 100)
+	await _tree.process_frame
+	var queued_armed: int = 0
+	for carried: SwordSpec in main.run.director.queue_armed:
+		queued_armed += 1 if carried != null else 0
+	var marked_armed: int = 0
+	for marker: SpawnMarker in main.run.director.markers:
+		marked_armed += 1 if marker.armed != null else 0
+	var standing_armed: int = main.run.enemies.filter(func(enemy_state: EnemyState) -> bool: return enemy_state.armed != null).size()
+	var legend_after: String = main._hud._encounter_label.text
+	_ok("after a kill and a swap the legend counts armed foes (%d standing + %d queued + %d telegraphed, wave %d), swords lying (%d), drops and swaps: %s" % [standing_armed, queued_armed, marked_armed, main.run.director.wave, main.run.pickups.size(), legend_after.get_slice("\n", 0)],
+		legend_after.contains("armed foes left: %d" % (standing_armed + queued_armed + marked_armed)) and queued_armed + marked_armed >= 1 and legend_after.contains("swords lying: %d" % main.run.pickups.size()) and main.run.pickups.size() >= 1 and legend_after.contains("dropped %d, swapped 1" % main.run.cue_count(SimCue.Kind.SWORD_DROPPED)) and armed_standing == 12)
 	var window_rect: Rect2 = main.get_viewport().get_visible_rect()
 	_ok("the legend fits the view (%s)" % main._hud._encounter_label.get_global_rect(), window_rect.grow(0.5).encloses(main._hud._encounter_label.get_global_rect()))
 	main.queue_free()

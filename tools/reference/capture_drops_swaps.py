@@ -340,8 +340,10 @@ def case_arming():
     for index in range(4):
         for arm_roll in (0.0, 0.99):
             first.append(arming_probe(1, index, "husk", arm_roll, 9.0, 0.5, 2))
-    for p in probes + first:
-        pass
+    # the guarantees are the first wave's alone: the next wave's first enemies arm by chance and its first never takes a Pike by rule
+    for index in range(2):
+        for arm_roll in (0.0, 0.99):
+            first.append(arming_probe(2, index, "husk", arm_roll, 9.0, 0.5, 2))
     # a whole first wave and a later one with every enemy unarmed except the scripted ones: the queue's length and kinds
     queue = run_wave(1, {})
     shape = dict(first_wave_length=len(queue), first_wave_kinds=sorted({k for k, _ in queue}), first_wave_armed=[a is not None for _, a in queue],
@@ -417,6 +419,24 @@ def case_life():
     run("short", life=1.0)
     run("nearly_gone", life=1.0 / 60.0)
     run("dead_player", [(30, lambda g: g.hurt_player(1000, V(PLAYER[0] + 50.0, PLAYER[1])))])
+    return out
+
+
+def case_blink():
+    """Whether `Game.draw_pickup` draws anything for a pickup with so much life left (it hides it on every other eighth of a second
+    in its last six seconds): the real drawing function, on cleared surfaces, looking at the pixels around the pickup."""
+    out = []
+    g = fresh()
+    for life in (45.0, 10.0, 6.0, 5.99, 5.9, 5.876, 5.8, 5.7, 5.63, 5.6, 5.5, 5.25, 5.0, 4.9, 4.2, 3.0, 2.5, 1.0, 0.5, 0.2, 0.13, 0.1, 0.01):
+        g.pickups = []
+        pk = put(g, ("lance", 2, "ice"), 10.0, 0.0, life=life)
+        g.screen.fill((0, 0, 0))
+        g.fx.fill((0, 0, 0))
+        g.draw_pickup(pk)
+        sp = g.w2s(pk.pos)
+        area = pygame.Rect(int(sp.x) - 40, int(sp.y) - 90, 80, 110)
+        shown = any(pygame.transform.average_color(surface, area)[:3] != (0, 0, 0) for surface in (g.screen, g.fx))
+        out.append(dict(life=life, drawn=bool(shown)))
     return out
 
 
@@ -580,7 +600,7 @@ def dumps(o, indent=0):
 
 
 def main():
-    cases = dict(table=case_table(), matrix=case_matrix(), arming=case_arming(), drops=case_drops(), life=case_life(), reach=case_reach(),
+    cases = dict(table=case_table(), matrix=case_matrix(), arming=case_arming(), drops=case_drops(), life=case_life(), blink=case_blink(), reach=case_reach(),
                  swaps=case_swaps(), repeated=case_repeated(), trace=case_trace(), rules=case_rules())
     cases["fixture_scope"] = dict(waves_running=False, converge_used=False, auto_attack_parked=True, start_wave_only_in_arming_cases=True,
                                   armed_enemies_only_in_drops_cases=True)

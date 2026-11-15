@@ -23,6 +23,3 @@ static func make(type_value: StringName, rarity_value: int, element_value: Strin
 func display_name() -> String:
 	return SwordDefs.full_name(self)
 
-
-func same_as(other: SwordSpec) -> bool:
-	return other != null and type_id == other.type_id and rarity == other.rarity and element == other.element
