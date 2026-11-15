@@ -898,8 +898,7 @@ mutate skewer-recover-speed-wall                    scripts/sim/sword_defs.gd "P
 mutate skewer-is-clamped-like-an-area-ultimate      scripts/sim/sword_defs.gd "static func ultimate_is_shot(type_id: StringName) -> bool:
 	return type_id == PIKE" "static func ultimate_is_shot(type_id: StringName) -> bool:
 	return false"
-mutate skewer-point-clamped-by-the-run              scripts/sim/game_run.gd "if not SwordDefs.ultimate_is_shot(type_id) and to_point.length()" "if to_point.length()"
-mutate pike-unsupported                             scripts/sim/sword_defs.gd "return type_id == FANG or type_id == WARDEN or type_id == PIKE" "return type_id == FANG or type_id == WARDEN"
+mutate skewer-point-collapses-to-the-player          scripts/sim/game_run.gd "	var target: Vector2 = point" "	var target: Vector2 = position"
 mutate pike-far-preference-lost                     scripts/sim/sword_state.gd "				prefer_far = true" "				prefer_far = false"
 mutate pike-far-boundary-inclusive                  scripts/sim/sword_state.gd "and far > SwordDefs.PIKE_FAR_MIN:" "and far >= SwordDefs.PIKE_FAR_MIN:"
 mutate pike-far-filter-keeps-the-boundary           scripts/sim/sword_state.gd "if prefer_far and dist <= SwordDefs.PIKE_FAR_MIN:" "if prefer_far and dist < SwordDefs.PIKE_FAR_MIN:"
@@ -956,10 +955,6 @@ func begin("
 mutate skewer-restart-keeps-flying                  scripts/sim/sword_state.gd "	skewer_carried.clear()
 	skewer_flying = false
 	match spec.type_id:" "	skewer_carried.clear()
-	match spec.type_id:"
-mutate skewer-restart-keeps-carried                 scripts/sim/sword_state.gd "	skewer_carried.clear()
-	skewer_flying = false
-	match spec.type_id:" "	skewer_flying = false
 	match spec.type_id:"
 mutate skewer-aim-sword-turns-slowly                scripts/sim/sword_state.gd "		angle = atan2(dir.y, dir.x)
 		if ultimate_time_left <= 0.0:" "		angle = SimMath.ang_lerp(angle, atan2(dir.y, dir.x), 0.1)

@@ -100,8 +100,17 @@ if (scenario === "wall") {
   await key("KeyF", "f", 70);
   console.log("shove F right after engine start");
 }
-await sleep(scenario === "wall" ? 500 : 5000);
-if (scenario !== "wall") await click(640, 360); // focus the canvas and unlock audio
+if (scenario === "pike") {
+  // The Pikes start killing the column the moment the engine runs, so react to the engine's first
+  // console line, focus the page, aim north with the cursor and press E (slot two's Skewer) at once.
+  for (let i = 0; i < 600 && !consoleLines.some((l) => l.includes("Build configuration")); i++) await sleep(20);
+  await click(640, 360);
+  await move(640, 360 - 300);
+  await key("KeyE", "e", 69);
+  console.log("E (Skewer north, slot two) right after engine start, cursor (640, 60)");
+}
+await sleep(scenario === "wall" || scenario === "pike" ? 500 : 5000);
+if (scenario !== "wall" && scenario !== "pike") await click(640, 360); // focus the canvas and unlock audio
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1);
 
@@ -187,14 +196,13 @@ if (scenario === "crowd") {
     await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
   };
   let shotIndex = 0;
-  await sleep(600); await shot("pike-01-arrival");
-  for (const wait of [350, 350, 350]) { await sleep(wait); await shot(`pike-02-thrusts-${wait}-${shotIndex++}`); }
-  await move(640, 360 - 300); await key("KeyE", "e", 69);
-  console.log(`E (Skewer north, slot two) at ${stamp()}s, cursor (640, 60)`);
-  for (const wait of [80, 200, 200, 200, 200, 250, 300, 400]) { await sleep(wait); await shot(`pike-03-e-${wait}-${shotIndex++}`); }
+  await shot("pike-01-aim-or-flight");
+  for (const wait of [100, 150, 200, 250, 300, 400, 500]) { await sleep(wait); await shot(`pike-03-e-${wait}-${shotIndex++}`); }
   await key("KeyE", "e", 69); // slot two is recharging (10 s): refused, with a "recharging Ns" tag
   console.log(`E while recharging at ${stamp()}s`);
   await sleep(120); await shot("pike-04-e-refused");
+  for (const wait of [500, 500]) { await sleep(wait); await shot(`pike-02-thrusts-${wait}-${shotIndex++}`); }
+  await sleep(2500); // let the Pikes thrust at the next arrivals
   await move(640 + 300, 360); await key("KeyQ", "q", 81);
   console.log(`Q (Skewer east, slot one) at ${stamp()}s, cursor (940, 360)`);
   for (const wait of [200, 250, 300, 400]) { await sleep(wait); await shot(`pike-05-q-${wait}-${shotIndex++}`); }
