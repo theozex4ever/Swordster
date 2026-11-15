@@ -14,7 +14,7 @@
 #
 # Speed (issue #35). Nearly all of a full run_checks.gd run (about 45 s) is the render-rate
 # probes: sub-Godot processes at 5/20/60/240 fps in each fight group. Almost every mutation is
-# rejected by a behavioural check long before them, so each mutation is judged in two steps:
+# rejected by a behavioural check long before them, so each mutation is judged in up to three steps:
 #   1. focused: the same quick run restricted to the check group of the mutation's section
 #      (`--focus=warden_maelstrom`, see godot/tests/check_focus.gd), so the most relevant
 #      checks run first and most mutations end in a second or two.
@@ -45,8 +45,14 @@
 #                          against the sections too; an unknown name is refused.
 #   SHARD=i SHARDS=n       every n-th mutation of the selection starting at i (0-based), so n
 #                          copies of this script can run in parallel over the same selection.
-# Each shard ends with a `RESULT shard=… mode=… ran=… caught=… survived=… inconclusive=…
-# not_applied=…` line. `caught` counts only mutations that were applied and cleanly rejected;
+#   SECTIONS=count         prints the number of mutations in the whole list and exits (the CI
+#                          summary uses it to know what a complete pass must cover).
+# Each shard ends with a `RESULT shard=… shards=… total=… selected=… filters=… mode=… ran=…
+# caught=… survived=… inconclusive=… not_applied=…` line. `total` is the size of the whole list,
+# `selected` the size of the selection before sharding and `filters` names every selection
+# variable that was set (ONLY, SECTIONS, CORE; `none` when none was), so a pass that does not
+# cover the whole list can be told apart from a complete one (tools/godot/mutation-summary.sh).
+# `caught` counts only mutations that were applied and cleanly rejected;
 # a mutation whose search text no longer matches is `not_applied` (reported, never caught, and it
 # fails the run); `ran` counts every mutation started, so ran = caught + survived + inconclusive
 # + not_applied unless the script died in the middle of one.
@@ -56,7 +62,6 @@ REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 source "$REPO/tools/godot/godot.lock"
 CACHE_ROOT="${SWORDSTER_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/swordster}"
 GODOT_BIN="$CACHE_ROOT/godot-$GODOT_VERSION/editor/godot"
-[[ -x "$GODOT_BIN" ]] || { echo "pinned Godot missing; run ./build-godot.sh --bootstrap-only" >&2; exit 1; }
 
 # SHARDS must be a positive integer and SHARD an integer in [0, SHARDS): anything else would
 # silently select no mutations and report success, so it is refused before any work starts.
@@ -89,6 +94,7 @@ while IFS= read -r line; do
 done < "${BASH_SOURCE[0]}"
 
 SECTIONS="${SECTIONS:-}"
+if [[ "${SECTIONS,,}" == count ]]; then echo "${#MUTATION_NAMES[@]}"; exit 0; fi
 if [[ "${SECTIONS,,}" == list ]]; then
   for key in "${SECTION_KEYS[@]}"; do
     aliases=""; for slice in "${!SECTION_ALIAS[@]}"; do [[ "${SECTION_ALIAS[$slice]}" == "$key" ]] && aliases=" (slice #$slice)"; done
@@ -96,6 +102,14 @@ if [[ "${SECTIONS,,}" == list ]]; then
   done
   exit 0
 fi
+# The pinned engine is needed from here on (listing and counting the mutations is not).
+[[ -x "$GODOT_BIN" ]] || { echo "pinned Godot missing; run ./build-godot.sh --bootstrap-only" >&2; exit 1; }
+# Every selection variable that is set, recorded in the RESULT line: a complete pass has none.
+filters=()
+[[ -z "$SECTIONS" ]] || filters+=(SECTIONS)
+[[ -z "${ONLY:-}" ]] || filters+=(ONLY)
+[[ -z "${CORE:-}" ]] || filters+=(CORE)
+FILTERS=none; ((${#filters[@]} == 0)) || FILTERS="$(IFS=+; echo "${filters[*]}")"
 declare -A WANT_SECTION=()
 if [[ -n "$SECTIONS" && "${SECTIONS,,}" != all ]]; then
   IFS=',' read -r -a requested <<<"$SECTIONS"
@@ -129,7 +143,7 @@ for name in "${MUTATION_NAMES[@]}"; do
 done
 
 survived=0; inconclusive=0; ran=0; caught=0; not_applied=0
-report_result() { echo "RESULT shard=$SHARD shards=$SHARDS mode=$([[ "$FAST" == 1 ]] && echo fast || echo classic) ran=$ran caught=$caught survived=$survived inconclusive=$inconclusive not_applied=$not_applied"; }
+report_result() { echo "RESULT shard=$SHARD shards=$SHARDS total=${#MUTATION_NAMES[@]} selected=$selected filters=$FILTERS mode=$([[ "$FAST" == 1 ]] && echo fast || echo classic) ran=$ran caught=$caught survived=$survived inconclusive=$inconclusive not_applied=$not_applied"; }
 if ((${#PLAN[@]} == 0)); then
   echo "shard $SHARD of $SHARDS: no mutations selected ($selected selected in all)"; report_result; exit 0
 fi

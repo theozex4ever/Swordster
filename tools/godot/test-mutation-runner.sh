@@ -7,7 +7,9 @@
 #      CAUGHT in the fast mode (it stops at the first clean failure) and INCONCLUSIVE in the
 #      strict classic mode, which CI runs: the documented difference between the modes;
 #   3. the shard summary succeeds only when the matrix job succeeded and every shard has a
-#      clean result file: one aborted shard, a missing file or a cancelled job all fail it;
+#      clean result file AND together they cover the whole mutation list (shard count, per-shard
+#      counts and filters checked against the list itself): one aborted shard, a missing,
+#      duplicate or extra file, a cancelled job, a filtered or short run all fail it;
 #   4. a focused run never prints "CHECKS PASSED".
 # Needs the pinned Godot in the cache for 1, 2 and 4: ./build-godot.sh --bootstrap-only.
 #   tools/godot/test-mutation-runner.sh [summary|stale|crash|focus ...]   (default: all)
@@ -42,10 +44,17 @@ checker() { # sandbox mode log -> runs ONLY=speed-zero, prints the exit status
 # ---- 3. the shard summary
 if wants summary; then
   SHARDS=12
-  results() { # dir -> twelve clean classic results
+  # The size of the whole list, counted here independently of the checker (the summary asks the
+  # checker): every `mutate NAME ...` line of the script, like the checker's own parser.
+  FULL="$(grep -cE '^mutate[[:space:]]+[^[:space:]]' "$REPO/tools/godot/mutation-check.sh")"
+  expect() { echo $(((FULL - $1 + SHARDS - 1) / SHARDS)); } # shard -> its share of the list
+  result_line() { # shard shards ran caught survived inconclusive not_applied [filters] [selected] [total]
+    echo "RESULT shard=$1 shards=$2 total=${10:-$FULL} selected=${9:-$FULL} filters=${8:-none} mode=classic ran=$3 caught=$4 survived=$5 inconclusive=$6 not_applied=$7 exit=0"
+  }
+  results() { # dir -> twelve clean classic results that together cover the whole list
     mkdir -p "$1"
     for ((s = 0; s < SHARDS; s++)); do
-      echo "RESULT shard=$s shards=$SHARDS mode=classic ran=38 caught=38 survived=0 inconclusive=0 not_applied=0 exit=0" > "$1/result-$s.txt"
+      n="$(expect "$s")"; result_line "$s" "$SHARDS" "$n" "$n" 0 0 0 > "$1/result-$s.txt"
     done
   }
   judge_set() { # name want-exit matrix-result dir
@@ -54,21 +63,64 @@ if wants summary; then
     if [[ "$status" == "$2" ]]; then report "summary: $1" PASS; else report "summary: $1" "exit $status, wanted $2" "$out"; fi
   }
   d="$ROOT/s-pass"; results "$d";                                              judge_set "all twelve shards pass" 0 success "$d"
+  grep -q "all $SHARDS shards succeeded: $FULL of $FULL mutations caught, $FULL of $FULL expected" "$ROOT/summary-all twelve shards pass.log" \
+    && report "summary: the verdict line shows the coverage of the full list" PASS \
+    || report "summary: the verdict line shows the coverage of the full list" "no '$FULL of $FULL expected' line" "$ROOT/summary-all twelve shards pass.log"
   d="$ROOT/s-aborted"; results "$d"; sed -i 's/exit=0/exit=1/' "$d/result-7.txt"
   judge_set "one shard exited 1 although its counts look clean" 1 success "$d"
   d="$ROOT/s-aborted-matrix"; results "$d"; judge_set "matrix job failed, every file clean" 1 failure "$d"
-  d="$ROOT/s-missing"; results "$d"; rm "$d/result-3.txt";                      judge_set "one result file missing" 1 success "$d"
+  d="$ROOT/s-missing"; results "$d"; rm "$d/result-3.txt";                      judge_set "one result file missing (missing shard index)" 1 success "$d"
   d="$ROOT/s-cancelled"; results "$d";                                         judge_set "job cancelled, files from finished shards pass" 1 cancelled "$d"
   d="$ROOT/s-none"; mkdir -p "$d";                                              judge_set "no result files at all" 1 failure "$d"
   d="$ROOT/s-early"; results "$d"; echo "RESULT shard=5 (no result: the script stopped early) exit=2" > "$d/result-5.txt"
   judge_set "a shard whose checker died before its RESULT line" 1 success "$d"
   d="$ROOT/s-noexit"; results "$d"; sed -i 's/ exit=0//' "$d/result-2.txt";    judge_set "result without a recorded exit status" 1 success "$d"
-  d="$ROOT/s-notapplied"; results "$d"; sed -i 's/caught=38 survived=0 inconclusive=0 not_applied=0/caught=37 survived=0 inconclusive=0 not_applied=1/' "$d/result-9.txt"
+  d="$ROOT/s-notapplied"; results "$d"; n="$(expect 9)"; result_line 9 $SHARDS "$n" $((n - 1)) 0 0 1 > "$d/result-9.txt"
   judge_set "a mutation not applied" 1 success "$d"
-  d="$ROOT/s-inconclusive"; results "$d"; sed -i 's/caught=38 survived=0 inconclusive=0/caught=37 survived=0 inconclusive=1/' "$d/result-0.txt"
+  d="$ROOT/s-inconclusive"; results "$d"; n="$(expect 0)"; result_line 0 $SHARDS "$n" $((n - 1)) 0 1 0 > "$d/result-0.txt"
   judge_set "an inconclusive mutation" 1 success "$d"
   d="$ROOT/s-fast"; results "$d"; sed -i 's/mode=classic/mode=fast/' "$d/result-4.txt"; judge_set "a shard that ran in fast mode" 1 success "$d"
   d="$ROOT/s-wrong-shard"; results "$d"; cp "$d/result-1.txt" "$d/result-6.txt"; judge_set "a result file that belongs to another shard" 1 success "$d"
+
+  # The pass must cover the whole list: none of these may certify an incomplete one.
+  d="$ROOT/s-shards24"; mkdir -p "$d"                                  # twelve files of a 24-shard run
+  for ((s = 0; s < 12; s++)); do result_line "$s" 24 19 19 0 0 0 > "$d/result-$s.txt"; done
+  judge_set "twelve files declaring shards=24, 19 clean catches each" 1 success "$d"
+  d="$ROOT/s-one-each"; mkdir -p "$d"                                  # ONLY=<one mutation> on every shard
+  for ((s = 0; s < SHARDS; s++)); do result_line "$s" $SHARDS 1 1 0 0 0 ONLY 1 > "$d/result-$s.txt"; done
+  judge_set "twelve clean one-mutation results (ONLY filter)" 1 success "$d"
+  d="$ROOT/s-one-each-nofilter"; mkdir -p "$d"                         # same counts, the filter not recorded
+  for ((s = 0; s < SHARDS; s++)); do result_line "$s" $SHARDS 1 1 0 0 0 none 1 > "$d/result-$s.txt"; done
+  judge_set "twelve clean one-mutation results claiming no filter" 1 success "$d"
+  d="$ROOT/s-sections"; results "$d"                                   # a SECTIONS-filtered run: every file says so
+  for ((s = 0; s < SHARDS; s++)); do n="$(expect "$s")"; result_line "$s" $SHARDS "$n" "$n" 0 0 0 SECTIONS > "$d/result-$s.txt"; done
+  judge_set "a SECTIONS filter recorded although the counts look complete" 1 success "$d"
+  d="$ROOT/s-sections-short"; mkdir -p "$d"                            # SECTIONS=pike: a smaller selection split in twelve
+  for ((s = 0; s < SHARDS; s++)); do result_line "$s" $SHARDS 3 3 0 0 0 SECTIONS 36 > "$d/result-$s.txt"; done
+  judge_set "a SECTIONS-filtered selection split over twelve shards" 1 success "$d"
+  d="$ROOT/s-core0"; results "$d"; sed -i 's/filters=none/filters=CORE/' "$d/result-8.txt"; judge_set "one shard with a CORE filter" 1 success "$d"
+  d="$ROOT/s-nofilters-field"; results "$d"; sed -i 's/ filters=none//' "$d/result-2.txt"; judge_set "a result without the filters field" 1 success "$d"
+  d="$ROOT/s-duplicate"; results "$d"; sed -i 's/shard=11 /shard=4 /' "$d/result-11.txt"; judge_set "a duplicate shard index (11 reports 4)" 1 success "$d"
+  d="$ROOT/s-extra-file"; results "$d"; cp "$d/result-0.txt" "$d/result-12.txt"; judge_set "an extra result file beyond the last shard" 1 success "$d"
+  d="$ROOT/s-count-mismatch"; results "$d"; n="$(expect 5)"; result_line 5 $SHARDS $((n - 1)) $((n - 1)) 0 0 0 > "$d/result-5.txt"
+  judge_set "one shard ran one mutation fewer than its share" 1 success "$d"
+  d="$ROOT/s-count-more"; results "$d"; n="$(expect 5)"; result_line 5 $SHARDS $((n + 1)) $((n + 1)) 0 0 0 > "$d/result-5.txt"
+  judge_set "one shard ran one mutation more than its share" 1 success "$d"
+  d="$ROOT/s-total"; results "$d"; sed -i "s/ total=$FULL / total=$((FULL - 1)) /" "$d/result-1.txt"; judge_set "a shard that counts a shorter mutation list" 1 success "$d"
+  d="$ROOT/s-selected"; results "$d"; sed -i "s/ selected=$FULL / selected=$((FULL - 1)) /" "$d/result-1.txt"; judge_set "a shard that selected fewer mutations than the list" 1 success "$d"
+  d="$ROOT/s-zero-ran"; results "$d"; result_line 3 $SHARDS 0 0 0 0 0 > "$d/result-3.txt"; judge_set "a shard that ran nothing" 1 success "$d"
+  # The shard count of the workflow matrix is checked when the summary is told where the workflow is.
+  for len in 12 10; do
+    wf="$ROOT/matrix-$len.yml"; list="$(seq -s ', ' 0 $((len - 1)))"; printf 'jobs:\n  mutation:\n    strategy:\n      matrix:\n        shard: [%s]\n' "$list" > "$wf"
+    d="$ROOT/s-matrix-$len"; results "$d"; status=0; out="$ROOT/summary-matrix-$len.log"
+    WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-matrix-$len.md" MATRIX_RESULT=success SHARDS=$SHARDS "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
+    want=0; ((len == SHARDS)) || want=1
+    if [[ "$status" == "$want" ]]; then report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" PASS; else report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" "exit $status, wanted $want" "$out"; fi
+  done
+  # The real workflow file must agree with SHARDS=12 of its own env block.
+  wf="$REPO/.github/workflows/mutation.yml"; d="$ROOT/s-real-workflow"; results "$d"; status=0; out="$ROOT/summary-real-workflow.log"
+  WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-real-workflow.md" MATRIX_RESULT=success SHARDS="$(sed -n 's/^  SHARDS: \([0-9]*\)$/\1/p' "$wf")" "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
+  if [[ "$status" == 0 ]]; then report "summary: the real workflow's SHARDS matches its matrix" PASS; else report "summary: the real workflow's SHARDS matches its matrix" "exit $status" "$out"; fi
 fi
 
 # ---- 1. stale mutation text

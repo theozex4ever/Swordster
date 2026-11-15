@@ -65,12 +65,18 @@ jobs:
         env:
           # Strict mode: the complete suite, probes included, for every mutation.
           FAST: "0"
+          # A complete pass takes no selection: these must stay empty (the summary rejects any
+          # shard whose RESULT line records a filter, and any count short of the whole list).
+          ONLY: ""
+          SECTIONS: ""
+          CORE: ""
         run: |
+          unset ONLY SECTIONS CORE
           set +e
           SHARD="${{ matrix.shard }}" SHARDS="$SHARDS" tools/godot/mutation-check.sh 2>&1 | tee "shard-${{ matrix.shard }}.log"
           rc=${PIPESTATUS[0]}
           set -e
-          # RESULT shard=… mode=… ran=… caught=… survived=… inconclusive=… not_applied=…; absent if
+          # RESULT shard=… shards=… total=… selected=… filters=… mode=… ran=… caught=… …; absent if
           # the script died early. The shard's exit status is recorded next to it and is
           # validated by the summary job (an absent or non-zero exit fails the pass).
           result="$(grep '^RESULT ' "shard-${{ matrix.shard }}.log" | tail -n 1 || true)"
@@ -126,4 +132,7 @@ jobs:
         shell: bash
         env:
           MATRIX_RESULT: ${{ needs.mutation.result }}
+          # The summary checks the shards against this workflow's own matrix and against the
+          # mutation list of this commit (see tools/godot/mutation-summary.sh).
+          WORKFLOW_FILE: .github/workflows/mutation.yml
         run: bash tools/godot/mutation-summary.sh results
