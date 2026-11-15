@@ -129,4 +129,4 @@ jobs:
         shell: bash
         env:
           MATRIX_RESULT: ${{ needs.mutation.result }}
-        run: tools/godot/mutation-summary.sh results
+        run: bash tools/godot/mutation-summary.sh results
