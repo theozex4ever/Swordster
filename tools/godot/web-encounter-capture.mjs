@@ -272,7 +272,7 @@ if (scenario === "crowd") {
   await watch("02-ranges", 400);
   await key("Tab", "Tab", 9);
   // The wave arrives about 1.6 s in; give it time, then command Converge at a NEAR point east of the player with the left button.
-  await sleep(2500);
+  await sleep(1500);
   await move(640 + 140, 360 - 10);
   await clickWith(640 + 140, 360 - 10, "left");
   console.log("left click, near point 140 px east, at " + stamp() + "s");
@@ -282,7 +282,7 @@ if (scenario === "crowd") {
   await clickWith(640 - 150, 360 + 30, "right");
   console.log("right click during the cooldown (refused), at " + stamp() + "s");
   await watch("05-right-click-refused", 150);
-  await sleep(3000);
+  await sleep(2300);
   // A FAR point (about 640 px away, 460 px is the range): the right button, pulled back onto the range.
   await move(640 + 600, 360 - 300);
   await clickWith(640 + 600, 360 - 300, "right");

@@ -96,3 +96,24 @@ a replaced sword visual leaving the fight unchanged, and the default-loadout fig
    cursor's offset from the middle of the visible area; the shaken camera only moves what is drawn.
 8. **The visible area.** The port's stretch mode reveals more arena in a larger or taller window than the prototype's
    fixed 1280x720; the aim follows the visible area's size, so a click lands on what is under the cursor.
+
+## Evidence (screenshots in `docs/reference/converge/`)
+
+Both are of build `20261115-173838-e09996581` (commit `e099965`), the clean-tree build of the code that this slice
+changed; the Web ZIP and Windows ZIP verified against its `SHA256SUMS`. Game code changed afterwards only in the `Main` and
+effects-layer comments (none), see the PR for the final head; the screenshots are not redrawn for a comment.
+
+- **Web, headless Chromium with software WebGL, browser-level mouse and key events** (`SCENARIO=converge node
+  tools/godot/web-encounter-capture.mjs`; the page is paused with P to take each screenshot): the normal start with the default
+  loadout's three cards (Viper Flurry POISON, Maelstrom ICE, Cataclysm FIRE) and the attack ranges after Tab
+  (`web-ranges-tab.png`); a left click 140 px east: all three swords converge on it (Colossus slam ring, Warden sweep, Fang
+  dash), the HUD counts the cooldown (`web-left-click-near.png`); a right click during the cooldown is refused
+  (`web-click-refused-cooldown.png`); a right click at a point about 670 px away: the slam lands 458 px from the player, the
+  range clamp (`web-right-click-far-clamped.png`); Q, E and R with the cursor at three points: Viper Flurry recharging (7 s),
+  Maelstrom active, Cataclysm recharging, Converge ready again (`web-qer-default-loadout.png`). The capture script's own first
+  action, a click on the player to focus the canvas, is itself a Converge at the player's position.
+- **Windows build under Wine (not a Windows machine), the shipped unmodified pack**, `SHA256SUMS` verified before and after,
+  `--write-movie` (the movie is 1280x720: the game ignores the window size for its frames), no input and no autopilot: the normal
+  start with the default loadout, the Converge line and the controls hint (`wine-shipped-normal-start.png`), and the swords
+  fighting the first wave by themselves (`wine-shipped-default-loadout-fight.png`). A Converge is not shown under Wine; the Web
+  screenshots show it. **Real-Windows input is deferred to #6 / #22.**
