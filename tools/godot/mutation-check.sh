@@ -1066,10 +1066,44 @@ mutate skewer-release-sound-always                  scripts/audio/sfx_bank.gd "	
 				play(\"hit\")" "			play(\"hit\")"
 mutate pike-visual-needle                           scripts/presentation/placeholder_sword_visual.gd "	_pike = spec.type_id == SwordDefs.PIKE" "	_pike = false"
 
-mutate skewer-aim-line-not-drawn                    scripts/presentation/effects_layer.gd "		draw_counts[&\"skewer_aim\"] = draw_counts.get(&\"skewer_aim\", 0) + 1
+# The Pike's strokes are counted by the same call that draws them (`_stroke`, `_stroke_ring`), so removing the
+# real draw call removes the count too: each of these takes out one stroke the layer draws, not a counter.
+mutate skewer-aim-band-not-drawn                    scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_band\", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
 " ""
-mutate skewer-carry-rings-not-drawn                 scripts/presentation/effects_layer.gd "		draw_counts[&\"skewer_carry\"] = draw_counts.get(&\"skewer_carry\", 0) + 1
+mutate skewer-aim-line-not-drawn                    scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_line\", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
 " ""
+mutate skewer-aim-both-strokes-not-drawn            scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_aim_band\", _run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+		_stroke(&\"skewer_aim_line\", _run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+" ""
+mutate skewer-carry-ring-not-drawn                  scripts/presentation/effects_layer.gd "		_stroke_ring(&\"skewer_carry_ring\", enemy.position, enemy.radius + 7.0, Color(tint, 0.85), 3.0)
+" ""
+mutate skewer-carry-line-not-drawn                  scripts/presentation/effects_layer.gd "		_stroke(&\"skewer_carry_line\", enemy.position, tip, Color(tint, 0.4), 2.0)
+" ""
+mutate thrust-telegraph-band-not-drawn              scripts/presentation/effects_layer.gd "	_stroke(&\"thrust_telegraph_band\", from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
+" ""
+mutate thrust-telegraph-line-not-drawn              scripts/presentation/effects_layer.gd "	_stroke(&\"thrust_telegraph_line\", from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+" ""
+
+# The release is compared whole on every fixture (the carried enemies' velocity, health and stun and the slam
+# on the release tick), so each part of it is a mutation of its own: the release speeds along a diagonal and a
+# straight wall, damage on release, and the slam.
+mutate skewer-release-diagonal-wall-speed-halved    scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if at_wall and absf(dir.x) > 0.5 and absf(dir.y) > 0.5 else 1.0)"
+mutate skewer-release-straight-wall-speed-halved    scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if at_wall and (absf(dir.x) > 0.99 or absf(dir.y) > 0.99) else 1.0)"
+mutate skewer-release-diagonal-range-speed-halved   scripts/sim/sword_state.gd "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)" "enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE) * (0.5 if not at_wall and absf(dir.x) > 0.5 and absf(dir.y) > 0.5 else 1.0)"
+mutate skewer-release-deals-damage                  scripts/sim/sword_state.gd "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+" "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+			enemy.hp -= 1.0
+"
+mutate skewer-release-heals                         scripts/sim/sword_state.gd "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+" "			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+			enemy.hp += 1.0
+"
+mutate skewer-release-slam-never-at-wall-speed      scripts/sim/enemy_state.gd "	if slammed and stun > 0.0 and speed_before > GameRun.WALL_SLAM_MIN_SPEED:" "	if slammed and stun > 0.0 and speed_before > GameRun.WALL_SLAM_MIN_SPEED and speed_before < SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL - 1.0:"
+mutate skewer-release-slam-a-tick-late              scripts/sim/sword_state.gd "			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+" "			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+			enemy.position -= dir * 60.0
+"
+
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((ran - survived - inconclusive)) caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi
