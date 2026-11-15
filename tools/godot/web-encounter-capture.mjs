@@ -230,34 +230,26 @@ if (scenario === "crowd") {
   await key("KeyC", "c", 67); // the next dev encounter after the pike one is the normal run
   await sleep(1200); await shot("pike-08-next-dev-encounter-normal");
 } else if (scenario === "colossus") {
-  // The colossus encounter: watch the first Cataclysm rise, fall and leave its poison field over the cluster, then E (slot two,
-  // ice) with the cursor west of the player and R (slot three, fire) north of him, so all three fields stand at once, and Q again
-  // while it recharges (refused). The view is 1280x720 and centred on the player, so the cursor at (640 + dx, 360 + dy) aims
-  // dx, dy pixels from him.
-  const hold = async (code, k, vk, ms) => {
-    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
-    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
-    await sleep(ms);
-    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
-  };
+  // The colossus encounter, driven only by browser key and mouse events. The software-rendered page takes seconds per
+  // screenshot while the game runs on, so the three Cataclysms are pressed in quick succession (Q poison east over the
+  // cluster, E ice west, R fire north) and the game is PAUSED with P (a key the game itself handles) to take the
+  // screenshots: paused, the rise, the landing and the three fields stand still. The view is 1280x720 and centred on the
+  // player, so the cursor at (640 + dx, 360 + dy) aims dx, dy pixels from him.
+  const pause = async () => { await key("KeyP", "p", 80); await sleep(300); };
   let shotIndex = 0;
-  await shot("colossus-01-q-rise-or-fall");
-  for (const wait of [150, 200, 250, 300, 400, 500]) { await sleep(wait); await shot(`colossus-02-q-${wait}-${shotIndex++}`); }
+  const watch = async (label, ms) => { await sleep(ms); await pause(); await shot(`colossus-${label}-${shotIndex++}`); await pause(); };
+  await watch("01-q-landing", 0);
   await move(640 - 220, 360 + 40); await key("KeyE", "e", 69);
   console.log(`E (Cataclysm west, slot two, ice) at ${stamp()}s, cursor (420, 400)`);
-  for (const wait of [200, 300, 400, 500, 600]) { await sleep(wait); await shot(`colossus-03-e-${wait}-${shotIndex++}`); }
   await move(640, 360 - 250); await key("KeyR", "r", 82);
   console.log(`R (Cataclysm north, slot three, fire) at ${stamp()}s, cursor (640, 110)`);
-  for (const wait of [200, 300, 400, 500, 800]) { await sleep(wait); await shot(`colossus-04-r-${wait}-${shotIndex++}`); }
+  await watch("02-three-rising", 250);
+  await watch("03-landings", 400);
+  await watch("04-three-fields", 500);
+  await watch("05-fields", 700);
   await key("KeyQ", "q", 81); // slot one is recharging (14 s): refused, with a "recharging Ns" tag
   console.log(`Q while recharging at ${stamp()}s`);
-  await sleep(120); await shot("colossus-05-q-refused");
-  const moves = [["KeyD", "d", 68], ["KeyS", "s", 83], ["KeyA", "a", 65], ["KeyW", "w", 87]];
-  for (let round = 0; round < Number(process.env.ROUNDS ?? 6); round++) {
-    const [code, k, vk] = moves[round % 4];
-    await hold(code, k, vk, 500);
-    await shot(`colossus-06-round-${String(round).padStart(2, "0")}`);
-  }
+  await watch("06-q-refused", 100);
   await key("KeyC", "c", 67); // the next dev encounter after the colossus one is the normal run
   await sleep(1200); await shot("colossus-07-next-dev-encounter-normal");
 } else if (scenario === "conditions") {
