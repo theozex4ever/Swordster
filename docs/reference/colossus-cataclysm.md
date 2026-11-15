@@ -263,4 +263,34 @@ Each is a scope or correctness decision of slice #15, not a rebalance.
 
 ## Validation
 
-_(filled in below once the final validation has run)_
+Linux, Godot 4.7.2-stable. Stacked on `feat/14-pike-skewer`: started from `e6f35c1`, then merged its later commits
+(`8a3e743`, `78ff201`); base `origin/main` `2d68b50`; branch `feat/15-colossus-cataclysm`.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1503` (166 of them are `colossus_cataclysm_checks.gd`'s; the earlier slices' dev-encounter cycle checks were extended by one step). Full build OK on a clean tree: `20261115-101330-5fd36ea7d` (its `SHA256SUMS` verifies). Commits after that build changed tests and docs only. |
+| `tools/godot/mutation-check.sh` | One complete pass of all 790 mutations in 6 shards on head `33dcc11` (the game code of the final head): **789 caught**, 0 survived, 1 inconclusive: `placement-health-dropped`, an earlier slice's mutation, which made the new Colossus checks index an enemy that had died (a crash after the failure instead of a verdict). The checks were fixed to keep their enemy references (tests only, `882214e`), then that mutation and the whole Colossus section (195 new mutations, the 5 earlier mutations whose anchor text the new code changed, and that one: 201 in all) were re-run on `882214e`: **201 of 201 caught**, 0 inconclusive. 195 of the 790 are new: constants, targeting, altitude and fall, the slam, Cataclysm, the field, orbs, the encounter and its wiring, effects and visuals. Five earlier mutations were repaired because the new `_update_fields` call and the dev cycle's new last step changed the text they patch (`conditions-tick-after-contacts`, `conditions-render-rate-dependent` and the three `*-encounter-not-in-cycle`). The runner's fixed 120 s per-run timeout was raised to 300 s in a scratch copy (nothing else changed, nothing committed) because other agents' passes loaded the shared machine and made correct runs exit 124; the committed script was used for the first, interrupted attempts. Mutations deliberately dropped as equivalent: landing "exactly on the point" (the glide has already closed to under 0.05 px), a field reaching an enemy exactly on its edge (no fixture can sit there, covered by a direct check), and the `<=` of the slam's landing test (only differs at exactly zero). |
+| Reference regeneration | All eight captures (`capture_colossus_cataclysm.py` and the seven earlier ones) rerun on the merged head give output byte-identical (`cmp`) to the committed JSON; the seven earlier JSON files are unchanged by this PR. |
+| Low/high render rates | The scripted fight (a Mythic poison, a Rare ice and a Common fire Colossus crushing standing packs, four Cataclysms, two refused presses, orbs cleared) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to a bare `GameRun.step()` loop every time. |
+| Per-tick comparison with the prototype | Sword pose, phases, altitude, fall speed, clocks, recharge; every enemy's position, health, velocity, stun, flash, death and every condition field; the orbs; up to three fields' life and clock; hitstop, shake, kick, kills, combo; the slam found in reach and the doses a field gave: on every tick of every captured trace (7,150 ticks), apart from what exception 2 excludes, plus 56 + 12 reach probes, 12 field probes, 54 orb probes and 12 targeting layouts. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261115-101330-5fd36ea7d`, served over HTTP with `?encounter=colossus` and driven with browser mouse-move and key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=colossus`): **Q** with the cursor over the cluster (poison), then **E** west (ice) and **R** north (fire) in quick succession; the page is paused with **P** for the screenshots, because the software-rendered page takes seconds per screenshot while the game runs on. The shots show the three Cataclysms rising, the rings they will crush, the landing, then **three live fields at once** (green east, blue west, orange north: card status 11s / 12s / 12s, legend "fields 3 (live 3)"), frozen foes inside the ice field, and **Q** pressed while recharging refused ("recharging 9s"). Console: the three Godot start-up lines, no errors. The press-to-landing timing in the screenshots is the browser\'s, not the simulation\'s. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The same build: the full build\'s ZIP extracted unmodified, its own `SHA256SUMS` verified (all five files OK), the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <frames> --fixed-fps 30 --quit-after 600 -- --encounter=colossus` (a scratch Wine prefix): engine-side frames of the game\'s own viewport (no desktop capture, no input, nothing added to the game). The frames show the colossus encounter\'s HUD (three **Cataclysm READY** cards with POISON / ICE / FIRE, "Colossus sword"), the three Colossi winding up over the cluster with the ring they will crush, the landings with their damage numbers and kills. **What this does not show:** a Cataclysm or a field in the Windows build. No key or mouse event was sent to the shipped build (no autopilot exists in the game), so Q/E/R input in a Windows build belongs to the deferred device matrix (#6/#22); the Cataclysms and their three fields are shown in the Web build. |
+
+Screenshots (in `docs/reference/colossus-cataclysm/`):
+[`web-cataclysm-three-rising.png`](colossus-cataclysm/web-cataclysm-three-rising.png) (three Cataclysms in the air, ice and fire "ACTIVE", the poison field already down),
+[`web-cataclysm-three-fields.png`](colossus-cataclysm/web-cataclysm-three-fields.png) (poison, ice and fire fields standing together),
+[`web-cataclysm-q-refused.png`](colossus-cataclysm/web-cataclysm-q-refused.png) (Q refused while recharging),
+[`wine-shipped-colossus-windup-ring.png`](colossus-cataclysm/wine-shipped-colossus-windup-ring.png),
+[`wine-shipped-colossus-slam-ring.png`](colossus-cataclysm/wine-shipped-colossus-slam-ring.png) and
+[`wine-shipped-colossus-slam.png`](colossus-cataclysm/wine-shipped-colossus-slam.png) (shipped pack, no input).
+
+## What was not verified
+
+- **No real Windows machine** and no real Android device (#6, #22). The Wine run proves the shipped export launches and
+  renders the Colossus fight and HUD, not that it behaves on Windows. No touch ultimate controls exist yet (#20).
+- Web was run in headless Chromium with a software renderer and synthetic browser input, not Firefox, a real GPU or a
+  phone. Frame pacing and audio were not measured (audio was muted).
+- Windows evidence is engine-side frames of the shipped pack under Wine with no input: no Q/E/R event was sent to it, so
+  a Cataclysm and its fields in the Windows build belong to the deferred device matrix.
+- Converge's interaction with a slam (the fast windup, boost 1.5) is not captured: only the damage boost's formula is
+  asserted (issue #16).
