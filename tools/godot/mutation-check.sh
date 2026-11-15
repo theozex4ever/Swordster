@@ -1875,7 +1875,8 @@ mutate enemy-visual-armed-ignored              scripts/presentation/placeholder_
 	_armed = spec" "func _on_armed(spec: SwordSpec) -> void:
 	_armed = null"
 mutate pickup-ground-not-drawn                 scripts/presentation/effects_layer.gd "		_draw_pickup_ground(pickup)
-" ""
+" "		pass
+"
 mutate pickup-blink-ignored-by-layer           scripts/presentation/effects_layer.gd "	if pickup.blink_hidden():
 		return
 " ""
