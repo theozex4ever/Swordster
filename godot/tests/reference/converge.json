@@ -12782,6 +12782,28 @@
    "compare_until": 80
   }
  },
+ "default_wave": {
+  "no_input": [
+   {"seed": 1, "cleared_at": 13.58, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 2, "cleared_at": 12.13, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 3, "cleared_at": 11.07, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 4, "cleared_at": 11.27, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 5, "cleared_at": 14.27, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 6, "cleared_at": 12.2, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 7, "cleared_at": 14.02, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0},
+   {"seed": 8, "cleared_at": 12.78, "died": false, "hp": 100.0, "kills": 8, "converged": 0, "armed_enemies": 0}
+  ],
+  "converge_every_3s": [
+   {"seed": 1, "cleared_at": 10.35, "died": false, "hp": 100.0, "kills": 8, "converged": 3, "armed_enemies": 0},
+   {"seed": 2, "cleared_at": 12.47, "died": false, "hp": 100.0, "kills": 8, "converged": 3, "armed_enemies": 0},
+   {"seed": 3, "cleared_at": 13.12, "died": false, "hp": 100.0, "kills": 8, "converged": 4, "armed_enemies": 0},
+   {"seed": 4, "cleared_at": 13.3, "died": false, "hp": 100.0, "kills": 8, "converged": 4, "armed_enemies": 0},
+   {"seed": 5, "cleared_at": 12.82, "died": false, "hp": 100.0, "kills": 8, "converged": 3, "armed_enemies": 0},
+   {"seed": 6, "cleared_at": 14.02, "died": false, "hp": 100.0, "kills": 8, "converged": 4, "armed_enemies": 0},
+   {"seed": 7, "cleared_at": 12.1, "died": false, "hp": 100.0, "kills": 8, "converged": 4, "armed_enemies": 0},
+   {"seed": 8, "cleared_at": 12.58, "died": false, "hp": 100.0, "kills": 8, "converged": 4, "armed_enemies": 0}
+  ]
+ },
  "touch_and_ranges": {
   "touch_nearest": {
    "ticks": 120,

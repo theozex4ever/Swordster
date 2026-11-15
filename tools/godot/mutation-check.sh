@@ -1613,6 +1613,153 @@ mutate presenter-drops-the-altitude                 scripts/presentation/run_pre
 mutate sword-visual-contract-drops-the-altitude     scripts/presentation/sword_visual.gd "	_on_altitude(height)
 " "	pass
 "
+# --- Converge and the default loadout (slice #16)
+mutate converge-cooldown                                  scripts/sim/sword_defs.gd "CONVERGE_COOLDOWN: float = 2.5" "CONVERGE_COOLDOWN: float = 2.0"
+mutate converge-range                                     scripts/sim/sword_defs.gd "CONVERGE_RANGE: float = 460.0" "CONVERGE_RANGE: float = 480.0"
+mutate converge-target-radius                             scripts/sim/sword_defs.gd "CONVERGE_TARGET_RADIUS: float = 90.0" "CONVERGE_TARGET_RADIUS: float = 100.0"
+mutate converge-boost                                     scripts/sim/sword_defs.gd "CONVERGE_BOOST: float = 1.5" "CONVERGE_BOOST: float = 1.4"
+mutate converge-windup-factor                             scripts/sim/sword_defs.gd "CONVERGE_WINDUP_FACTOR: float = 0.6" "CONVERGE_WINDUP_FACTOR: float = 0.7"
+mutate converge-strike-takes-the-command                  scripts/sim/sword_state.gd "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+" "	if phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+"
+mutate converge-stuck-takes-the-command                   scripts/sim/sword_state.gd "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+" "	if phase == Phase.STRIKE or phase == Phase.ULTIMATE:
+		return false
+"
+mutate converge-ultimate-takes-the-command                scripts/sim/sword_state.gd "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+" "	if phase == Phase.STRIKE or phase == Phase.STUCK:
+		return false
+"
+mutate converge-windup-refuses-the-command                scripts/sim/sword_state.gd "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+" "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE or phase == Phase.WINDUP:
+		return false
+"
+mutate converge-recover-refuses-the-command               scripts/sim/sword_state.gd "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE:
+		return false
+" "	if phase == Phase.STRIKE or phase == Phase.STUCK or phase == Phase.ULTIMATE or phase == Phase.RECOVER:
+		return false
+"
+mutate converge-target-edge-inclusive                     scripts/sim/sword_state.gd "		if dist < nearest_dist:
+			nearest = enemy" "		if dist <= nearest_dist:
+			nearest = enemy"
+mutate converge-skips-corpses                             scripts/sim/sword_state.gd "		if dist < nearest_dist:
+			nearest = enemy" "		if dist < nearest_dist and not enemy.dead:
+			nearest = enemy"
+mutate converge-never-targets                             scripts/sim/sword_state.gd "	begin(nearest, point, SwordDefs.CONVERGE_BOOST, true)" "	begin(null, point, SwordDefs.CONVERGE_BOOST, true)"
+mutate converge-aims-at-the-player                        scripts/sim/sword_state.gd "	begin(nearest, point, SwordDefs.CONVERGE_BOOST, true)" "	begin(nearest, run.position, SwordDefs.CONVERGE_BOOST, true)"
+mutate converge-no-boost                                  scripts/sim/sword_state.gd "	begin(nearest, point, SwordDefs.CONVERGE_BOOST, true)" "	begin(nearest, point, 1.0, true)"
+mutate converge-full-windup                               scripts/sim/sword_state.gd "	begin(nearest, point, SwordDefs.CONVERGE_BOOST, true)" "	begin(nearest, point, SwordDefs.CONVERGE_BOOST, false)"
+mutate converge-fast-windup-ignored                       scripts/sim/sword_state.gd "	timer = windup * (SwordDefs.CONVERGE_WINDUP_FACTOR if fast else 1.0)
+" "	timer = windup
+"
+mutate converge-begin-forgets-the-boost                   scripts/sim/sword_state.gd "	boost = new_boost
+	phase = Phase.WINDUP" "	boost = 1.0
+	phase = Phase.WINDUP"
+mutate converge-windup-span-not-set                       scripts/sim/sword_state.gd "	windup_span = timer
+" ""
+mutate converge-progress-uses-the-full-windup             scripts/sim/sword_state.gd "	return 1.0 - clampf(timer / windup_span, 0.0, 1.0)" "	return 1.0 - clampf(timer / windup, 0.0, 1.0)"
+mutate converge-ignores-pause                             scripts/sim/game_run.gd "func try_converge(point: Vector2) -> ConvergeResult:
+	if paused or dead:" "func try_converge(point: Vector2) -> ConvergeResult:
+	if dead:"
+mutate converge-ignores-death                             scripts/sim/game_run.gd "func try_converge(point: Vector2) -> ConvergeResult:
+	if paused or dead:" "func try_converge(point: Vector2) -> ConvergeResult:
+	if paused:"
+mutate converge-ignores-the-cooldown                      scripts/sim/game_run.gd "	if converge_cooldown_left > 0.0:
+		return ConvergeResult.COOLING_DOWN
+" ""
+mutate converge-no-range-clamp                            scripts/sim/game_run.gd "	if to_point.length() > SwordDefs.CONVERGE_RANGE:" "	if to_point.length() > SwordDefs.CONVERGE_RANGE * 3.0:"
+mutate converge-range-from-the-camera                     scripts/sim/game_run.gd "	var to_point: Vector2 = point - position
+	if to_point.length() > SwordDefs.CONVERGE_RANGE:" "	var to_point: Vector2 = point - camera
+	if to_point.length() > SwordDefs.CONVERGE_RANGE:"
+mutate converge-clamp-loses-the-direction                 scripts/sim/game_run.gd "		target = position + to_point.normalized() * SwordDefs.CONVERGE_RANGE" "		target = position + Vector2(SwordDefs.CONVERGE_RANGE, 0.0)"
+mutate converge-cooldown-only-when-taken                  scripts/sim/game_run.gd "	converge_cooldown_left = SwordDefs.CONVERGE_COOLDOWN
+	add_cue(SimCue.make(SimCue.Kind.CONVERGE" "	if taken > 0:
+		converge_cooldown_left = SwordDefs.CONVERGE_COOLDOWN
+	add_cue(SimCue.make(SimCue.Kind.CONVERGE"
+mutate converge-commands-one-sword                        scripts/sim/game_run.gd "	for sword: SwordState in swords:
+		if sword.command(self, target):" "	for sword: SwordState in swords.slice(0, 1):
+		if sword.command(self, target):"
+mutate converge-cue-unclamped                             scripts/sim/game_run.gd "SimCue.make(SimCue.Kind.CONVERGE, target," "SimCue.make(SimCue.Kind.CONVERGE, point,"
+mutate converge-cue-counts-all-swords                     scripts/sim/game_run.gd "Vector2.ZERO, taken))" "Vector2.ZERO, swords.size()))"
+mutate converge-cooldown-ignores-slowmo                   scripts/sim/game_run.gd "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - dt)" "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - TICK_DT)"
+mutate converge-cooldown-never-ticks                      scripts/sim/game_run.gd "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - dt)" "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - 0.0)"
+mutate converge-restart-keeps-the-cooldown                scripts/sim/game_run.gd "	converge_cooldown_left = 0.0
+	death_time = 0.0
+	kills = 0" "	death_time = 0.0
+	kills = 0"
+mutate converge-touch-aims-at-the-point                   scripts/sim/game_run.gd "try_converge(auto_aim() if command.at_nearest else command.point)" "try_converge(command.point)"
+mutate ranges-toggle-while-paused                         scripts/sim/game_run.gd "			if not paused and not dead:
+				show_ranges = not show_ranges" "			if not dead:
+				show_ranges = not show_ranges"
+mutate ranges-toggle-while-dead                           scripts/sim/game_run.gd "			if not paused and not dead:
+				show_ranges = not show_ranges" "			if not paused:
+				show_ranges = not show_ranges"
+mutate ranges-restart-hides-them                          scripts/sim/game_run.gd "	hp = max_hp if scenario.start_health < 0.0" "	show_ranges = false
+	hp = max_hp if scenario.start_health < 0.0"
+mutate converge-middle-button                             scripts/input/input_translator.gd "[MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]" "[MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE]"
+mutate converge-left-button-only                          scripts/input/input_translator.gd "[MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]" "[MOUSE_BUTTON_LEFT]"
+mutate converge-on-release                                scripts/input/input_translator.gd "if click.pressed and click.button_index in CONVERGE_BUTTONS" "if click.button_index in CONVERGE_BUTTONS"
+mutate converge-on-emulated-clicks                        scripts/input/input_translator.gd " and click.device != InputEvent.DEVICE_ID_EMULATION:" ":"
+mutate converge-skips-the-world-transform                 scripts/input/input_translator.gd "commands.append(GameCommand.converge(aim_world()))" "commands.append(GameCommand.converge(click.position))"
+mutate ranges-tab-only                                    scripts/input/input_translator.gd "const RANGE_KEYS: Array[Key] = [KEY_TAB, KEY_G]" "const RANGE_KEYS: Array[Key] = [KEY_TAB]"
+mutate ranges-g-only                                      scripts/input/input_translator.gd "const RANGE_KEYS: Array[Key] = [KEY_TAB, KEY_G]" "const RANGE_KEYS: Array[Key] = [KEY_G]"
+mutate converge-touch-command-loses-nearest               scripts/sim/game_command.gd "	var command: GameCommand = _of(Kind.CONVERGE)
+	command.at_nearest = true" "	var command: GameCommand = _of(Kind.CONVERGE)
+	command.at_nearest = false"
+mutate converge-hud-click-passes-through                  scripts/main.gd "		input.pointer = (event as InputEventMouseButton).position
+		return
+" "		input.pointer = (event as InputEventMouseButton).position
+"
+mutate converge-world-point-ignores-the-view-size         scripts/main.gd "get_viewport().get_visible_rect().size * 0.5" "Vector2(640.0, 360.0)"
+mutate converge-world-point-forgets-the-centre            scripts/main.gd "return run.camera + viewport_point - Vector2(640.0, 360.0)" "return run.camera + viewport_point"
+mutate converge-hud-never-ready                           scripts/hud.gd "	var ready: bool = run.converge_cooldown_left <= 0.0
+	_converge_label" "	var ready: bool = run.converge_cooldown_left < 0.0
+	_converge_label"
+mutate converge-hud-bar-inverted                          scripts/hud.gd "CONVERGE_BAR_WIDTH * (1.0 - clampf(run.converge_cooldown_left / SwordDefs.CONVERGE_COOLDOWN, 0.0, 1.0))" "CONVERGE_BAR_WIDTH * clampf(run.converge_cooldown_left / SwordDefs.CONVERGE_COOLDOWN, 0.0, 1.0)"
+mutate converge-hud-hint-forgets-the-click                scripts/hud.gd "   Click: Converge   Q / E / R" "   Q / E / R"
+mutate ranges-drawn-for-the-dead                          scripts/presentation/effects_layer.gd "	if _run.show_ranges and not _run.dead:" "	if _run.show_ranges:"
+mutate converge-ring-not-drawn                            scripts/presentation/effects_layer.gd "		SimCue.Kind.CONVERGE:
+			_add_ring(cue.position, 60.0, 8.0, 0.35, Color(0.71, 0.86, 1.0, 0.9), 2.0)
+" "		SimCue.Kind.CONVERGE:
+			pass
+"
+mutate converge-telegraph-uses-the-full-windup            scripts/presentation/effects_layer.gd "sword.timer / sword.windup_span, 0.0, 1.0)" "sword.timer / sword.windup, 0.0, 1.0)"
+mutate converge-chime-silent                              scripts/audio/sfx_bank.gd "		SimCue.Kind.CONVERGE:
+			play(\"chime\")" "		SimCue.Kind.CONVERGE:
+			pass"
+mutate default-loadout-is-the-fang-fixture                scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.default_loadout()" "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()"
+mutate default-loadout-colossus-element                   scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))
+	return specs
+
+
+## A run that equips" "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))
+	return specs
+
+
+## A run that equips"
+mutate default-loadout-warden-is-fang                     scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.FANG, 0, &\"poison\"))
+	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.FANG, 0, &\"poison\"))
+	specs.append(SwordSpec.make(SwordDefs.FANG, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))"
+mutate crowd-encounter-takes-the-default-loadout          scripts/sim/run_scenario.gd "static func crowd_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.fang_fixture()" "static func crowd_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()"
+mutate conditions-encounter-takes-the-default-loadout     scripts/sim/run_scenario.gd "static func conditions_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.fang_fixture()" "static func conditions_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()"
+mutate spitter-encounter-takes-the-default-loadout        scripts/sim/run_scenario.gd "static func spitter_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.fang_fixture()" "static func spitter_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()"
+mutate converge-chime-sound-missing-from-the-bank         scripts/audio/sfx_bank.gd "	\"chime\": preload(\"res://audio/sfx_chime.wav\"),
+" ""
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

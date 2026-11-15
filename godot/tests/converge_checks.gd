@@ -47,6 +47,7 @@ func run_all() -> void:
 	_check_reference_scope()
 	_check_definitions()
 	_check_default_start()
+	_check_default_wave()
 	for group: String in ["types", "eligibility", "corpses", "dead_targets", "refusals", "default", "touch_and_ranges"]:
 		_check_group(group)
 	for name: String in ["cooldown", "spam", "ultimates"]:
@@ -250,6 +251,52 @@ func _check_default_start() -> void:
 	_ok("each dev fixture keeps its own loadout (crowd, spitters and conditions the Fang fixture; warden, pike and colossus theirs); only the normal start equips the default (%s)" % [loadouts],
 		loadouts == [": fang,blade,colossus", "crowd: fang,fang,fang", "spitters: fang,fang,fang", "conditions: fang,fang,fang", "warden: fang,blade,blade", "pike: lance,lance,lance", "colossus: colossus,colossus,colossus"])
 	_ok("the wall encounter, a variant of the crowd, also keeps the Fang fixture", RunScenario.wall_encounter().loadout[1].type_id == SwordDefs.FANG)
+
+
+## The normal start against the first wave across seeds, once with no input and once with a Converge at the nearest enemy every 3 s,
+## against the prototype's own default-loadout runs (random spawn points and the Fang's recoil cannot match: a band of +-1 s).
+func _check_default_wave() -> void:
+	print("converge: the default loadout clears the first wave like the prototype's")
+	var reference: Dictionary = _ref["default_wave"]
+	for variant: String in ["no_input", "converge_every_3s"]:
+		var entries: Array = reference[variant]
+		var lowest: float = INF
+		var highest: float = 0.0
+		var unarmed: bool = entries.size() == 8
+		for entry: Dictionary in entries:
+			lowest = minf(lowest, float(entry["cleared_at"]))
+			highest = maxf(highest, float(entry["cleared_at"]))
+			unarmed = unarmed and int(entry["armed_enemies"]) == 0 and int(entry["kills"]) == 8 and not bool(entry["died"])
+		_ok("%s: the prototype's reference is the unarmed first wave: 8 kills on 8 seeds, never died, cleared between %.2f and %.2f s" % [variant, lowest, highest], unarmed)
+		var all_survived: bool = true
+		var in_band: bool = true
+		var converges: int = 0
+		var lowest_hp: float = 100.0
+		var times: Array[float] = []
+		for seed_value: int in range(1, 9):
+			var scenario: RunScenario = RunScenario.new()
+			scenario.seed = seed_value
+			var run: GameRun = GameRun.new(scenario)
+			var ticks_taken: int = 0
+			while run.outcome() == GameRun.Outcome.RUNNING and ticks_taken < 60 * 60:
+				if variant == "converge_every_3s" and ticks_taken % 180 == 179 and not run.enemies.is_empty():
+					var before: int = run.cue_count(SimCue.Kind.CONVERGE)
+					run.apply(GameCommand.converge_at_nearest())
+					converges += run.cue_count(SimCue.Kind.CONVERGE) - before
+				run.step()
+				ticks_taken += 1
+			var seconds: float = float(ticks_taken) / 60.0
+			times.append(snappedf(seconds, 0.01))
+			all_survived = all_survived and run.outcome() == GameRun.Outcome.SURVIVED and run.kills == 8 and not run.dead
+			in_band = in_band and seconds > lowest - 1.0 and seconds < highest + 1.0
+			lowest_hp = minf(lowest_hp, run.hp)
+		_ok("%s: the default loadout survives the wave on all 8 seeds with all 8 kills (lowest health %.1f)" % [variant, lowest_hp], all_survived and lowest_hp > 40.0)
+		_ok("%s: the wave is cleared within the prototype's band %.1f-%.1f s +-1 s (ours: %s)" % [variant, lowest, highest, times], in_band)
+		if variant == "converge_every_3s":
+			var reference_converges: int = 0
+			for entry: Dictionary in entries:
+				reference_converges += int(entry["converged"])
+			_ok("a player who only clicks lands about as many Converges (%d over 8 runs, the prototype's %d)" % [converges, reference_converges], absi(converges - reference_converges) <= 8)
 
 
 # --------------------------------------------------------------- replaying the reference

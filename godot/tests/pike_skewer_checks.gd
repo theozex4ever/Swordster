@@ -38,6 +38,8 @@ func _init(check_function: Callable, tree: SceneTree) -> void:
 
 
 func run_all() -> void:
+	if not CheckFocus.includes("pike_skewer"):
+		return
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	if file == null:
 		_ok("pike reference file loads", false, REFERENCE_PATH)
@@ -1133,8 +1135,8 @@ func _check_fixture_and_launch() -> void:
 	_ok("the pike encounter is a column of %d foes toward the north wall and one wave (%s husk / runner / brute) against three Pikes with poison, ice and fire; conditions on; no shove" % [scenario.initial_enemies.size(), counts],
 		scenario.encounter == RunScenario.ENCOUNTER_PIKE and scenario.loadout.size() == 3 and scenario.loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.PIKE) and scenario.loadout[0].element == &"poison" and scenario.loadout[1].element == &"ice" and scenario.loadout[2].element == &"fire"
 		and scenario.conditions_enabled and not scenario.dev_shove and scenario.waves_enabled and scenario.initial_enemies.size() == 6 and scenario.wave_kinds.size() == 12 and counts[2] == 2 and scenario.start_position.y == 700.0)
-	_ok("--encounter=pike and ?encounter=pike ask for it, and the normal run is still three Fang swords (the final default loadout is issue #16)",
-		LaunchOptions.scenario_for("pike") != null and LaunchOptions.scenario_for("pike").encounter == RunScenario.ENCOUNTER_PIKE and RunScenario.fang_fixture().loadout.all(func(spec: SwordSpec) -> bool: return spec.type_id == SwordDefs.FANG))
+	_ok("--encounter=pike and ?encounter=pike ask for it, and asking for nothing starts the normal run with the default loadout (Fang, Warden, Colossus; issue #16)",
+		LaunchOptions.scenario_for("pike") != null and LaunchOptions.scenario_for("pike").encounter == RunScenario.ENCOUNTER_PIKE and LaunchOptions.scenario_for("") == null and GameRun.new(LaunchOptions.scenario_for("")).swords.map(func(sword: SwordState) -> StringName: return sword.spec.type_id) == [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS])
 	var column_ok: bool = true
 	for placement: EnemyPlacement in scenario.initial_enemies:
 		var north: float = scenario.start_position.y - placement.position.y
@@ -1330,6 +1332,8 @@ func _check_visual_independence() -> void:
 
 # -------------------------------------------------------- render rates
 func _check_render_rates() -> void:
+	if not RenderRateScenario.probes_enabled():
+		return
 	print("pike: identical outcomes at low and high render rates")
 	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.PIKE)
 	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))

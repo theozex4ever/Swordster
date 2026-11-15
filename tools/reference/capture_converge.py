@@ -575,6 +575,48 @@ def case_touch_and_ranges():
     return out
 
 
+def case_default_wave():
+    """The normal start against the first wave (husks only, nothing armed), the prototype's own default loadout with its
+    conditions on, the player standing still: once with no input and once with a Converge at the nearest enemy every 3 s
+    (what a player who only clicks does). Spawn points and the Fang's recoil are random, so the Godot checks compare a band."""
+    out = {}
+    for name, converge_every in (("no_input", 0), ("converge_every_3s", 180)):
+        results = []
+        for seed in range(1, 9):
+            random.seed(seed)
+            g = base.new_game()
+            del g.afflict  # the shared helper switches conditions off; this case plays the prototype's own
+            assert g.afflict.__func__ is Game.afflict
+            base.disarm_waves(g)
+            g.in_wave = False
+            g.break_t = 1.6
+            base.hold()
+            assert [s.kind for s in g.swords] == ["fang", "blade", "colossus"]
+            for sw in g.swords:
+                _SWORDS.append(sw)
+            t_real = 0.0
+            cleared_at = None
+            converged = 0
+            with NoCrit(False):
+                for n in range(round(60.0 / DT)):
+                    if converge_every and n % converge_every == converge_every - 1 and g.enemies:
+                        before = g.converge_cd
+                        g.converge(g.auto_aim())
+                        converged += 1 if before <= 0 else 0
+                    g.update(DT)
+                    t_real += DT
+                    base.assert_all_unarmed(g, 30.0)
+                    if g.wave >= 1 and not g.in_wave and g.banner and g.banner[0] == "WAVE CLEARED" and cleared_at is None:
+                        cleared_at = t_real
+                        break
+                    if g.player.dead:
+                        break
+            results.append(dict(seed=seed, cleared_at=None if cleared_at is None else r(cleared_at, 2), died=g.player.dead, hp=r(g.player.hp, 1), kills=g.kills,
+                                converged=converged, armed_enemies=0))
+        out[name] = results
+    return out
+
+
 # ------------------------------------------------------------------ scope
 def assert_fixtures_in_scope():
     for e in _CREATED:
@@ -606,6 +648,7 @@ def main():
     cases["refusals"] = case_paused_dead()
     cases["ultimates"] = case_ultimates()
     cases["default"] = case_default_loadout()
+    cases["default_wave"] = case_default_wave()
     cases["touch_and_ranges"] = case_touch_and_ranges()
     cases["fixture_scope"] = assert_fixtures_in_scope()
     text = dumps(cases)
