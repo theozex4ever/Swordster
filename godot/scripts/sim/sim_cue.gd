@@ -54,6 +54,15 @@ enum Kind {
 	## A Skewer ended and let go of what it carried (`position` = its tip, `direction` = its heading,
 	## `amount` = how many enemies it flung, `critical` = it ended at a wall rather than at its range).
 	SKEWER_RELEASED,
+	## A Colossus slam landed (`position` = the impact, `radius` = the area struck within, `amount` = how
+	## many enemies were inside it, a corpse included as in the prototype, `element` = the sword's element,
+	## `critical` = it was a Cataclysm rather than an automatic slam).
+	COLOSSUS_SLAM,
+	## Cataclysm left an elemental field (`position` = its centre, `radius` = its radius, `element` = its element).
+	FIELD_CREATED,
+	## A field dosed the enemies standing in it (`position` = its centre, `radius` = its radius, `amount` = how
+	## many living enemies it dosed, `element` = its element).
+	FIELD_PULSED,
 }
 
 var kind: Kind = Kind.DASH

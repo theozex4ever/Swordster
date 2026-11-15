@@ -15,7 +15,10 @@ extends Node2D
 ## cut) and leaves a fading fan along the arc it cut; its Maelstrom shows the reach of its blades,
 ## the range it pulls from, spinning arcs, a ring at every beat and a burst at the end. A Pike's thrust
 ## is telegraphed along its line during the windup; a Skewer shows its aim line while it aims, rings
-## the enemies it carries and ends in a burst where it lets go. Purely visual: it reads the
+## the enemies it carries and ends in a burst where it lets go. A Colossus telegraphs the ring its slam will
+## crush while it winds up and falls, a slam and a Cataclysm end in rings, sparks and smoke, and the
+## elemental ground Cataclysm leaves is drawn as a pulsing ellipse of its element until it fades, shedding
+## the element's particles. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -37,7 +40,7 @@ var _last_sweep_angle: Dictionary = {}
 ## `skewer_aim_line`, `skewer_carry_ring`, `skewer_carry_line`); the Pike's strokes go through `_stroke`
 ## and `_stroke_ring`, which count and draw in one call, so a stroke cannot be counted without being
 ## drawn nor drawn without being counted. Checks read it to prove the layer really draws what the
-## sword's state asks for.
+## sword's state asks for. A Colossus's strokes are `slam_telegraph_*`, `cataclysm_ring_*` (`_fill`, `_rim`, `_closing`) and `field_*` (`_fill`, `_rim`), drawn through `_disc` and `_rim`.
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -83,6 +86,7 @@ func sync(run: GameRun) -> void:
 		_embers = _embers.filter(func(em: Dictionary) -> bool: return float(em["life"]) > 0.0)
 		_add_dart_streaks(run)
 		_add_condition_particles(run, dt)
+		_add_field_particles(run, dt)
 		_sparks = _sparks.filter(func(sp: Dictionary) -> bool: return float(sp["life"]) > 0.0)
 		_rings = _rings.filter(func(r: Dictionary) -> bool: return float(r["life"]) > 0.0)
 		_texts = _texts.filter(func(t: Dictionary) -> bool: return float(t["life"]) > 0.0)
@@ -149,6 +153,22 @@ func _add_ember(at: Vector2, spread: float, velocity: Vector2, life: float, elem
 	tint = tint.lerp(Color(1.0, 0.86, 0.35) if element == ConditionDefs.FIRE else Color.WHITE, mix_white)
 	var origin: Vector2 = at + SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(0.0, spread))
 	_embers.append({"pos": origin, "vel": velocity, "life": life, "max": life, "color": tint, "size": size})
+
+
+## Particles a field sheds (prototype `update_fields`: `dt x radius x 0.12` chances a tick, each at a random
+## point of the ellipse the field is drawn as), in its element's look. Cosmetic random stream.
+func _add_field_particles(run: GameRun, dt: float) -> void:
+	for field: FieldState in run.fields:
+		if _rng.randf() < dt * field.radius * 0.12:
+			var angle: float = _rng.randf_range(0.0, TAU)
+			var spot: Vector2 = field.position + Vector2(cos(angle), sin(angle) * 0.6) * _rng.randf_range(0.0, field.radius)
+			match field.element:
+				ConditionDefs.FIRE:
+					_add_ember(spot, 4.0, Vector2(_rng.randf_range(-25.0, 25.0), _rng.randf_range(-150.0, -70.0)), _rng.randf_range(0.3, 0.55), field.element, _rng.randf_range(1.5, 3.0), _rng.randf())
+				ConditionDefs.ICE:
+					_add_ember(spot, 4.0, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(10.0, 50.0)), _rng.randf_range(0.4, 0.7), field.element, _rng.randf_range(1.0, 2.5), 0.5)
+				_:
+					_add_ember(spot, 4.0, Vector2(_rng.randf_range(-10.0, 10.0), _rng.randf_range(-45.0, -15.0)), _rng.randf_range(0.5, 0.9), field.element, _rng.randf_range(1.5, 3.5), 0.0)
 
 
 func apply_cue(cue: SimCue) -> void:
@@ -226,6 +246,19 @@ func apply_cue(cue: SimCue) -> void:
 				_add_spark(cue.position, SimMath.polar(back + _rng.randf_range(-0.9, 0.9), _rng.randf_range(200.0, 700.0)), _rng.randf_range(0.15, 0.35), Color(1.0, 0.85, 0.6))
 			if cue.amount > 0:
 				_add_text(cue.position + Vector2(0.0, -30.0), "%s x%d" % ["SLAM" if cue.critical else "FLUNG", cue.amount], Color(1.0, 0.92, 0.7), 0.7, 24)
+		SimCue.Kind.COLOSSUS_SLAM:
+			var slam_tint: Color = element_color(cue.element).lerp(Color.WHITE, 0.5)
+			_add_ring(cue.position, 10.0, cue.radius * 1.35, 0.35, Color(slam_tint, 0.95), 6.0)
+			_add_ring(cue.position, 6.0, cue.radius * 0.8, 0.22, Color(1.0, 1.0, 1.0, 0.9), 3.0)
+			for i: int in 30:
+				_add_spark(cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(200.0, 800.0)), _rng.randf_range(0.2, 0.5), slam_tint)
+			if cue.critical:
+				_add_text(cue.position + Vector2(0.0, -cue.radius * 0.35), "CATACLYSM", slam_tint, 0.9, 30)
+		SimCue.Kind.FIELD_CREATED:
+			_add_ring(cue.position, cue.radius * 0.6, cue.radius, 0.4, Color(element_color(cue.element), 0.9), 4.0)
+		SimCue.Kind.FIELD_PULSED:
+			if cue.amount > 0:
+				_add_ring(cue.position, cue.radius * 0.9, cue.radius, 0.25, Color(element_color(cue.element), 0.45), 2.0)
 		SimCue.Kind.ULTIMATE_REFUSED:
 			if _run != null:
 				_add_text(cue.position + Vector2(0.0, -46.0), "recharging %ds" % cue.amount, Color(0.62, 0.6, 0.78), 0.5, 22)
@@ -282,7 +315,11 @@ func _draw() -> void:
 		var span: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP - SwordDefs.WARDEN_GUARD)
 		var mid: float = float(wedge["length"]) * (SwordDefs.WARDEN_TIP + SwordDefs.WARDEN_GUARD) * 0.5
 		draw_arc(Vector2(wedge["pivot"]), mid, float(wedge["from"]), float(wedge["to"]), 6, Color(Color(wedge["color"]).lerp(Color.WHITE, 0.55), 0.55 * wedge_fade), span)
+	for field: FieldState in _run.fields:
+		_draw_field(field)
 	for sword: SwordState in _run.swords:
+		if sword.spec.type_id == SwordDefs.COLOSSUS and (sword.phase == SwordState.Phase.WINDUP or sword.phase == SwordState.Phase.STRIKE):
+			_draw_slam_telegraph(sword)
 		if sword.phase == SwordState.Phase.WINDUP and sword.spec.type_id == SwordDefs.WARDEN:
 			_draw_sweep_telegraph(sword)
 		if sword.phase == SwordState.Phase.WINDUP and sword.spec.type_id == SwordDefs.PIKE:
@@ -296,6 +333,8 @@ func _draw() -> void:
 			draw_circle(sword.ultimate_point, area, Color(tint, 0.06))
 			if sword.spec.type_id == SwordDefs.WARDEN:
 				_draw_maelstrom(sword, tint)
+			if sword.spec.type_id == SwordDefs.COLOSSUS:
+				_draw_impact_ring(&"cataclysm_ring", sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
 	for ember: Dictionary in _embers:
@@ -336,6 +375,33 @@ func _draw_sweep_telegraph(sword: SwordState) -> void:
 	draw_arc(sword.sweep_pivot, sword.length * SwordDefs.WARDEN_TIP, sword.sweep_from, sword.sweep_to, 24, Color(tint, 0.25 + 0.4 * u), 2.0)
 
 
+## The ring a Colossus's slam is about to crush, closing in as the windup runs out and full while the
+## blade falls (it follows the target during the windup and stays on the impact point afterwards).
+func _draw_slam_telegraph(sword: SwordState) -> void:
+	var winding: bool = sword.phase == SwordState.Phase.WINDUP
+	_draw_impact_ring(&"slam_telegraph", sword.aim if winding else sword.impact, sword.slam_radius(), sword.windup_progress() if winding else 1.0, _sword_color(sword.spec))
+
+
+## An impact marker (the prototype's `draw_impact`): the area as a faint disc with a bright rim, and a
+## ring that closes from the rim toward the centre as `progress` goes 0 to 1.
+func _draw_impact_ring(kind: StringName, at: Vector2, radius: float, progress: float, tint: Color) -> void:
+	_disc(StringName(String(kind) + "_fill"), at, radius, Color(tint, 0.05 + 0.08 * progress))
+	_rim(StringName(String(kind) + "_rim"), at, radius, Color(tint, 0.3 + 0.5 * progress), 2.0, 48)
+	_rim(StringName(String(kind) + "_closing"), at, maxf(8.0, radius * (1.0 - 0.85 * progress)), Color(tint, 0.25 + 0.55 * progress), 3.0, 32)
+
+
+## A Cataclysm's elemental ground: a flattened ellipse (the arena is seen from an angle) of the field's
+## element, faint fill and a pulsing rim, fading out over its last third of life (prototype `draw`).
+func _draw_field(field: FieldState) -> void:
+	var fade: float = field.fade()
+	var tint: Color = element_color(field.element)
+	var pulse: float = 0.5 + 0.2 * sin(_run.gameplay_time * 6.0 + field.position.x)
+	draw_set_transform(field.position, 0.0, Vector2(1.0, 0.6))
+	_disc(&"field_fill", Vector2.ZERO, field.radius, Color(tint, 0.16 * fade))
+	_rim(&"field_rim", Vector2.ZERO, field.radius, Color(tint, pulse * fade), 2.0, 48)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## The line a Pike is about to thrust along: from where the sword hangs, past the aim point by the
 ## thrust's overshoot, brightening as the windup runs out. Follows the target like the thrust.
 func _draw_thrust_telegraph(sword: SwordState) -> void:
@@ -347,6 +413,18 @@ func _draw_thrust_telegraph(sword: SwordState) -> void:
 	var to: Vector2 = sword.position + heading * reach
 	_stroke(&"thrust_telegraph_band", from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
 	_stroke(&"thrust_telegraph_line", from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## Draws a filled disc and counts it under `kind` in one step (see `draw_counts`).
+func _disc(kind: StringName, centre: Vector2, radius: float, color: Color) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_circle(centre, radius, color)
+
+
+## Draws a full circle's outline with `points` segments and counts it under `kind` in one step.
+func _rim(kind: StringName, centre: Vector2, radius: float, color: Color, width: float, points: int) -> void:
+	draw_counts[kind] = draw_counts.get(kind, 0) + 1
+	draw_arc(centre, radius, 0.0, TAU, points, color, width)
 
 
 ## Draws a line and counts it under `kind` in one step (see `draw_counts`).

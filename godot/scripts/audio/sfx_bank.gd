@@ -91,5 +91,7 @@ func play_cue(cue: SimCue) -> void:
 		SimCue.Kind.SKEWER_RELEASED:
 			if cue.amount > 0:
 				play("hit")
+		SimCue.Kind.COLOSSUS_SLAM:
+			play("hit")
 		_:
 			pass

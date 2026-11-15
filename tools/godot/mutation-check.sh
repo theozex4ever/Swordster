@@ -790,13 +790,17 @@ mutate conditions-tick-before-enemies     scripts/sim/game_run.gd "	for enemy: E
 	_separate()
 "
 mutate conditions-tick-after-contacts     scripts/sim/game_run.gd "	_update_conditions(dt)
+	_update_fields(dt)
 	_resolve_contacts()
-" "	_resolve_contacts()
+" "	_update_fields(dt)
+	_resolve_contacts()
 	_update_conditions(dt)
 "
 mutate conditions-render-rate-dependent   scripts/sim/game_run.gd "	_update_conditions(dt)
+	_update_fields(dt)
 	_resolve_contacts()
 " "	_update_conditions(dt * (1.0 + float(Engine.get_process_frames() % 2)))
+	_update_fields(dt)
 	_resolve_contacts()
 "
 mutate dot-kill-skips-rewards             scripts/sim/game_run.gd "		if enemy.hp <= 0.0:
@@ -832,7 +836,7 @@ mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if condi
 mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
 	return self" "	return self"
 mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
-mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]"
+mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
 mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
 mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
 			return RunScenario.conditions_encounter()" "		\"conditions\":
@@ -1001,7 +1005,7 @@ mutate maelstrom-keeps-the-old-hit-set              scripts/sim/sword_state.gd "
 mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "		SwordDefs.WARDEN:
 			return maelstrom_reach()" "		SwordDefs.WARDEN:
 			return SwordDefs.FANG_ULT_RADIUS"
-mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE]"
+mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
 mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 " "		RunScenario.new(),
 "
@@ -1220,7 +1224,7 @@ mutate skewer-death-keeps-carrying                  scripts/sim/sword_state.gd "
 mutate skewer-area-radius-nonzero                   scripts/sim/sword_state.gd "		SwordDefs.PIKE:
 			return 0.0" "		SwordDefs.PIKE:
 			return 100.0"
-mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]"
+mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_COLOSSUS]"
 mutate pike-encounter-slot-lost                     scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
 " "		RunScenario.new(),
 "
@@ -1301,6 +1305,314 @@ mutate skewer-release-slam-a-tick-late              scripts/sim/sword_state.gd "
 			enemy.position -= dir * 60.0
 "
 
+# --- Colossus and Cataclysm (slice #15)
+mutate colossus-key-renamed                         scripts/sim/sword_defs.gd "const COLOSSUS: StringName = &\"colossus\"" "const COLOSSUS: StringName = &\"colossi\""
+mutate colossus-display-name                        scripts/sim/sword_defs.gd "		COLOSSUS:
+			return \"Colossus\"" "		COLOSSUS:
+			return \"Colossal\""
+mutate colossus-length                              scripts/sim/sword_defs.gd "COLOSSUS_LENGTH: float = 88.0" "COLOSSUS_LENGTH: float = 80.0"
+mutate colossus-width                               scripts/sim/sword_defs.gd "COLOSSUS_WIDTH: float = 15.0" "COLOSSUS_WIDTH: float = 14.0"
+mutate colossus-range                               scripts/sim/sword_defs.gd "COLOSSUS_RANGE: float = 330.0" "COLOSSUS_RANGE: float = 360.0"
+mutate colossus-cooldown                            scripts/sim/sword_defs.gd "COLOSSUS_COOLDOWN: float = 2.1" "COLOSSUS_COOLDOWN: float = 1.8"
+mutate colossus-damage                              scripts/sim/sword_defs.gd "COLOSSUS_DAMAGE: float = 50.0" "COLOSSUS_DAMAGE: float = 51.0"
+mutate colossus-knockback                           scripts/sim/sword_defs.gd "COLOSSUS_KNOCK: float = 650.0" "COLOSSUS_KNOCK: float = 600.0"
+mutate colossus-windup                              scripts/sim/sword_defs.gd "COLOSSUS_WINDUP: float = 0.55" "COLOSSUS_WINDUP: float = 0.6"
+mutate colossus-hitstop                             scripts/sim/sword_defs.gd "COLOSSUS_HITSTOP: float = 0.13" "COLOSSUS_HITSTOP: float = 0.1"
+mutate colossus-shake                               scripts/sim/sword_defs.gd "COLOSSUS_SHAKE: float = 0.6" "COLOSSUS_SHAKE: float = 0.5"
+mutate colossus-slam-radius                         scripts/sim/sword_defs.gd "COLOSSUS_AOE: float = 118.0" "COLOSSUS_AOE: float = 120.0"
+mutate colossus-start-altitude                      scripts/sim/sword_defs.gd "COLOSSUS_START_ALTITUDE: float = 30.0" "COLOSSUS_START_ALTITUDE: float = 40.0"
+mutate colossus-rest-base                           scripts/sim/sword_defs.gd "COLOSSUS_REST_BASE: float = 34.0" "COLOSSUS_REST_BASE: float = 36.0"
+mutate colossus-rest-length                         scripts/sim/sword_defs.gd "COLOSSUS_REST_LENGTH: float = 0.15" "COLOSSUS_REST_LENGTH: float = 0.2"
+mutate colossus-rest-bob-rate                       scripts/sim/sword_defs.gd "COLOSSUS_REST_BOB_RATE: float = 2.2" "COLOSSUS_REST_BOB_RATE: float = 2.0"
+mutate colossus-rest-bob-slot                       scripts/sim/sword_defs.gd "COLOSSUS_REST_BOB_SLOT: float = 2.1" "COLOSSUS_REST_BOB_SLOT: float = 2.0"
+mutate colossus-rest-bob                            scripts/sim/sword_defs.gd "COLOSSUS_REST_BOB: float = 7.0" "COLOSSUS_REST_BOB: float = 6.0"
+mutate colossus-rest-rate                           scripts/sim/sword_defs.gd "COLOSSUS_REST_RATE: float = 5.0" "COLOSSUS_REST_RATE: float = 4.0"
+mutate colossus-sink-rate                           scripts/sim/sword_defs.gd "COLOSSUS_SINK_RATE: float = 120.0" "COLOSSUS_SINK_RATE: float = 100.0"
+mutate colossus-windup-spring-k                     scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_SPRING_K: float = 120.0" "COLOSSUS_WINDUP_SPRING_K: float = 100.0"
+mutate colossus-windup-spring-c                     scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_SPRING_C: float = 18.0" "COLOSSUS_WINDUP_SPRING_C: float = 20.0"
+mutate colossus-windup-altitude                     scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_ALTITUDE: float = 200.0" "COLOSSUS_WINDUP_ALTITUDE: float = 180.0"
+mutate colossus-windup-rate                         scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_RATE: float = 7.0" "COLOSSUS_WINDUP_RATE: float = 6.0"
+mutate colossus-windup-tremble-rate                 scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_TREMBLE_RATE: float = 30.0" "COLOSSUS_WINDUP_TREMBLE_RATE: float = 20.0"
+mutate colossus-windup-tremble                      scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_TREMBLE: float = 0.03" "COLOSSUS_WINDUP_TREMBLE: float = 0.05"
+mutate colossus-windup-turn-rate                    scripts/sim/sword_defs.gd "COLOSSUS_WINDUP_TURN_RATE: float = 10.0" "COLOSSUS_WINDUP_TURN_RATE: float = 8.0"
+mutate colossus-glide-rate                          scripts/sim/sword_defs.gd "COLOSSUS_GLIDE_RATE: float = 30.0" "COLOSSUS_GLIDE_RATE: float = 20.0"
+mutate colossus-strike-fall-speed                   scripts/sim/sword_defs.gd "COLOSSUS_STRIKE_FALL_SPEED: float = 300.0" "COLOSSUS_STRIKE_FALL_SPEED: float = 200.0"
+mutate colossus-strike-gravity                      scripts/sim/sword_defs.gd "COLOSSUS_STRIKE_GRAVITY: float = 9000.0" "COLOSSUS_STRIKE_GRAVITY: float = 8000.0"
+mutate colossus-slam-falloff                        scripts/sim/sword_defs.gd "COLOSSUS_SLAM_FALLOFF: float = 0.45" "COLOSSUS_SLAM_FALLOFF: float = 0.4"
+mutate colossus-empty-hitstop                       scripts/sim/sword_defs.gd "COLOSSUS_SLAM_EMPTY_HITSTOP: float = 0.04" "COLOSSUS_SLAM_EMPTY_HITSTOP: float = 0.05"
+mutate colossus-empty-shake                         scripts/sim/sword_defs.gd "COLOSSUS_SLAM_EMPTY_SHAKE: float = 0.35" "COLOSSUS_SLAM_EMPTY_SHAKE: float = 0.3"
+mutate colossus-stuck-time                          scripts/sim/sword_defs.gd "COLOSSUS_STUCK_TIME: float = 0.32" "COLOSSUS_STUCK_TIME: float = 0.3"
+mutate colossus-stuck-tremble-rate                  scripts/sim/sword_defs.gd "COLOSSUS_STUCK_TREMBLE_RATE: float = 60.0" "COLOSSUS_STUCK_TREMBLE_RATE: float = 50.0"
+mutate colossus-stuck-tremble                       scripts/sim/sword_defs.gd "COLOSSUS_STUCK_TREMBLE: float = 0.08" "COLOSSUS_STUCK_TREMBLE: float = 0.1"
+mutate colossus-recover-time                        scripts/sim/sword_defs.gd "COLOSSUS_RECOVER_TIME: float = 0.4" "COLOSSUS_RECOVER_TIME: float = 0.5"
+mutate colossus-recover-velocity                    scripts/sim/sword_defs.gd "Vector2(0.0, -60.0)" "Vector2(0.0, -30.0)"
+mutate cataclysm-name                               scripts/sim/sword_defs.gd "COLOSSUS_ULT_NAME: String = \"Cataclysm\"" "COLOSSUS_ULT_NAME: String = \"Cataclism\""
+mutate cataclysm-recharge                           scripts/sim/sword_defs.gd "COLOSSUS_ULT_COOLDOWN: float = 14.0" "COLOSSUS_ULT_COOLDOWN: float = 13.0"
+mutate cataclysm-range                              scripts/sim/sword_defs.gd "COLOSSUS_ULT_RANGE: float = 480.0" "COLOSSUS_ULT_RANGE: float = 500.0"
+mutate cataclysm-area-factor                        scripts/sim/sword_defs.gd "COLOSSUS_ULT_AOE_FACTOR: float = 1.8" "COLOSSUS_ULT_AOE_FACTOR: float = 1.7"
+mutate cataclysm-rise-time                          scripts/sim/sword_defs.gd "COLOSSUS_ULT_RISE_TIME: float = 0.75" "COLOSSUS_ULT_RISE_TIME: float = 0.7"
+mutate cataclysm-rise-altitude                      scripts/sim/sword_defs.gd "COLOSSUS_ULT_RISE_ALTITUDE: float = 420.0" "COLOSSUS_ULT_RISE_ALTITUDE: float = 400.0"
+mutate cataclysm-rise-rate                          scripts/sim/sword_defs.gd "COLOSSUS_ULT_RISE_RATE: float = 5.0" "COLOSSUS_ULT_RISE_RATE: float = 4.0"
+mutate cataclysm-tremble-rate                       scripts/sim/sword_defs.gd "COLOSSUS_ULT_TREMBLE_RATE: float = 40.0" "COLOSSUS_ULT_TREMBLE_RATE: float = 30.0"
+mutate cataclysm-tremble                            scripts/sim/sword_defs.gd "COLOSSUS_ULT_TREMBLE: float = 0.04" "COLOSSUS_ULT_TREMBLE: float = 0.05"
+mutate cataclysm-fall-speed                         scripts/sim/sword_defs.gd "COLOSSUS_ULT_FALL_SPEED: float = 600.0" "COLOSSUS_ULT_FALL_SPEED: float = 500.0"
+mutate cataclysm-gravity                            scripts/sim/sword_defs.gd "COLOSSUS_ULT_FALL_GRAVITY: float = 12000.0" "COLOSSUS_ULT_FALL_GRAVITY: float = 10000.0"
+mutate cataclysm-damage-factor                      scripts/sim/sword_defs.gd "COLOSSUS_ULT_DAMAGE_FACTOR: float = 2.2" "COLOSSUS_ULT_DAMAGE_FACTOR: float = 2.0"
+mutate cataclysm-doses                              scripts/sim/sword_defs.gd "COLOSSUS_ULT_STACKS: int = 3" "COLOSSUS_ULT_STACKS: int = 2"
+mutate cataclysm-shake                              scripts/sim/sword_defs.gd "COLOSSUS_ULT_SHAKE: float = 0.4" "COLOSSUS_ULT_SHAKE: float = 0.3"
+mutate cataclysm-stuck-time                         scripts/sim/sword_defs.gd "COLOSSUS_ULT_STUCK_TIME: float = 0.6" "COLOSSUS_ULT_STUCK_TIME: float = 0.5"
+mutate field-radius-factor                          scripts/sim/sword_defs.gd "COLOSSUS_FIELD_RADIUS_FACTOR: float = 1.1" "COLOSSUS_FIELD_RADIUS_FACTOR: float = 1.0"
+mutate field-life                                   scripts/sim/sword_defs.gd "COLOSSUS_FIELD_LIFE: float = 5.0" "COLOSSUS_FIELD_LIFE: float = 4.5"
+mutate field-period                                 scripts/sim/sword_defs.gd "COLOSSUS_FIELD_PERIOD: float = 0.5" "COLOSSUS_FIELD_PERIOD: float = 0.6"
+mutate cataclysm-treated-as-a-skill-shot            scripts/sim/sword_defs.gd "	return type_id == PIKE
+" "	return type_id == PIKE or type_id == COLOSSUS
+"
+mutate colossus-acquire-cluster-lost                scripts/sim/sword_state.gd "	if spec.type_id == SwordDefs.COLOSSUS:
+		return _acquire_cluster(run)
+" ""
+mutate colossus-acquire-ignores-distance            scripts/sim/sword_state.gd "var score: float = float(crowd) * 1000.0 - dist" "var score: float = float(crowd) * 1000.0"
+mutate colossus-acquire-tie-goes-last               scripts/sim/sword_state.gd "if best == null or score > best_score:" "if best == null or score >= best_score:"
+mutate colossus-acquire-counts-with-the-rarity-radius scripts/sim/sword_state.gd "if (other.position - enemy.position).length() < SwordDefs.COLOSSUS_AOE:" "if (other.position - enemy.position).length() < slam_radius():"
+mutate colossus-acquire-count-inclusive             scripts/sim/sword_state.gd "if (other.position - enemy.position).length() < SwordDefs.COLOSSUS_AOE:" "if (other.position - enemy.position).length() <= SwordDefs.COLOSSUS_AOE:"
+mutate colossus-acquire-count-skips-the-dead        scripts/sim/sword_state.gd "if (other.position - enemy.position).length() < SwordDefs.COLOSSUS_AOE:" "if not other.dead and (other.position - enemy.position).length() < SwordDefs.COLOSSUS_AOE:"
+mutate colossus-acquire-skips-the-dead              scripts/sim/sword_state.gd "		if dist < attack_range + enemy.radius:
+			var crowd: int = 0" "		if not enemy.dead and dist < attack_range + enemy.radius:
+			var crowd: int = 0"
+mutate colossus-acquire-ignores-enemy-radius        scripts/sim/sword_state.gd "		if dist < attack_range + enemy.radius:
+			var crowd: int = 0" "		if dist < attack_range:
+			var crowd: int = 0"
+mutate colossus-start-altitude-not-set              scripts/sim/sword_state.gd "	if type_id == SwordDefs.COLOSSUS:
+		sword.altitude = SwordDefs.COLOSSUS_START_ALTITUDE
+" ""
+mutate colossus-rest-altitude-frozen                scripts/sim/sword_state.gd "altitude = lerpf(altitude, rest, minf(1.0, dt * SwordDefs.COLOSSUS_REST_RATE))" "altitude = altitude"
+mutate colossus-windup-altitude-lost                scripts/sim/sword_state.gd "	altitude = lerpf(altitude, SwordDefs.COLOSSUS_WINDUP_ALTITUDE, minf(1.0, dt * SwordDefs.COLOSSUS_WINDUP_RATE))" "	altitude = altitude"
+mutate colossus-windup-spring-lost                  scripts/sim/sword_state.gd "	_spring(aim, SwordDefs.COLOSSUS_WINDUP_SPRING_K, SwordDefs.COLOSSUS_WINDUP_SPRING_C, dt)" "	pass"
+mutate colossus-windup-angle-lost                   scripts/sim/sword_state.gd "	angle = SimMath.ang_lerp(angle, PI / 2.0 + sin(run.gameplay_time * SwordDefs.COLOSSUS_WINDUP_TREMBLE_RATE) * SwordDefs.COLOSSUS_WINDUP_TREMBLE, minf(1.0, dt * SwordDefs.COLOSSUS_WINDUP_TURN_RATE))" "	angle = angle"
+mutate colossus-impact-is-the-sword                 scripts/sim/sword_state.gd "			impact = aim
+" "			impact = position
+"
+mutate colossus-fall-speed-not-set                  scripts/sim/sword_state.gd "			fall_speed = SwordDefs.COLOSSUS_STRIKE_FALL_SPEED
+" ""
+mutate colossus-fall-no-glide                       scripts/sim/sword_state.gd "	position = position.lerp(impact, minf(1.0, dt * SwordDefs.COLOSSUS_GLIDE_RATE))" "	position = position"
+mutate colossus-fall-no-gravity                     scripts/sim/sword_state.gd "	fall_speed += SwordDefs.COLOSSUS_STRIKE_GRAVITY * dt" "	fall_speed += 0.0"
+mutate colossus-lands-late                          scripts/sim/sword_state.gd "	altitude -= fall_speed * dt
+	if altitude <= 0.0:
+		altitude = 0.0
+		position = impact" "	altitude -= fall_speed * dt
+	if altitude < -40.0:
+		altitude = 0.0
+		position = impact"
+mutate colossus-slam-radius-unscaled                scripts/sim/sword_state.gd "run.slam(self, impact, slam_radius(), 1.0, 1, false)" "run.slam(self, impact, SwordDefs.COLOSSUS_AOE, 1.0, 1, false)"
+mutate colossus-slam-power                          scripts/sim/sword_state.gd "run.slam(self, impact, slam_radius(), 1.0, 1, false)" "run.slam(self, impact, slam_radius(), 1.1, 1, false)"
+mutate colossus-slam-doses                          scripts/sim/sword_state.gd "run.slam(self, impact, slam_radius(), 1.0, 1, false)" "run.slam(self, impact, slam_radius(), 1.0, 2, false)"
+mutate colossus-slam-marked-a-cataclysm             scripts/sim/sword_state.gd "run.slam(self, impact, slam_radius(), 1.0, 1, false)" "run.slam(self, impact, slam_radius(), 1.0, 1, true)"
+mutate colossus-slam-skips-the-stuck-pause          scripts/sim/sword_state.gd "		phase = Phase.STUCK
+		timer = SwordDefs.COLOSSUS_STUCK_TIME" "		phase = Phase.RECOVER
+		timer = SwordDefs.COLOSSUS_RECOVER_TIME"
+mutate colossus-stuck-clock-stopped                 scripts/sim/sword_state.gd "func _update_stuck(dt: float) -> void:
+	timer -= dt" "func _update_stuck(dt: float) -> void:
+	timer -= 0.0"
+mutate colossus-stuck-angle-lost                    scripts/sim/sword_state.gd "	angle = PI / 2.0 + sin(timer * SwordDefs.COLOSSUS_STUCK_TREMBLE_RATE) * SwordDefs.COLOSSUS_STUCK_TREMBLE * timer" "	angle = PI / 2.0"
+mutate colossus-recover-without-the-kick            scripts/sim/sword_state.gd "		velocity = SwordDefs.COLOSSUS_RECOVER_VELOCITY" "		velocity = Vector2.ZERO"
+mutate colossus-dead-player-altitude-kept           scripts/sim/sword_state.gd "			altitude = maxf(0.0, altitude - dt * SwordDefs.COLOSSUS_SINK_RATE)" "			altitude = altitude"
+mutate cataclysm-area-radius-is-the-slam-radius     scripts/sim/sword_state.gd "		SwordDefs.COLOSSUS:
+			return cataclysm_radius()" "		SwordDefs.COLOSSUS:
+			return slam_radius()"
+mutate cataclysm-radius-formula                     scripts/sim/sword_state.gd "return SwordDefs.COLOSSUS_AOE * SwordDefs.COLOSSUS_ULT_AOE_FACTOR * size_scale" "return SwordDefs.COLOSSUS_AOE * SwordDefs.COLOSSUS_ULT_AOE_FACTOR"
+mutate cataclysm-rise-progress-stuck-at-one         scripts/sim/sword_state.gd "	if cataclysm_falling:
+		return 1.0" "	if cataclysm_falling:
+		return 0.0"
+mutate cataclysm-rise-progress-guard-lost           scripts/sim/sword_state.gd "	if phase != Phase.ULTIMATE or spec.type_id != SwordDefs.COLOSSUS:
+		return 0.0" "	if spec.type_id != SwordDefs.COLOSSUS:
+		return 0.0"
+mutate cataclysm-rise-clock-stopped                 scripts/sim/sword_state.gd "func _update_cataclysm(run: GameRun, dt: float) -> void:
+	ultimate_time_left -= dt" "func _update_cataclysm(run: GameRun, dt: float) -> void:
+	ultimate_time_left -= 0.0"
+mutate cataclysm-rise-time-not-set                  scripts/sim/sword_state.gd "			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME" "			ultimate_time_left = 0.0"
+mutate cataclysm-rise-spring-lost                   scripts/sim/sword_state.gd "		_spring(ultimate_point, SwordDefs.COLOSSUS_WINDUP_SPRING_K, SwordDefs.COLOSSUS_WINDUP_SPRING_C, dt)" "		pass"
+mutate cataclysm-rise-altitude-lost                 scripts/sim/sword_state.gd "		altitude = lerpf(altitude, SwordDefs.COLOSSUS_ULT_RISE_ALTITUDE, minf(1.0, dt * SwordDefs.COLOSSUS_ULT_RISE_RATE))" "		pass"
+mutate cataclysm-fall-never-starts                  scripts/sim/sword_state.gd "			cataclysm_falling = true
+			fall_speed = SwordDefs.COLOSSUS_ULT_FALL_SPEED" "			fall_speed = SwordDefs.COLOSSUS_ULT_FALL_SPEED"
+mutate cataclysm-fall-speed-not-set                 scripts/sim/sword_state.gd "			fall_speed = SwordDefs.COLOSSUS_ULT_FALL_SPEED" "			fall_speed = 0.0"
+mutate cataclysm-fall-no-glide                      scripts/sim/sword_state.gd "	position = position.lerp(ultimate_point, minf(1.0, dt * SwordDefs.COLOSSUS_GLIDE_RATE))" "	position = position"
+mutate cataclysm-lands-late                         scripts/sim/sword_state.gd "	altitude -= fall_speed * dt
+	if altitude <= 0.0:
+		altitude = 0.0
+		position = ultimate_point" "	altitude -= fall_speed * dt
+	if altitude < -20.0:
+		altitude = 0.0
+		position = ultimate_point"
+mutate cataclysm-flag-kept-for-the-next-one         scripts/sim/sword_state.gd "			cataclysm_falling = false
+			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME" "			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME"
+mutate cataclysm-slam-radius-is-the-slam-radius     scripts/sim/sword_state.gd "var area: float = cataclysm_radius()" "var area: float = slam_radius()"
+mutate cataclysm-slam-power                         scripts/sim/sword_state.gd "run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, SwordDefs.COLOSSUS_ULT_STACKS, true)" "run.slam(self, ultimate_point, area, 1.0, SwordDefs.COLOSSUS_ULT_STACKS, true)"
+mutate cataclysm-slam-doses                         scripts/sim/sword_state.gd "run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, SwordDefs.COLOSSUS_ULT_STACKS, true)" "run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, 1, true)"
+mutate cataclysm-slam-not-marked                    scripts/sim/sword_state.gd "run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, SwordDefs.COLOSSUS_ULT_STACKS, true)" "run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, SwordDefs.COLOSSUS_ULT_STACKS, false)"
+mutate cataclysm-leaves-no-field                    scripts/sim/sword_state.gd "		run.add_field(FieldState.make(ultimate_point, area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, spec.element, damage, SwordDefs.COLOSSUS_FIELD_LIFE))
+" ""
+mutate cataclysm-field-element                      scripts/sim/sword_state.gd "area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, spec.element, damage," "area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, &\"fire\", damage,"
+mutate cataclysm-field-power                        scripts/sim/sword_state.gd "area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, spec.element, damage," "area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, spec.element, 0.0,"
+mutate cataclysm-field-radius-from-the-slam         scripts/sim/sword_state.gd "FieldState.make(ultimate_point, area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR," "FieldState.make(ultimate_point, slam_radius() * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR,"
+mutate cataclysm-field-life                         scripts/sim/sword_state.gd "spec.element, damage, SwordDefs.COLOSSUS_FIELD_LIFE))" "spec.element, damage, SwordDefs.COLOSSUS_FIELD_LIFE * 2.0))"
+mutate cataclysm-no-extra-shake                     scripts/sim/sword_state.gd "		run.add_shake(SwordDefs.COLOSSUS_ULT_SHAKE)
+" ""
+mutate cataclysm-no-stuck-pause                     scripts/sim/sword_state.gd "		phase = Phase.STUCK
+		timer = SwordDefs.COLOSSUS_ULT_STUCK_TIME" "		phase = Phase.RECOVER
+		timer = SwordDefs.COLOSSUS_RECOVER_TIME"
+mutate slam-skips-the-dead                          scripts/sim/game_run.gd "		if dist < radius + enemy.radius:
+			var fall" "		if not enemy.dead and dist < radius + enemy.radius:
+			var fall"
+mutate slam-reach-ignores-the-enemy-radius          scripts/sim/game_run.gd "		if dist < radius + enemy.radius:
+			var fall" "		if dist < radius:
+			var fall"
+mutate slam-reach-inclusive                         scripts/sim/game_run.gd "		if dist < radius + enemy.radius:
+			var fall" "		if dist <= radius + enemy.radius:
+			var fall"
+mutate slam-no-falloff                              scripts/sim/game_run.gd "var fall: float = 1.0 - SwordDefs.COLOSSUS_SLAM_FALLOFF * clampf(dist / radius, 0.0, 1.0)" "var fall: float = 1.0"
+mutate slam-falloff-unclamped                       scripts/sim/game_run.gd "clampf(dist / radius, 0.0, 1.0)" "(dist / radius)"
+mutate slam-power-ignored                           scripts/sim/game_run.gd "sword.damage * sword.boost * power * fall" "sword.damage * sword.boost * fall"
+mutate slam-boost-ignored                           scripts/sim/game_run.gd "sword.damage * sword.boost * power * fall" "sword.damage * power * fall"
+mutate slam-knockback-not-scaled                    scripts/sim/game_run.gd "offset, sword.knock * fall, sword, true, stacks)" "offset, sword.knock, sword, true, stacks)"
+mutate slam-not-heavy                               scripts/sim/game_run.gd "offset, sword.knock * fall, sword, true, stacks)" "offset, sword.knock * fall, sword, false, stacks)"
+mutate slam-doses-dropped                           scripts/sim/game_run.gd "offset, sword.knock * fall, sword, true, stacks)" "offset, sword.knock * fall, sword, true, 1)"
+mutate slam-pushes-toward-the-point                 scripts/sim/game_run.gd "sword.damage * sword.boost * power * fall, offset," "sword.damage * sword.boost * power * fall, -offset,"
+mutate slam-clears-no-orbs                          scripts/sim/game_run.gd "	clear_projectiles_in_circle(point, radius)
+	hitstop" "	hitstop"
+mutate slam-clears-orbs-with-padding                scripts/sim/game_run.gd "	clear_projectiles_in_circle(point, radius)
+	hitstop" "	clear_projectiles_in_circle(point, radius + 8.0)
+	hitstop"
+mutate slam-hitstop-always-short                    scripts/sim/game_run.gd "sword.hit_stop if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_HITSTOP" "SwordDefs.COLOSSUS_SLAM_EMPTY_HITSTOP"
+mutate slam-hitstop-always-long                     scripts/sim/game_run.gd "sword.hit_stop if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_HITSTOP" "sword.hit_stop"
+mutate slam-shake-always-short                      scripts/sim/game_run.gd "sword.hit_shake if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE" "SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE"
+mutate slam-shake-always-long                       scripts/sim/game_run.gd "sword.hit_shake if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE" "sword.hit_shake"
+mutate slam-kicks-upward                            scripts/sim/game_run.gd "SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE, Vector2.DOWN, true)" "SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE, Vector2.UP, true)"
+mutate slam-no-kick                                 scripts/sim/game_run.gd "SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE, Vector2.DOWN, true)" "SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE, Vector2.DOWN, false)"
+mutate slam-counts-only-the-living                  scripts/sim/game_run.gd "			in_area += 1" "			in_area += 0 if enemy.dead else 1"
+mutate slam-cue-lost                                scripts/sim/game_run.gd "	add_cue(cue)
+	return in_area" "	return in_area"
+mutate slam-cue-radius-lost                         scripts/sim/game_run.gd "	cue.radius = radius
+	cue.element = sword.spec.element" "	cue.element = sword.spec.element"
+mutate slam-cue-element-lost                        scripts/sim/game_run.gd "	cue.element = sword.spec.element
+	add_cue(cue)
+	return in_area" "	add_cue(cue)
+	return in_area"
+mutate slam-cue-always-a-cataclysm                  scripts/sim/game_run.gd "SimCue.make(SimCue.Kind.COLOSSUS_SLAM, point, Vector2.DOWN, in_area, cataclysm)" "SimCue.make(SimCue.Kind.COLOSSUS_SLAM, point, Vector2.DOWN, in_area, true)"
+mutate slam-cue-count-lost                          scripts/sim/game_run.gd "SimCue.make(SimCue.Kind.COLOSSUS_SLAM, point, Vector2.DOWN, in_area, cataclysm)" "SimCue.make(SimCue.Kind.COLOSSUS_SLAM, point, Vector2.DOWN, 0, cataclysm)"
+mutate field-cue-lost                               scripts/sim/game_run.gd "	var cue: SimCue = SimCue.make(SimCue.Kind.FIELD_CREATED, field.position)
+	cue.radius = field.radius
+	cue.element = field.element
+	add_cue(cue)" "	pass"
+mutate field-pulse-cue-count-lost                   scripts/sim/game_run.gd "SimCue.make(SimCue.Kind.FIELD_PULSED, field.position, Vector2.ZERO, dosed)" "SimCue.make(SimCue.Kind.FIELD_PULSED, field.position, Vector2.ZERO, 0)"
+mutate field-pulse-cue-lost                         scripts/sim/game_run.gd "			cue.element = field.element
+			add_cue(cue)
+	var remaining: Array[FieldState] = []" "			cue.element = field.element
+	var remaining: Array[FieldState] = []"
+mutate fields-never-tick                            scripts/sim/game_run.gd "	_update_fields(dt)
+" ""
+mutate fields-tick-before-the-conditions            scripts/sim/game_run.gd "	_update_conditions(dt)
+	_update_fields(dt)" "	_update_fields(dt)
+	_update_conditions(dt)"
+mutate fields-life-frozen                           scripts/sim/game_run.gd "		field.life -= dt" "		field.life -= 0.0"
+mutate fields-clock-frozen                          scripts/sim/game_run.gd "		field.tick_left -= dt" "		field.tick_left -= 0.0"
+mutate fields-first-dose-delayed                    scripts/sim/field_state.gd "var tick_left: float = 0.0" "var tick_left: float = 0.5"
+mutate fields-dose-the-dead                         scripts/sim/game_run.gd "				if not enemy.dead and field.reaches(enemy):" "				if field.reaches(enemy):"
+mutate fields-dose-twice                            scripts/sim/game_run.gd "					afflict(enemy, field.element, field.power)" "					afflict(enemy, field.element, field.power, 2)"
+mutate fields-power-lost                            scripts/sim/game_run.gd "					afflict(enemy, field.element, field.power)" "					afflict(enemy, field.element, 0.0)"
+mutate fields-element-lost                          scripts/sim/game_run.gd "					afflict(enemy, field.element, field.power)" "					afflict(enemy, &\"fire\", field.power)"
+mutate fields-dose-without-conditions-gate          scripts/sim/game_run.gd "	if not scenario.conditions_enabled or enemy.dead:
+		return" "	if enemy.dead:
+		return"
+mutate fields-expire-late                           scripts/sim/game_run.gd "		if field.life > 0.0:
+			remaining.append(field)" "		if field.life > -0.02:
+			remaining.append(field)"
+mutate fields-expire-early                          scripts/sim/game_run.gd "		if field.life > 0.0:
+			remaining.append(field)" "		if field.life > 0.02:
+			remaining.append(field)"
+mutate fields-never-removed                         scripts/sim/game_run.gd "	fields = remaining" "	fields = fields"
+mutate fields-kept-on-restart                       scripts/sim/game_run.gd "	fields = []
+	motes = []" "	motes = []"
+mutate field-reach-ignores-the-enemy-radius         scripts/sim/field_state.gd "return (enemy.position - position).length() < radius + enemy.radius" "return (enemy.position - position).length() < radius"
+mutate field-reach-inclusive                        scripts/sim/field_state.gd "return (enemy.position - position).length() < radius + enemy.radius" "return (enemy.position - position).length() <= radius + enemy.radius"
+mutate field-fade-linear                            scripts/sim/field_state.gd "return clampf(life / max_life * 3.0, 0.0, 1.0)" "return clampf(life / max_life, 0.0, 1.0)"
+mutate field-max-life-lost                          scripts/sim/field_state.gd "	field.max_life = life_value
+" ""
+mutate orbs-cleared-inclusive                       scripts/sim/game_run.gd "(projectile.position - center).length() < radius:
+			projectile.resolve(ProjectileState.Fate.CLEARED)" "(projectile.position - center).length() <= radius:
+			projectile.resolve(ProjectileState.Fate.CLEARED)"
+mutate orbs-cleared-counter-lost                    scripts/sim/game_run.gd "	projectiles_cleared += cleared
+" ""
+mutate orbs-cleared-as-parried                      scripts/sim/game_run.gd "projectile.resolve(ProjectileState.Fate.CLEARED)" "projectile.resolve(ProjectileState.Fate.PARRIED)"
+mutate orbs-cleared-counter-kept-on-restart         scripts/sim/game_run.gd "	projectiles_cleared = 0
+" ""
+mutate snapshot-field-count-lost                    scripts/sim/game_run.gd "		\"field_count\": fields.size()," "		\"field_count\": 0,"
+mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_WARDEN, ENCOUNTER_PIKE]"
+mutate colossus-encounter-slot-lost                 scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
+" "		RunScenario.new(),
+"
+mutate colossus-fixture-wrong-element               scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))"
+mutate colossus-fixture-has-no-colossi              scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
+mutate colossus-encounter-no-spitters               scripts/sim/run_scenario.gd "&\"spitter\", &\"husk\", &\"runner\", &\"husk\", &\"spitter\"" "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\""
+mutate colossus-encounter-no-brutes                 scripts/sim/run_scenario.gd "&\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\", &\"spitter\"" "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"spitter\""
+mutate colossus-encounter-cluster-moved             scripts/sim/run_scenario.gd "Vector2(1620.0, 880.0), Vector2(1660.0, 925.0)" "Vector2(1920.0, 880.0), Vector2(1960.0, 925.0)"
+mutate colossus-encounter-not-the-default           scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.colossus_fixture_loadout()"
+mutate colossus-launch-option-lost                  scripts/launch_options.gd "		\"colossus\":
+			return RunScenario.colossus_encounter()" "		\"colossus\":
+			return null"
+mutate colossus-dev-button-title                    scripts/sim/run_scenario.gd "		ENCOUNTER_COLOSSUS:
+			return \"Colossus\"
+" ""
+mutate colossus-legend-lost                         scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS:" "	elif false:"
+mutate colossus-legend-counts-nothing               scripts/hud.gd "run.cue_count(SimCue.Kind.COLOSSUS_SLAM), run.cue_count(SimCue.Kind.FIELD_CREATED), run.fields.size(), switch_hint]" "0, 0, 0, switch_hint]"
+mutate colossus-legend-live-fields-lost             scripts/hud.gd "run.cue_count(SimCue.Kind.FIELD_CREATED), run.fields.size(), switch_hint]" "run.cue_count(SimCue.Kind.FIELD_CREATED), 0, switch_hint]"
+mutate slam-telegraph-lost                          scripts/presentation/effects_layer.gd "			_draw_slam_telegraph(sword)
+" "			pass
+"
+mutate field-drawing-lost                           scripts/presentation/effects_layer.gd "		_draw_field(field)
+" "		pass
+"
+mutate slam-telegraph-fill-not-drawn                scripts/presentation/effects_layer.gd "	_disc(StringName(String(kind) + \"_fill\"), at, radius, Color(tint, 0.05 + 0.08 * progress))
+" ""
+mutate slam-telegraph-rim-not-drawn                 scripts/presentation/effects_layer.gd "	_rim(StringName(String(kind) + \"_rim\"), at, radius, Color(tint, 0.3 + 0.5 * progress), 2.0, 48)
+" ""
+mutate slam-telegraph-closing-ring-not-drawn        scripts/presentation/effects_layer.gd "	_rim(StringName(String(kind) + \"_closing\"), at, maxf(8.0, radius * (1.0 - 0.85 * progress)), Color(tint, 0.25 + 0.55 * progress), 3.0, 32)
+" ""
+mutate cataclysm-ring-not-drawn                     scripts/presentation/effects_layer.gd "				_draw_impact_ring(&\"cataclysm_ring\", sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)" "				pass"
+mutate field-fill-not-drawn                         scripts/presentation/effects_layer.gd "	_disc(&\"field_fill\", Vector2.ZERO, field.radius, Color(tint, 0.16 * fade))
+" ""
+mutate field-rim-not-drawn                          scripts/presentation/effects_layer.gd "	_rim(&\"field_rim\", Vector2.ZERO, field.radius, Color(tint, pulse * fade), 2.0, 48)
+" ""
+mutate field-particles-lost                         scripts/presentation/effects_layer.gd "		_add_field_particles(run, dt)
+" ""
+mutate slam-outer-ring-lost                         scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 10.0, cue.radius * 1.35, 0.35, Color(slam_tint, 0.95), 6.0)
+" "			pass
+"
+mutate slam-inner-ring-lost                         scripts/presentation/effects_layer.gd "			_add_ring(cue.position, 6.0, cue.radius * 0.8, 0.22, Color(1.0, 1.0, 1.0, 0.9), 3.0)
+" "			pass
+"
+mutate slam-sparks-lost                             scripts/presentation/effects_layer.gd "			for i: int in 30:
+				_add_spark(cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(200.0, 800.0)), _rng.randf_range(0.2, 0.5), slam_tint)" "			pass"
+mutate cataclysm-text-lost                          scripts/presentation/effects_layer.gd "				_add_text(cue.position + Vector2(0.0, -cue.radius * 0.35), \"CATACLYSM\", slam_tint, 0.9, 30)" "				pass"
+mutate cataclysm-text-on-every-slam                 scripts/presentation/effects_layer.gd "			if cue.critical:
+				_add_text(cue.position + Vector2(0.0, -cue.radius * 0.35)" "			if true:
+				_add_text(cue.position + Vector2(0.0, -cue.radius * 0.35)"
+mutate field-created-ring-lost                      scripts/presentation/effects_layer.gd "			_add_ring(cue.position, cue.radius * 0.6, cue.radius, 0.4, Color(element_color(cue.element), 0.9), 4.0)" "			pass"
+mutate field-pulse-ring-lost                        scripts/presentation/effects_layer.gd "				_add_ring(cue.position, cue.radius * 0.9, cue.radius, 0.25, Color(element_color(cue.element), 0.45), 2.0)" "				pass"
+mutate field-pulse-ring-when-empty                  scripts/presentation/effects_layer.gd "		SimCue.Kind.FIELD_PULSED:
+			if cue.amount > 0:" "		SimCue.Kind.FIELD_PULSED:
+			if true:"
+mutate slam-sound-lost                              scripts/audio/sfx_bank.gd "		SimCue.Kind.COLOSSUS_SLAM:
+			play(\"hit\")" "		SimCue.Kind.COLOSSUS_SLAM:
+			pass"
+mutate colossus-visual-needle                       scripts/presentation/placeholder_sword_visual.gd "	_colossus = spec.type_id == SwordDefs.COLOSSUS" "	_colossus = false"
+mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
+mutate colossus-visual-altitude-ignored             scripts/presentation/placeholder_sword_visual.gd "func _on_altitude(height: float) -> void:
+	_altitude = height" "func _on_altitude(height: float) -> void:
+	pass"
+mutate presenter-drops-the-altitude                 scripts/presentation/run_presenter.gd "		visual.apply_altitude(sword.altitude)
+" ""
+mutate sword-visual-contract-drops-the-altitude     scripts/presentation/sword_visual.gd "	_on_altitude(height)
+" "	pass
+"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

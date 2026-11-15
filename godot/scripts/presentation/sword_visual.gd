@@ -20,6 +20,13 @@ func apply_pose(world_position: Vector2, angle: float, phase: int) -> void:
 	_on_pose(angle, phase)
 
 
+## Called every fixed tick with the sword's height above the ground, in px. Only a Colossus keeps one in
+## the simulation (the prototype's `z`: it decides when its slam lands); it is read-only here, so a visual
+## may draw its sword as high as it likes, or ignore it, without changing a single outcome.
+func apply_altitude(height: float) -> void:
+	_on_altitude(height)
+
+
 ## Called when the visual is first shown so interpolation does not smear.
 func snap() -> void:
 	reset_physics_interpolation()
@@ -30,4 +37,8 @@ func _on_setup(_spec: SwordSpec) -> void:
 
 
 func _on_pose(_angle: float, _phase: int) -> void:
+	pass
+
+
+func _on_altitude(_height: float) -> void:
 	pass

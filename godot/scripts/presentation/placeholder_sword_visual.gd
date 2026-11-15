@@ -2,8 +2,10 @@ class_name PlaceholderSwordVisual
 extends SwordVisual
 ## Temporary drawn sword: a tinted blade that rides above its shadow. Fang is a thin
 ## needle; Warden a longer, broader blade with a heavy crossguard and pommel; Pike a long thin
-## shaft ending in a leaf-shaped head, so the three read apart at a glance. Length, width and lift are this visual's own numbers and do not
-## feed reach (that is `SwordState`).
+## shaft ending in a leaf-shaped head; Colossus a huge, broad slab of a blade that hangs point-down
+## above its shadow, so the four read apart at a glance. Length, width and lift are this visual's own numbers and do not
+## feed reach (that is `SwordState`). A Colossus is drawn as high above the ground as the simulation's altitude
+## says (the height is read, never changed).
 
 const BLADE_LENGTH: float = 34.0
 const BLADE_WIDTH: float = 6.0
@@ -11,6 +13,8 @@ const WARDEN_BLADE_LENGTH: float = 54.0
 const WARDEN_BLADE_WIDTH: float = 9.0
 const PIKE_BLADE_LENGTH: float = 74.0
 const PIKE_BLADE_WIDTH: float = 6.0
+const COLOSSUS_BLADE_LENGTH: float = 88.0
+const COLOSSUS_BLADE_WIDTH: float = 15.0
 const ELEMENT_COLORS: Dictionary = {
 	&"fire": Color(1.0, 0.46, 0.17),
 	&"ice": Color(0.47, 0.80, 1.0),
@@ -22,6 +26,9 @@ const LIFT_ATTACK: float = 14.0
 var _color: Color = Color.WHITE
 var _warden: bool = false
 var _pike: bool = false
+var _colossus: bool = false
+## A Colossus's height above the ground as the simulation reports it (px).
+var _altitude: float = 0.0
 var _angle: float = -PI / 2.0
 var _lift: float = LIFT_IDLE
 var _phase: int = SwordState.Phase.IDLE
@@ -36,14 +43,19 @@ func _on_setup(spec: SwordSpec) -> void:
 	_color = ELEMENT_COLORS.get(spec.element, Color.WHITE)
 	_warden = spec.type_id == SwordDefs.WARDEN
 	_pike = spec.type_id == SwordDefs.PIKE
+	_colossus = spec.type_id == SwordDefs.COLOSSUS
 	queue_redraw()
+
+
+func _on_altitude(height: float) -> void:
+	_altitude = height
 
 
 func _on_pose(angle: float, phase: int) -> void:
 	_angle = angle
 	_phase = phase
 	var attacking: bool = phase == SwordState.Phase.WINDUP or phase == SwordState.Phase.STRIKE or phase == SwordState.Phase.ULTIMATE
-	_lift = lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)
+	_lift = _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)
 	if phase == SwordState.Phase.ULTIMATE:
 		_afterimages.append({"world": position, "angle": angle})
 		while _afterimages.size() > AFTERIMAGE_LIMIT:
@@ -54,9 +66,14 @@ func _on_pose(angle: float, phase: int) -> void:
 
 
 func _draw() -> void:
-	var l: float = PIKE_BLADE_LENGTH if _pike else WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH
-	var w: float = PIKE_BLADE_WIDTH if _pike else WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH
-	draw_circle(Vector2(0.0, 6.0), 11.0 if _warden or _pike else 8.0, Color(0.0, 0.0, 0.0, 0.3))
+	var l: float = COLOSSUS_BLADE_LENGTH if _colossus else PIKE_BLADE_LENGTH if _pike else WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH
+	var w: float = COLOSSUS_BLADE_WIDTH if _colossus else PIKE_BLADE_WIDTH if _pike else WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH
+	if _colossus:
+		# The shadow stays on the ground and shrinks and fades as the blade climbs.
+		var high: float = clampf(_altitude / 260.0, 0.0, 1.0)
+		draw_circle(Vector2(0.0, 6.0), lerpf(26.0, 12.0, high), Color(0.0, 0.0, 0.0, lerpf(0.34, 0.12, high)))
+	else:
+		draw_circle(Vector2(0.0, 6.0), 11.0 if _warden or _pike else 8.0, Color(0.0, 0.0, 0.0, 0.3))
 	# Viper Flurry afterimages: faint copies of the blade where it just was, so the
 	# darts read as streaks (each is stored in world space, drawn relative to the blade).
 	for i: int in _afterimages.size():
@@ -67,7 +84,23 @@ func _draw() -> void:
 	draw_set_transform(Vector2(0.0, -_lift), _angle, Vector2.ONE)
 	var origin: Vector2 = Vector2(-l * 0.35, 0.0)
 	var bright: Color = _color.lerp(Color.WHITE, 0.55 + (0.3 if _phase == SwordState.Phase.STRIKE or _phase == SwordState.Phase.ULTIMATE else 0.0))
-	if _pike:
+	if _colossus:
+		# A huge slab of a blade with a squared-off point, a pale fuller, a very wide guard and a heavy
+		# pommel: far wider and heavier than any other sword, with a blade you can read from afar.
+		var slab: PackedVector2Array = PackedVector2Array([
+			origin + Vector2(0.0, w * 0.55),
+			origin + Vector2(l * 0.84, w * 0.5),
+			origin + Vector2(l, 0.0),
+			origin + Vector2(l * 0.84, -w * 0.5),
+			origin + Vector2(0.0, -w * 0.55),
+		])
+		draw_colored_polygon(slab, bright)
+		draw_polyline(PackedVector2Array([slab[0], slab[1], slab[2], slab[3], slab[4], slab[0]]), _color.darkened(0.5), 2.0)
+		draw_line(origin + Vector2(l * 0.08, 0.0), origin + Vector2(l * 0.72, 0.0), _color.darkened(0.5), maxf(1.0, w * 0.2))
+		draw_line(origin + Vector2(0.0, w * 1.25), origin + Vector2(0.0, -w * 1.25), _color, maxf(2.0, w * 0.45))
+		draw_line(origin, origin + Vector2(-l * 0.22, 0.0), _color.darkened(0.55), maxf(2.0, w * 0.4))
+		draw_circle(origin + Vector2(-l * 0.22, 0.0), maxf(2.0, w * 0.42), _color)
+	elif _pike:
 		# A long thin shaft with a leaf-shaped head, a narrow crossguard and a round pommel: a
 		# spear, much longer than it is wide.
 		var tail: Vector2 = origin - Vector2(l * 0.28, 0.0)

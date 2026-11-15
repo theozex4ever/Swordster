@@ -8,9 +8,10 @@ encounter** with runners and brutes, crowd bowling and wall slams, a **spitter
 encounter** with ranged foes, enemy orbs and sword parries, **elemental conditions**
 (burn, poison, chill and freeze on every blow) and **Warden**, the sword of sweeping
 arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), and **Pike**,
-the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), on top of the
-delivery-proof arena, exported to Windows and Web from one Linux command. Colossus
-with its ultimate, Converge, drops and swaps, and further waves arrive in
+the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), and **Colossus**,
+the sword of crushing slams, with its **Cataclysm** ultimate and the elemental ground field it leaves (a **colossus
+encounter** equips it), on top of the delivery-proof arena, exported to Windows and Web from one Linux command.
+Converge, drops and swaps, the final default loadout and further waves arrive in
 later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
@@ -19,7 +20,8 @@ and keeps working. Reference values, tolerances and deliberate exceptions:
 [Viper Flurry](../docs/reference/viper-flurry.md) (#12) and
 [elemental conditions](../docs/reference/elemental-conditions.md) (#11) and
 [Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13) and
-[Pike and Skewer](../docs/reference/pike-skewer.md) (#14).
+[Pike and Skewer](../docs/reference/pike-skewer.md) (#14) and
+[Colossus and Cataclysm](../docs/reference/colossus-cataclysm.md) (#15).
 
 ### Viper Flurry (Q / E / R)
 
@@ -32,7 +34,7 @@ swords) from the moment it starts; the cards at the bottom left show READY, ACTI
 the seconds left, with the sword type under the bar. Three Fang swords are still the normal run's
 fixture loadout, so every slot holds Viper Flurry there; the warden encounter below equips a Fang
 and two Wardens, whose slots hold Maelstrom, and the pike encounter equips three Pikes, whose slots hold
-Skewer. Colossus's ultimate arrives with its slice.
+Skewer, and the colossus encounter equips three Colossus swords, whose slots hold Cataclysm.
 
 ### Warden and Maelstrom
 
@@ -69,6 +71,24 @@ of the north wall with a column of foes strung out toward it, against three Pike
 aim north. This is a development fixture, not the final default loadout (issue #16); the normal run is
 unchanged.
 
+### Colossus and Cataclysm
+
+Slice #15 ([reference](../docs/reference/colossus-cataclysm.md)). **Colossus** (the prototype's
+`colossus`) is the sword of crushing slams: it goes for the biggest cluster within 330 px, winds up for
+0.55 s hanging high above its target, falls onto the spot it chose and crushes everything within 118 px
+(50 damage at the centre down to 28 at the edge, 650 knockback scaled the same way, a heavy blow that
+stops the game for 0.13 s) and destroys the enemy orbs inside. Its ultimate, **Cataclysm** (14 s recharge),
+is aimed at the cursor (up to 480 px from you): the sword rises for 0.75 s, falls, and lands a slam 1.8x as wide
+with 2.2x the damage and three doses of its element, then leaves an **elemental field** 1.1x as wide
+that lasts 5 s and doses everything standing in it (one dose now and every half second) with the sword's element.
+Poison stacks, ice chills and freezes, fire burns; fields of different swords overlap and each doses on its own
+clock. The sword's height and fall are drawn from the simulation's own altitude (the slam lands when it
+reaches the ground), never the other way round. To fight with it: the **colossus encounter**
+(`Swordster.exe -- --encounter=colossus`, `index.html?encounter=colossus`, or the dev button / `C` after the
+pike encounter) puts a cluster east of you and a wave behind it against three Colossi (poison, ice, fire): press
+Q, E and R with the cursor on the crowd and watch all three fields. This is a development fixture, not the final
+default loadout (issue #16); the normal run is unchanged.
+
 ### The crowd encounter
 
 A development fixture for slice #9: one wave of five husks, five runners and two
@@ -76,7 +96,7 @@ brutes against the three-Fang fixture loadout, with a **shove** that flings near
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
 are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
 `C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
-conditions → warden → pike → normal; shove with the **Shove** button or `F`. To start in it:
+conditions → warden → pike → colossus → normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
@@ -291,6 +311,12 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   thrust geometry at 228 probe points, piercing without gaps, parries, the Skewer's aim, flight, impalement,
   carry and release at the range and at every wall and corner, enemies that die or leave the run while
   impaled, conditions, plus the HUD, effects and a render-rate fight with wall slams.
+- `godot/tests/colossus_cataclysm_checks.gd` (issue #15) replays the Python prototype's captured Colossus,
+  Cataclysm and field cases (`godot/tests/reference/colossus_cataclysm.json`, regenerated by
+  `tools/reference/capture_colossus_cataclysm.py`) tick by tick on the real simulation: cluster targeting, the windup,
+  the fall's timing from different altitudes, area damage and falloff at 56 + 12 probe points, hitstop and shake,
+  projectile clearing, Cataclysm's rise, fall and field, every element's doses and cadence, overlapping fields,
+  expiry, deaths by condition, corpses, pause and restart, plus the HUD, effects and a render-rate fight.
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one; a crash or timeout is reported as inconclusive, not as caught.

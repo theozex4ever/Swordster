@@ -6,10 +6,9 @@ extends RefCounted
 ## back (ADR 0003).
 ##
 ## Fang (a homing dash, the Viper Flurry ultimate), Warden (an alternating
-## sweeping arc, the Maelstrom ultimate) and Pike (a long piercing thrust, the Skewer
-## ultimate) are ported: idle/recover orbit, windup, strike, recovery and the
-## ultimates. Colossus attacks, Converge and its ultimate land in later slices, so
-## `SwordDefs.is_supported` rejects other types.
+## sweeping arc, the Maelstrom ultimate), Pike (a long piercing thrust, the Skewer
+## ultimate) and Colossus (a crushing slam, the Cataclysm ultimate) are ported: idle/recover orbit,
+## windup, strike, recovery and the ultimates. Converge lands in a later slice.
 ##
 ## Ultimates are per-slot sword state: each sword carries its own recharge and,
 ## while it lasts, the ULTIMATE phase. `begin_ultimate`, `_update_ultimate` and
@@ -17,10 +16,14 @@ extends RefCounted
 ## branch each. Warden's sweep geometry (`sweep_*`) and Maelstrom's reach are
 ## gameplay state the presentation reads, never the other way round (ADR 0003). Pike's
 ## thrust and Skewer sweep a segment each tick (tail to tip), so nothing can tunnel at any
-## speed or render rate; the Skewer's carried enemies are `skewer_carried`.
+## speed or render rate; the Skewer's carried enemies are `skewer_carried`. Colossus
+## rises, falls and lands on the point it chose; how long the fall takes is decided by its altitude and
+## fall speed (`altitude`, `fall_speed`), which are gameplay state here because the prototype's height
+## `z` decides when the slam lands. The visual draws them and never feeds anything back (ADR 0003).
 
-## ULTIMATE is last so the earlier phases keep their numeric values.
-enum Phase { IDLE, WINDUP, STRIKE, RECOVER, ULTIMATE }
+## ULTIMATE and STUCK come last so the earlier phases keep their numeric values. STUCK is
+## Colossus's pause with its blade buried in the floor after a slam (the prototype's "stuck").
+enum Phase { IDLE, WINDUP, STRIKE, RECOVER, ULTIMATE, STUCK }
 
 var spec: SwordSpec
 var phase: Phase = Phase.IDLE
@@ -72,6 +75,14 @@ var ultimate_beat: float = 0.0
 ## sword lets go of it.
 var skewer_flying: bool = false
 var skewer_carried: Array[EnemyState] = []
+## Colossus (prototype `z`, `vz`, `impact` and, for Cataclysm, `phase == "fall"`): the height above the
+## ground in px and the speed it falls at (while the slam falls, positive is downward), the ground
+## point a slam lands on (fixed when the strike starts) and whether Cataclysm has stopped rising and
+## is falling. The slam lands on the first tick the altitude reaches zero, so these decide its timing.
+var altitude: float = 0.0
+var fall_speed: float = 0.0
+var impact: Vector2 = Vector2.ZERO
+var cataclysm_falling: bool = false
 
 var damage: float = 0.0
 var cooldown: float = 0.0
@@ -104,6 +115,8 @@ static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> 
 	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]
 	sword.position = at
 	sword.cooldown_left = start_cooldown
+	if type_id == SwordDefs.COLOSSUS:
+		sword.altitude = SwordDefs.COLOSSUS_START_ALTITUDE
 	return sword
 
 
@@ -125,6 +138,8 @@ static func _in_play(run: GameRun, enemy: EnemyState) -> bool:
 ## prefers a long thrust: while any candidate is farther than PIKE_FAR_MIN from the player,
 ## only those are considered.
 func acquire(run: GameRun) -> EnemyState:
+	if spec.type_id == SwordDefs.COLOSSUS:
+		return _acquire_cluster(run)
 	var prefer_far: bool = false
 	if spec.type_id == SwordDefs.PIKE:
 		for enemy: EnemyState in run.enemies:
@@ -141,6 +156,28 @@ func acquire(run: GameRun) -> EnemyState:
 		if dist < attack_range + enemy.radius and dist < best_dist:
 			best = enemy
 			best_dist = dist
+	return best
+
+
+## Colossus's target (prototype `acquire`, colossus branch): among the enemies within range of the player,
+## the one with the most enemies (itself, the dead of this tick and every other included) within
+## COLOSSUS_AOE of it, a nearer one winning when the counts are equal (each enemy scores
+## `count x 1000 - distance to the player`; the first of equal scores wins). The count uses the type's radius,
+## not the rarity-scaled one the slam itself uses, as in the prototype.
+func _acquire_cluster(run: GameRun) -> EnemyState:
+	var best: EnemyState = null
+	var best_score: float = 0.0
+	for enemy: EnemyState in run.enemies:
+		var dist: float = (enemy.position - run.position).length()
+		if dist < attack_range + enemy.radius:
+			var crowd: int = 0
+			for other: EnemyState in run.enemies:
+				if (other.position - enemy.position).length() < SwordDefs.COLOSSUS_AOE:
+					crowd += 1
+			var score: float = float(crowd) * 1000.0 - dist
+			if best == null or score > best_score:
+				best = enemy
+				best_score = score
 	return best
 
 
@@ -182,8 +219,29 @@ func ultimate_area_radius() -> float:
 			return maelstrom_reach()
 		SwordDefs.PIKE:
 			return 0.0
+		SwordDefs.COLOSSUS:
+			return cataclysm_radius()
 		_:
 			return SwordDefs.FANG_ULT_RADIUS
+
+
+## The radius of this sword's automatic slam, and of a Cataclysm (prototype `t.aoe x scale`, and `ult_aoe`:
+## `t.aoe x ult.aoe x scale`, multiplied in that order). The slam's own area uses the rarity's size factor.
+func slam_radius() -> float:
+	return SwordDefs.COLOSSUS_AOE * size_scale
+
+
+func cataclysm_radius() -> float:
+	return SwordDefs.COLOSSUS_AOE * SwordDefs.COLOSSUS_ULT_AOE_FACTOR * size_scale
+
+
+## 0..1 progress of a Cataclysm's rise (1 once it is falling), for the telegraph.
+func cataclysm_rise_progress() -> float:
+	if phase != Phase.ULTIMATE or spec.type_id != SwordDefs.COLOSSUS:
+		return 0.0
+	if cataclysm_falling:
+		return 1.0
+	return 1.0 - clampf(ultimate_time_left / SwordDefs.COLOSSUS_ULT_RISE_TIME, 0.0, 1.0)
 
 
 ## 0..1 progress of the thrust's windup (Pike), for the presentation's telegraph; 0 outside it.
@@ -227,6 +285,10 @@ func begin_ultimate(run: GameRun, point: Vector2) -> void:
 			ultimate_time_left = SwordDefs.WARDEN_ULT_DURATION
 			ultimate_beat = SwordDefs.WARDEN_ULT_FIRST_BEAT
 			ultimate_spin = atan2(position.y - point.y, position.x - point.x)
+		SwordDefs.COLOSSUS:
+			# No move: the sword rises where it hangs, onto the point, and then falls on it.
+			cataclysm_falling = false
+			ultimate_time_left = SwordDefs.COLOSSUS_ULT_RISE_TIME
 		SwordDefs.PIKE:
 			# A skill shot: the heading is the player-to-point line (the player's facing if
 			# they coincide), fixed for the whole shot.
@@ -259,6 +321,8 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 		velocity *= exp(-dt * 3.0)
 		position += velocity * dt
 		angle = SimMath.ang_lerp(angle, float(index) * 1.3 + 0.4, minf(1.0, dt * 4.0))
+		if spec.type_id == SwordDefs.COLOSSUS:
+			altitude = maxf(0.0, altitude - dt * SwordDefs.COLOSSUS_SINK_RATE)
 		phase = Phase.IDLE
 		ultimate_victim = null
 		skewer_carried.clear()
@@ -279,6 +343,9 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 				_spring(slot, 55.0, 10.0, dt)
 			var lean: float = clampf(velocity.x / 600.0, -0.8, 0.8)
 			angle = SimMath.ang_lerp(angle, -PI / 2.0 + lean + sin(run.gameplay_time * 1.7 + float(index)) * 0.12, minf(1.0, dt * 7.0))
+			if spec.type_id == SwordDefs.COLOSSUS:
+				var rest: float = SwordDefs.COLOSSUS_REST_BASE + length * SwordDefs.COLOSSUS_REST_LENGTH + sin(run.gameplay_time * SwordDefs.COLOSSUS_REST_BOB_RATE + float(index) * SwordDefs.COLOSSUS_REST_BOB_SLOT) * SwordDefs.COLOSSUS_REST_BOB
+				altitude = lerpf(altitude, rest, minf(1.0, dt * SwordDefs.COLOSSUS_REST_RATE))
 			if start_phase == Phase.IDLE and cooldown_left <= 0.0:
 				var found: EnemyState = acquire(run)
 				if found != null:
@@ -291,6 +358,8 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 					_update_sweep_windup(dt, to_aim)
 				SwordDefs.PIKE:
 					_update_thrust_windup(dt, to_aim)
+				SwordDefs.COLOSSUS:
+					_update_slam_windup(run, dt)
 				_:
 					var d: Vector2 = SimMath.norm(aim - position, run.rng, to_aim, true)
 					_spring(run.position + (position - run.position) * 0.98 - d * 18.0, 160.0, 22.0, dt)
@@ -303,10 +372,14 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 					_update_sweep(run, dt)
 				SwordDefs.PIKE:
 					_update_thrust(run, dt)
+				SwordDefs.COLOSSUS:
+					_update_slam_fall(run, dt)
 				_:
 					_update_strike(run, dt)
 		Phase.ULTIMATE:
 			_update_ultimate(run, dt)
+		Phase.STUCK:
+			_update_stuck(dt)
 
 
 func _start_strike(run: GameRun) -> void:
@@ -318,6 +391,11 @@ func _start_strike(run: GameRun) -> void:
 			timer = SwordDefs.WARDEN_SWEEP_TIME
 			sweep_duration = timer
 			dir = SimMath.polar((sweep_from + sweep_to) * 0.5)
+		SwordDefs.COLOSSUS:
+			# The ground point is fixed now; the sword falls straight onto it.
+			impact = aim
+			fall_speed = SwordDefs.COLOSSUS_STRIKE_FALL_SPEED
+			dir = Vector2.DOWN
 		SwordDefs.PIKE:
 			# A fixed line from where the sword hangs toward the aim point, run a little past it.
 			dir = SimMath.norm(aim - position, run.rng)
@@ -441,6 +519,8 @@ func _update_ultimate(run: GameRun, dt: float) -> void:
 			_update_maelstrom(run, dt)
 		SwordDefs.PIKE:
 			_update_skewer(run, dt)
+		SwordDefs.COLOSSUS:
+			_update_cataclysm(run, dt)
 
 
 ## Viper Flurry: the sword darts between the enemies inside the area, striking
@@ -601,6 +681,70 @@ func _update_skewer(run: GameRun, dt: float) -> void:
 		timer = SwordDefs.PIKE_ULT_RECOVER_TIME
 		velocity = -dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_WALL if at_wall else dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_RANGE
 		run.add_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall))
+
+
+## Colossus's windup (prototype `Sword.update`, colossus branch): the sword springs onto the aim point,
+## which follows its target until the strike, climbs toward its windup altitude and turns upright with a
+## small tremble.
+func _update_slam_windup(run: GameRun, dt: float) -> void:
+	_spring(aim, SwordDefs.COLOSSUS_WINDUP_SPRING_K, SwordDefs.COLOSSUS_WINDUP_SPRING_C, dt)
+	altitude = lerpf(altitude, SwordDefs.COLOSSUS_WINDUP_ALTITUDE, minf(1.0, dt * SwordDefs.COLOSSUS_WINDUP_RATE))
+	angle = SimMath.ang_lerp(angle, PI / 2.0 + sin(run.gameplay_time * SwordDefs.COLOSSUS_WINDUP_TREMBLE_RATE) * SwordDefs.COLOSSUS_WINDUP_TREMBLE, minf(1.0, dt * SwordDefs.COLOSSUS_WINDUP_TURN_RATE))
+
+
+## Colossus's fall (prototype `Sword.update`, colossus strike): the sword glides onto the impact point
+## while it falls faster and faster; on the first tick its altitude reaches zero it lands exactly on the point,
+## slams (`GameRun.slam`) and sticks in the ground. How long the fall takes depends only on the altitude
+## it began from, never on a visual.
+func _update_slam_fall(run: GameRun, dt: float) -> void:
+	position = position.lerp(impact, minf(1.0, dt * SwordDefs.COLOSSUS_GLIDE_RATE))
+	fall_speed += SwordDefs.COLOSSUS_STRIKE_GRAVITY * dt
+	altitude -= fall_speed * dt
+	if altitude <= 0.0:
+		altitude = 0.0
+		position = impact
+		run.slam(self, impact, slam_radius(), 1.0, 1, false)
+		phase = Phase.STUCK
+		timer = SwordDefs.COLOSSUS_STUCK_TIME
+
+
+## Colossus buried in the floor after a slam, trembling for a moment before it recovers.
+func _update_stuck(dt: float) -> void:
+	timer -= dt
+	angle = PI / 2.0 + sin(timer * SwordDefs.COLOSSUS_STUCK_TREMBLE_RATE) * SwordDefs.COLOSSUS_STUCK_TREMBLE * timer
+	if timer <= 0.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.COLOSSUS_RECOVER_TIME
+		velocity = SwordDefs.COLOSSUS_RECOVER_VELOCITY
+
+
+## Cataclysm: the sword rises onto the point for COLOSSUS_ULT_RISE_TIME (springing, climbing toward its
+## rise altitude, trembling), then falls on it faster than an automatic slam. On the first tick the altitude
+## reaches zero it lands: a slam of 2.2 x damage with three doses of the element (its area is 1.8 x the
+## automatic one), then the elemental field it leaves, an extra shake and the sword sticks in the ground.
+## The first tick of the fall is the tick after the rise ends, as in the prototype.
+func _update_cataclysm(run: GameRun, dt: float) -> void:
+	ultimate_time_left -= dt
+	if not cataclysm_falling:
+		_spring(ultimate_point, SwordDefs.COLOSSUS_WINDUP_SPRING_K, SwordDefs.COLOSSUS_WINDUP_SPRING_C, dt)
+		altitude = lerpf(altitude, SwordDefs.COLOSSUS_ULT_RISE_ALTITUDE, minf(1.0, dt * SwordDefs.COLOSSUS_ULT_RISE_RATE))
+		angle = SimMath.ang_lerp(angle, PI / 2.0 + sin(run.gameplay_time * SwordDefs.COLOSSUS_ULT_TREMBLE_RATE) * SwordDefs.COLOSSUS_ULT_TREMBLE, minf(1.0, dt * SwordDefs.COLOSSUS_WINDUP_TURN_RATE))
+		if ultimate_time_left <= 0.0:
+			cataclysm_falling = true
+			fall_speed = SwordDefs.COLOSSUS_ULT_FALL_SPEED
+		return
+	position = position.lerp(ultimate_point, minf(1.0, dt * SwordDefs.COLOSSUS_GLIDE_RATE))
+	fall_speed += SwordDefs.COLOSSUS_ULT_FALL_GRAVITY * dt
+	altitude -= fall_speed * dt
+	if altitude <= 0.0:
+		altitude = 0.0
+		position = ultimate_point
+		var area: float = cataclysm_radius()
+		run.slam(self, ultimate_point, area, SwordDefs.COLOSSUS_ULT_DAMAGE_FACTOR, SwordDefs.COLOSSUS_ULT_STACKS, true)
+		run.add_field(FieldState.make(ultimate_point, area * SwordDefs.COLOSSUS_FIELD_RADIUS_FACTOR, spec.element, damage, SwordDefs.COLOSSUS_FIELD_LIFE))
+		run.add_shake(SwordDefs.COLOSSUS_ULT_SHAKE)
+		phase = Phase.STUCK
+		timer = SwordDefs.COLOSSUS_ULT_STUCK_TIME
 
 
 ## The prototype's `WORLD.inflate(-20, -20).collidepoint(tip)`: the rectangle loses 20 px of width and

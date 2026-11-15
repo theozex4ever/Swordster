@@ -10,8 +10,9 @@ extends RefCounted
 ## prototype's, explicitly: player, then each sword slot in order (a running ultimate
 ## strikes during its sword's update), then enemies, separation, elemental conditions
 ## (damage over time, expiry), contacts, removal of
-## the dead, projectiles, motes, counters and the wave director. Elemental fields (issue #15)
-## will tick right after the conditions and call the same `afflict`. See docs/reference/fang-survival-loop.md,
+## the dead, projectiles, motes, counters and the wave director. Elemental fields (issue #15) tick right
+## after the conditions (the prototype's `update_fields` follows `update_conditions`) and call the same `afflict`;
+## a Colossus slam is `slam`. See docs/reference/fang-survival-loop.md,
 ## docs/reference/runners-brutes-crowd.md, docs/reference/spitters-projectiles-parries.md,
 ## docs/reference/viper-flurry.md and docs/reference/elemental-conditions.md
 ## for the captured reference values and tolerances. Crowd and wall rules (separation, bowling, wall slams) are
@@ -151,10 +152,14 @@ var swords: Array[SwordState] = []
 var enemies: Array[EnemyState] = []
 var projectiles: Array[ProjectileState] = []
 var motes: Array[Mote] = []
+## The elemental ground Cataclysm leaves (run-owned: cleared on restart, frozen by pause and hitstop).
+var fields: Array[FieldState] = []
 var director: WaveDirector
 
 # --- counters
 var kills: int = 0
+## How many enemy orbs Colossus slams have destroyed this run (they are removed silently, so this is how it is observed).
+var projectiles_cleared: int = 0
 var combo: int = 0
 var best_combo: int = 0
 var combo_left: float = 0.0
@@ -171,7 +176,7 @@ var _cues: Array[SimCue] = []
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
 ## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
-## order (normal, crowd, spitters, conditions, warden, pike): the one the run was made with keeps its own
+## order (normal, crowd, spitters, conditions, warden, pike, colossus): the one the run was made with keeps its own
 ## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
 var _encounter_scenarios: Array[RunScenario] = []
 
@@ -185,6 +190,7 @@ func _init(scenario_value: RunScenario = null) -> void:
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS else RunScenario.conditions_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
 	]
 	if scenario.seed < 0:
 		rng.randomize()
@@ -329,6 +335,7 @@ func step() -> void:
 		enemy.update(self, dt)
 	_separate()
 	_update_conditions(dt)
+	_update_fields(dt)
 	_resolve_contacts()
 	var alive: Array[EnemyState] = []
 	for enemy: EnemyState in enemies:
@@ -434,6 +441,68 @@ func parry_projectiles(from: Vector2, to: Vector2, pad: float) -> int:
 	return parried
 
 
+## A Colossus slam (prototype `Game.slam`) at `point`: every enemy within `radius` plus its own is struck
+## by a heavy blow of `damage x boost x power x fall` with `knock x fall`, where `fall` is 1 minus
+## SLAM_FALLOFF x how far out (0..1 of `radius`) it stands, and takes `stacks` doses of the element; every orb
+## within `radius` is cleared. As in the prototype the enemies are taken in the run's order and the dead are
+## not skipped (`hit_enemy` ignores them, but a corpse still counts as something in the area, which sets
+## the hitstop and shake). Hitstop and shake are the sword type's if anything was in the area, else a short one.
+## `cataclysm` only tells the cue which kind of slam it was. Returns how many enemies were in the area.
+func slam(sword: SwordState, point: Vector2, radius: float, power: float, stacks: int, cataclysm: bool) -> int:
+	var in_area: int = 0
+	for enemy: EnemyState in enemies:
+		var offset: Vector2 = enemy.position - point
+		var dist: float = offset.length()
+		if dist < radius + enemy.radius:
+			var fall: float = 1.0 - SwordDefs.COLOSSUS_SLAM_FALLOFF * clampf(dist / radius, 0.0, 1.0)
+			hit_enemy(enemy, sword.damage * sword.boost * power * fall, offset, sword.knock * fall, sword, true, stacks)
+			in_area += 1
+	clear_projectiles_in_circle(point, radius)
+	hitstop = maxf(hitstop, sword.hit_stop if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_HITSTOP)
+	add_shake(sword.hit_shake if in_area > 0 else SwordDefs.COLOSSUS_SLAM_EMPTY_SHAKE, Vector2.DOWN, true)
+	var cue: SimCue = SimCue.make(SimCue.Kind.COLOSSUS_SLAM, point, Vector2.DOWN, in_area, cataclysm)
+	cue.radius = radius
+	cue.element = sword.spec.element
+	add_cue(cue)
+	return in_area
+
+
+## Adds an elemental ground field to the run (Cataclysm's), announcing it.
+func add_field(field: FieldState) -> void:
+	fields.append(field)
+	var cue: SimCue = SimCue.make(SimCue.Kind.FIELD_CREATED, field.position)
+	cue.radius = field.radius
+	cue.element = field.element
+	add_cue(cue)
+
+
+## Elemental fields (prototype `update_fields`), right after the conditions: every field loses life and its
+## dose clock; when the clock runs out (the very tick a field is made, since it starts at zero) it is
+## set back to FIELD_PERIOD and every LIVING enemy whose centre is within the field's radius plus its own gets one
+## dose of its element through `afflict`, in the run's order (a corpse of this tick is skipped). A field that
+## has run out of life still pulses on its last tick, and is removed after the loop.
+func _update_fields(dt: float) -> void:
+	for field: FieldState in fields:
+		field.life -= dt
+		field.tick_left -= dt
+		if field.tick_left <= 0.0:
+			field.tick_left = SwordDefs.COLOSSUS_FIELD_PERIOD
+			var dosed: int = 0
+			for enemy: EnemyState in enemies:
+				if not enemy.dead and field.reaches(enemy):
+					afflict(enemy, field.element, field.power)
+					dosed += 1
+			var cue: SimCue = SimCue.make(SimCue.Kind.FIELD_PULSED, field.position, Vector2.ZERO, dosed)
+			cue.radius = field.radius
+			cue.element = field.element
+			add_cue(cue)
+	var remaining: Array[FieldState] = []
+	for field: FieldState in fields:
+		if field.life > 0.0:
+			remaining.append(field)
+	fields = remaining
+
+
 ## Destroys every projectile whose centre is inside the circle, silently (the
 ## prototype's Colossus slam: `pr.dead = True` within the blast, no parry
 ## feedback of its own). Returns how many were cleared.
@@ -443,6 +512,7 @@ func clear_projectiles_in_circle(center: Vector2, radius: float) -> int:
 		if not projectile.is_resolved() and (projectile.position - center).length() < radius:
 			projectile.resolve(ProjectileState.Fate.CLEARED)
 			cleared += 1
+	projectiles_cleared += cleared
 	return cleared
 
 
@@ -741,6 +811,8 @@ func snapshot() -> Dictionary:
 		"enemy_hp": enemy_hp,
 		"projectile_positions": projectile_positions,
 		"mote_count": motes.size(),
+		"field_count": fields.size(),
+		"field_lives": fields.map(func(field: FieldState) -> float: return field.life),
 		"sword_positions": sword_positions,
 		"sword_phases": sword_phases,
 		"ultimate_cooldowns": ultimate_cooldowns,
@@ -770,6 +842,7 @@ func _reset_state() -> void:
 	dash_cooldown_left = 0.0
 	death_time = 0.0
 	kills = 0
+	projectiles_cleared = 0
 	combo = 0
 	best_combo = 0
 	combo_left = 0.0
@@ -799,6 +872,7 @@ func _reset_state() -> void:
 		if placement.hp >= 0.0:
 			enemy.hp = placement.hp
 		enemies.append(enemy)
+	fields = []
 	motes = []
 	for at: Vector2 in scenario.initial_motes:
 		motes.append(Mote.scatter(at, rng))
