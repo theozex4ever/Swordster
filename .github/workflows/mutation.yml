@@ -1,0 +1,138 @@
+name: Mutation checks
+
+# The exhaustive mutation pass (tools/godot/mutation-check.sh): every deliberate bug
+# must be rejected by the headless checks. It is too long for every pull request, so
+# per-PR work runs only the touched sections locally (see "Mutation checks" in
+# godot/README.md) and this workflow runs the FULL pass after merge: on every push to
+# main and on manual dispatch (Actions -> Mutation checks -> Run workflow, on any
+# branch). It publishes nothing and holds no secrets.
+#
+# This pass is the AUTHORITATIVE verdict, so it runs the strict CLASSIC mode (FAST=0): every
+# mutation gets the complete default suite with the render-rate probes, and a crash, timeout
+# or script error after a failing check stays INCONCLUSIVE. The fast local mode (stop at the
+# first clean failure) may call such a mutation caught; see "Mutation checks" in godot/README.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One full pass per ref at a time. A newer push to main replaces a run that has not
+  # started yet and never cancels one in progress; the newer run covers the older commit.
+  group: mutation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Keep in step with the matrix below: SHARDS is its length. Classic mode costs about a
+  # minute per mutation, so the ~450 mutations are spread over 12 shards.
+  SHARDS: 12
+
+jobs:
+  mutation:
+    name: shard ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      # Every shard reports its own counts even when another one fails.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@v7 # v7.0.1; the major tag is the pin
+        with:
+          persist-credentials: false
+
+      # Same cache as build.yml: only the downloaded archives, keyed on the lock file.
+      # build-godot.sh re-checks each one against the SHA-512 values in
+      # tools/godot/godot.lock on every run and re-extracts the toolchain from them, so a
+      # stale or tampered entry fails with exit 12 instead of being trusted.
+      - name: Restore Godot download cache
+        uses: actions/cache@v6 # v6.1.0
+        with:
+          path: ~/.cache/swordster/downloads
+          key: godot-downloads-${{ hashFiles('tools/godot/godot.lock') }}
+
+      - name: Install the pinned, checksum-verified Godot
+        run: ./build-godot.sh --bootstrap-only
+
+      - name: Run this shard's mutations (classic mode)
+        id: run
+        shell: bash
+        env:
+          # Strict mode: the complete suite, probes included, for every mutation.
+          FAST: "0"
+          # A complete pass takes no selection: these must stay empty (the summary rejects any
+          # shard whose RESULT line records a filter, and any count short of the whole list).
+          ONLY: ""
+          SECTIONS: ""
+          CORE: ""
+        run: |
+          unset ONLY SECTIONS CORE
+          set +e
+          SHARD="${{ matrix.shard }}" SHARDS="$SHARDS" tools/godot/mutation-check.sh 2>&1 | tee "shard-${{ matrix.shard }}.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          # RESULT shard=… shards=… total=… selected=… filters=… mode=… ran=… caught=… …; absent if
+          # the script died early. The shard's exit status is recorded next to it and is
+          # validated by the summary job (an absent or non-zero exit fails the pass).
+          result="$(grep '^RESULT ' "shard-${{ matrix.shard }}.log" | tail -n 1 || true)"
+          [[ -n "$result" ]] || result="RESULT shard=${{ matrix.shard }} (no result: the script stopped early)"
+          echo "$result exit=$rc" > "result-${{ matrix.shard }}.txt"
+          {
+            echo "### Shard ${{ matrix.shard }} of $SHARDS"
+            echo
+            echo "\`${result#RESULT }\` (exit $rc)"
+            grep -E '^(SURVIVED|INCONCLUSIVE|MUTATION NOT APPLIED) ' "shard-${{ matrix.shard }}.log" | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          if ((rc != 0)); then
+            echo "::error title=Mutation checks failed (shard ${{ matrix.shard }})::a mutation survived or was inconclusive, or the checker failed: exit code $rc"
+            exit "$rc"
+          fi
+
+      - name: Upload the shard log and result
+        if: always()
+        uses: actions/upload-artifact@v7 # v7.0.2
+        with:
+          name: mutation-shard-${{ matrix.shard }}
+          path: |
+            shard-${{ matrix.shard }}.log
+            result-${{ matrix.shard }}.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  summary:
+    name: all shards
+    needs: mutation
+    # Runs even when a shard failed, was cancelled or timed out, so the pass is still
+    # reported, but it succeeds only if the matrix job as a whole succeeded AND every shard's
+    # result file is present, well formed and clean (see tools/godot/mutation-summary.sh).
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the summary script
+        uses: actions/checkout@v7 # v7.0.1; the major tag is the pin
+        with:
+          persist-credentials: false
+
+      - name: Collect every shard's result
+        uses: actions/download-artifact@v8 # v8.0.2
+        # Nothing to download when no shard got far enough to upload (the next step reports it).
+        continue-on-error: true
+        with:
+          pattern: mutation-shard-*
+          path: results
+          merge-multiple: true
+
+      - name: Judge the pass
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.mutation.result }}
+          # The summary checks the shards against this workflow's own matrix and against the
+          # mutation list of this commit (see tools/godot/mutation-summary.sh).
+          WORKFLOW_FILE: .github/workflows/mutation.yml
+        run: bash tools/godot/mutation-summary.sh results

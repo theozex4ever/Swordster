@@ -16,6 +16,9 @@ extends RefCounted
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
+##
+## Playing them is the slowest part of the checks, so every group's render-rate check starts with
+## `if not RenderRateScenario.probes_enabled(): return` (see run_checks.gd's switches).
 
 const REFERENCE_PATH: String = "res://tests/reference/crowd_and_walls.json"
 const CROWD: String = "crowd"
@@ -26,6 +29,8 @@ const WARDEN: String = "warden"
 const PIKE: String = "pike"
 const COLOSSUS: String = "colossus"
 const TOTAL_TICKS: int = 900
+## Set in the environment by run_checks.gd's --fail-fast once a check has failed.
+const STOPPED_ENV: String = "SWORDSTER_CHECKS_STOPPED"
 ## Simulation ticks (ticks already completed) before which each command is issued.
 const SHOVE_TICKS: Array[int] = [0, 200, 420, 520, 560, 640, 700]
 const DASH_TICK: int = 500
@@ -454,3 +459,10 @@ static func _ultimate_state(run: GameRun) -> Array[String]:
 	for sword: SwordState in run.swords:
 		shown.append("%d:%.3f:%.3f,%.3f:%.3f:%.3f" % [sword.phase, sword.ultimate_cooldown_left, sword.position.x, sword.position.y, sword.altitude, sword.fall_speed])
 	return shown
+
+
+## False when the run was started with `--skip-probes`, or `--fail-fast` has already stopped at a
+## failure: the render-rate checks (the scenario played in process, and each probe process) are
+## then not run at all.
+static func probes_enabled() -> bool:
+	return not OS.get_cmdline_user_args().has("--skip-probes") and OS.get_environment(STOPPED_ENV) != "1"
