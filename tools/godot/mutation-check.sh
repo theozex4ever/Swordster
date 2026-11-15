@@ -1966,6 +1966,7 @@ mutate pickup-card-y-unclamped                 scripts/hud.gd "clampf(screen_at.
 mutate pickup-card-over-the-slot-cards         scripts/hud.gd "view.y - PICKUP_CARD_SIZE.y - ULT_CARD_SIZE.y - 40.0" "view.y - PICKUP_CARD_SIZE.y - 40.0"
 mutate pickup-card-too-narrow-for-its-text         scripts/hud.gd "const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)" "const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)"
 mutate pickup-card-comparison-font-grows          scripts/hud.gd "		compare.add_theme_font_size_override(\"font_size\", 14)" "		compare.add_theme_font_size_override(\"font_size\", 17)"
+mutate controls-hint-runs-into-the-buttons          scripts/hud.gd "1 / 2 / 3: swap a drop\\nTab / G: ranges   P / Esc: pause" "1 / 2 / 3: swap a drop   Tab / G: ranges   P / Esc: pause   R after death\\nTab / G: ranges   P / Esc: pause"
 mutate pickup-card-comparison-lost             scripts/hud.gd "			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
 " ""
 mutate pickup-card-name-colour-lost            scripts/hud.gd "	_pickup_lines[0].modulate = tint

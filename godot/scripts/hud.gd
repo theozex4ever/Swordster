@@ -88,7 +88,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: sword ultimates at the cursor   1 / 2 / 3: swap a drop   Tab / G: ranges\nP / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: ultimates at the cursor   1 / 2 / 3: swap a drop\nTab / G: ranges   P / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag to move, Dash button")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))

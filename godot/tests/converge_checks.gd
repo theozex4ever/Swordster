@@ -998,6 +998,9 @@ func _check_hud_and_effects() -> void:
 	_ok("a dead player's rings are not drawn", main.run.dead and main.run.show_ranges and effects.draw_counts.get(&"range_ring", 0) == before_dead)
 	var hint: String = main._hud._hint_label.text
 	_ok("the controls hint names the click and Tab / G and fits the view (%s)" % [main._hud._hint_label.get_global_rect()], hint.contains("Click: Converge") and hint.contains("Tab / G") and main.get_viewport().get_visible_rect().grow(0.5).encloses(main._hud._hint_label.get_global_rect()))
+	var hint_text: Rect2 = Rect2(main._hud._hint_label.get_global_rect().position, main._hud._hint_label.get_minimum_size())
+	var buttons: Array[Control] = [main._hud._pause_button, main._hud._restart_button, main._hud._encounter_button]
+	_ok("the hint's text (%s) leaves the pause, restart and dev-encounter buttons alone (%s)" % [hint_text, buttons.map(func(button: Control) -> Rect2: return button.get_global_rect())], buttons.all(func(button: Control) -> bool: return not hint_text.intersects(button.get_global_rect())) and hint.contains("swap a drop") and hint.contains("P / Esc: pause"))
 	main.queue_free()
 	await _tree.process_frame
 	var window: Window = Window.new()
