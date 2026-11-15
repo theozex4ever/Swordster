@@ -905,13 +905,13 @@ mutate maelstrom-recover-speed                      scripts/sim/sword_defs.gd "W
 mutate sweep-hits-twice                             scripts/sim/sword_state.gd "			if sweep_hits.has(enemy):
 				continue" "			if false:
 				continue"
-mutate sweep-hit-set-kept-between-attacks           scripts/sim/sword_state.gd "	timer = windup
+mutate sweep-hit-set-kept-between-attacks           scripts/sim/sword_state.gd "	windup_span = timer
 	sweep_hits.clear()
-	side = -side" "	timer = windup
+	side = -side" "	windup_span = timer
 	side = -side"
-mutate sweep-never-alternates                       scripts/sim/sword_state.gd "	timer = windup
+mutate sweep-never-alternates                       scripts/sim/sword_state.gd "	windup_span = timer
 	sweep_hits.clear()
-	side = -side" "	timer = windup
+	side = -side" "	windup_span = timer
 	sweep_hits.clear()
 	side = side"
 mutate sweep-no-parry                               scripts/sim/sword_state.gd "		run.parry_projectiles(guard, tip, SwordDefs.WARDEN_PARRY_PAD)
@@ -1009,10 +1009,12 @@ mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd 
 mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 " "		RunScenario.new(),
 "
-mutate warden-fixture-has-no-wardens                scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
+mutate warden-fixture-has-no-wardens                scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(&\"fang\", 0, &\"poison\"))
+	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"poison\"))
+	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
 mutate warden-fixture-wrong-element                 scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.WARDEN, 0, &\"ice\"))"
 mutate warden-encounter-no-brutes                   scripts/sim/run_scenario.gd "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"brute\", &\"husk\", &\"husk\", &\"runner\"," "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\","
-mutate warden-encounter-not-the-default             scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.warden_fixture_loadout()"
+mutate warden-encounter-not-the-default             scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.default_loadout()" "var loadout: Array[SwordSpec] = RunScenario.warden_fixture_loadout()"
 mutate warden-launch-option-lost                    scripts/launch_options.gd "		\"warden\":
 			return RunScenario.warden_encounter()" "		\"warden\":
 			return null"
@@ -1099,7 +1101,9 @@ mutate skewer-recover-speed-wall                    scripts/sim/sword_defs.gd "P
 mutate skewer-is-clamped-like-an-area-ultimate      scripts/sim/sword_defs.gd "static func ultimate_is_shot(type_id: StringName) -> bool:
 	return type_id == PIKE" "static func ultimate_is_shot(type_id: StringName) -> bool:
 	return false"
-mutate skewer-point-collapses-to-the-player          scripts/sim/game_run.gd "	var target: Vector2 = point" "	var target: Vector2 = position"
+mutate skewer-point-collapses-to-the-player          scripts/sim/game_run.gd "	var type_id: StringName = sword.spec.type_id
+	var target: Vector2 = point" "	var type_id: StringName = sword.spec.type_id
+	var target: Vector2 = position"
 mutate pike-far-preference-lost                     scripts/sim/sword_state.gd "				prefer_far = true" "				prefer_far = false"
 mutate pike-far-boundary-inclusive                  scripts/sim/sword_state.gd "and far > SwordDefs.PIKE_FAR_MIN:" "and far >= SwordDefs.PIKE_FAR_MIN:"
 mutate pike-far-filter-keeps-the-boundary           scripts/sim/sword_state.gd "if prefer_far and dist <= SwordDefs.PIKE_FAR_MIN:" "if prefer_far and dist < SwordDefs.PIKE_FAR_MIN:"
@@ -1232,7 +1236,7 @@ mutate pike-fixture-wrong-element                   scripts/sim/run_scenario.gd 
 mutate pike-fixture-has-no-pikes                    scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
 mutate pike-encounter-no-brutes                     scripts/sim/run_scenario.gd "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\"," "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\","
 mutate pike-encounter-column-moved                  scripts/sim/run_scenario.gd "Vector2(1290.0, 330.0), Vector2(1325.0, 270.0)" "Vector2(1290.0, 630.0), Vector2(1325.0, 570.0)"
-mutate pike-encounter-not-the-default               scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.pike_fixture_loadout()"
+mutate pike-encounter-not-the-default               scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.default_loadout()" "var loadout: Array[SwordSpec] = RunScenario.pike_fixture_loadout()"
 mutate pike-launch-option-lost                      scripts/launch_options.gd "		\"pike\":
 			return RunScenario.pike_encounter()" "		\"pike\":
 			return null"
@@ -1549,12 +1553,14 @@ mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd 
 mutate colossus-encounter-slot-lost                 scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
 " "		RunScenario.new(),
 "
-mutate colossus-fixture-wrong-element               scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))"
+mutate colossus-fixture-wrong-element               scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"fire\"))" "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))
+	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))"
 mutate colossus-fixture-has-no-colossi              scripts/sim/run_scenario.gd "	specs.append(SwordSpec.make(SwordDefs.COLOSSUS, 0, &\"ice\"))" "	specs.append(SwordSpec.make(&\"fang\", 0, &\"ice\"))"
 mutate colossus-encounter-no-spitters               scripts/sim/run_scenario.gd "&\"spitter\", &\"husk\", &\"runner\", &\"husk\", &\"spitter\"" "&\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\""
 mutate colossus-encounter-no-brutes                 scripts/sim/run_scenario.gd "&\"husk\", &\"runner\", &\"husk\", &\"brute\", &\"husk\", &\"spitter\"" "&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"spitter\""
 mutate colossus-encounter-cluster-moved             scripts/sim/run_scenario.gd "Vector2(1620.0, 880.0), Vector2(1660.0, 925.0)" "Vector2(1920.0, 880.0), Vector2(1960.0, 925.0)"
-mutate colossus-encounter-not-the-default           scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.fang_fixture_loadout()" "var loadout: Array[SwordSpec] = RunScenario.colossus_fixture_loadout()"
+mutate colossus-encounter-not-the-default           scripts/sim/run_scenario.gd "var loadout: Array[SwordSpec] = RunScenario.default_loadout()" "var loadout: Array[SwordSpec] = RunScenario.colossus_fixture_loadout()"
 mutate colossus-launch-option-lost                  scripts/launch_options.gd "		\"colossus\":
 			return RunScenario.colossus_encounter()" "		\"colossus\":
 			return null"
