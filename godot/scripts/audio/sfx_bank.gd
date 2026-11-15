@@ -86,5 +86,10 @@ func play_cue(cue: SimCue) -> void:
 				play("strike")
 		SimCue.Kind.MAELSTROM_BURST:
 			play("strike")
+		SimCue.Kind.SKEWER_LAUNCHED:
+			play("strike")
+		SimCue.Kind.SKEWER_RELEASED:
+			if cue.amount > 0:
+				play("hit")
 		_:
 			pass

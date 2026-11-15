@@ -46,6 +46,20 @@ const WARDEN_WAVE: Array[StringName] = [
 	&"husk", &"husk", &"runner", &"husk", &"brute", &"husk", &"runner", &"husk", &"husk", &"runner", &"brute", &"husk", &"husk", &"runner",
 ]
 
+## The pike encounter's wave: husks and runners that line up in front of a Skewer, and two
+## brutes (which a carry moves like anyone else), behind the six standing in the first row.
+const PIKE_WAVE: Array[StringName] = [
+	&"husk", &"runner", &"husk", &"husk", &"brute", &"runner", &"husk", &"husk", &"runner", &"husk", &"brute", &"husk",
+]
+## The pike encounter's player and its first row: a column of foes strung out toward the
+## north wall, 700 px north of the player, so a Skewer north carries them into the wall.
+const PIKE_PLAYER: Vector2 = Vector2(1300.0, 700.0)
+const PIKE_ROW_KINDS: Array[StringName] = [&"husk", &"husk", &"runner", &"husk", &"brute", &"husk"]
+const PIKE_ROW_POINTS: Array[Vector2] = [
+	Vector2(1290.0, 330.0), Vector2(1325.0, 270.0), Vector2(1280.0, 200.0),
+	Vector2(1310.0, 140.0), Vector2(1300.0, 90.0), Vector2(1250.0, 250.0),
+]
+
 ## The dev encounters the C key / dev button cycles through, in order. The empty
 ## name is the normal run (or whatever custom scenario the run was made with).
 const ENCOUNTER_NORMAL: StringName = &""
@@ -53,7 +67,8 @@ const ENCOUNTER_CROWD: StringName = &"crowd"
 const ENCOUNTER_SPITTERS: StringName = &"spitters"
 const ENCOUNTER_CONDITIONS: StringName = &"conditions"
 const ENCOUNTER_WARDEN: StringName = &"warden"
-const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN]
+const ENCOUNTER_PIKE: StringName = &"pike"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE]
 
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
@@ -135,6 +150,17 @@ static func warden_fixture_loadout() -> Array[SwordSpec]:
 	return specs
 
 
+## DEVELOPMENT FIXTURE for issue #14, not the final default loadout: three Pikes (one per sword
+## slot, poison / ice / fire) so the long thrust and Skewer can be played before the final default
+## (issue #16) is set. The prototype's own default is Fang / Warden / Colossus.
+static func pike_fixture_loadout() -> Array[SwordSpec]:
+	var specs: Array[SwordSpec] = []
+	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &"poison"))
+	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &"ice"))
+	specs.append(SwordSpec.make(SwordDefs.PIKE, 0, &"fire"))
+	return specs
+
+
 ## The crowd encounter: DEVELOPMENT FIXTURE for issue #9. One wave of five
 ## husks, five runners and two brutes (interleaved so the arrival reads), played
 ## with the three-Fang fixture loadout and the dev shove enabled. The prototype
@@ -203,6 +229,26 @@ static func warden_encounter() -> RunScenario:
 	return scenario
 
 
+## The pike encounter: DEVELOPMENT FIXTURE for issue #14. The player stands 700 px south of the
+## north wall with a column of foes already strung out toward it and a wave of husks, runners and
+## two brutes on its way, against three Pikes: thrusts pierce several foes at once, and Q / E / R
+## each fire a Skewer that carries what it spears and slams it into the wall (aim north), or
+## releases it at the range limit (aim east or west). The composition is a fixture, not a
+## wave-generation rule (issue #18); the normal run is unchanged.
+static func pike_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_PIKE
+	scenario.loadout = pike_fixture_loadout()
+	scenario.start_position = PIKE_PLAYER
+	var placements: Array[EnemyPlacement] = []
+	for i: int in PIKE_ROW_KINDS.size():
+		placements.append(EnemyPlacement.make(PIKE_ROW_KINDS[i], PIKE_ROW_POINTS[i]))
+	scenario.initial_enemies = placements
+	scenario.wave_kinds = PIKE_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
 ## Display name of an encounter for the dev button and legend.
 static func encounter_title(name: StringName) -> String:
 	match name:
@@ -214,6 +260,8 @@ static func encounter_title(name: StringName) -> String:
 			return "Conditions"
 		ENCOUNTER_WARDEN:
 			return "Warden"
+		ENCOUNTER_PIKE:
+			return "Pike"
 		_:
 			return "Normal"
 

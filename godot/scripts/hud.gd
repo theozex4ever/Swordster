@@ -50,7 +50,7 @@ var _ult_bars: Array[ColorRect] = []
 var _ult_badges: Array[ColorRect] = []
 ## Each card's element tag (FIRE / ICE / POISON), in the element's colour.
 var _ult_elements: Array[Label] = []
-## Each card's sword type line ("Fang", "Warden"), under the recharge bar.
+## Each card's sword type line ("Fang", "Warden", "Pike"), under the recharge bar.
 var _ult_types: Array[Label] = []
 
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 78.0)
@@ -244,7 +244,7 @@ func _show_ultimates(run: GameRun) -> void:
 		_ult_status[slot].modulate = tint if ready or active else Color(0.62, 0.6, 0.7)
 		_ult_elements[slot].text = String(sword.spec.element).to_upper()
 		_ult_elements[slot].modulate = tint
-		_ult_types[slot].text = "%s sword" % SwordDefs.display_name(sword.spec.type_id)
+		_ult_types[slot].text = "%s sword%s" % [SwordDefs.display_name(sword.spec.type_id), "  skill shot" if SwordDefs.ultimate_is_shot(sword.spec.type_id) else ""]
 		_ult_types[slot].modulate = Color(0.78, 0.78, 0.86) if ready or active else Color(0.55, 0.53, 0.62)
 		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
 		_ult_bars[slot].color = tint
@@ -335,6 +335,9 @@ func _show_encounter(run: GameRun) -> void:
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_WARDEN:
 		_encounter_label.text = "WARDEN ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   maelstroms finished %d, hits landed %d\nSweeps alternate. E / R: Maelstrom pulls foes in, then bursts. Q: Viper Flurry.   %s" % [
 			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.MAELSTROM_BURST), run.cue_count(SimCue.Kind.ENEMY_HIT), switch_hint]
+	elif run.scenario.encounter == RunScenario.ENCOUNTER_PIKE:
+		_encounter_label.text = "PIKE ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   skewers launched %d, wall slams %d\nPikes thrust through whole lines. Q / E / R: Skewer fires toward the cursor, carries what it spears and slams it into a wall (aim north).   %s" % [
+			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), run.cue_count(SimCue.Kind.WALL_SLAM), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS:
 		var frozen: int = 0
 		var burning: int = 0

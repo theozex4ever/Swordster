@@ -5,17 +5,19 @@ extends RefCounted
 ## value; a visual scene only follows `phase`/`angle` and never feeds anything
 ## back (ADR 0003).
 ##
-## Fang (a homing dash, the Viper Flurry ultimate) and Warden (an alternating
-## sweeping arc, the Maelstrom ultimate) are ported: idle/recover orbit, windup,
-## strike, recovery and the ultimates. Pike and Colossus attacks, Converge and
-## their ultimates land in later slices, so `SwordDefs.is_supported` rejects
-## other types.
+## Fang (a homing dash, the Viper Flurry ultimate), Warden (an alternating
+## sweeping arc, the Maelstrom ultimate) and Pike (a long piercing thrust, the Skewer
+## ultimate) are ported: idle/recover orbit, windup, strike, recovery and the
+## ultimates. Colossus attacks, Converge and its ultimate land in later slices, so
+## `SwordDefs.is_supported` rejects other types.
 ##
 ## Ultimates are per-slot sword state: each sword carries its own recharge and,
 ## while it lasts, the ULTIMATE phase. `begin_ultimate`, `_update_ultimate` and
 ## the windup/strike phases dispatch on the sword type; the other types add a
 ## branch each. Warden's sweep geometry (`sweep_*`) and Maelstrom's reach are
-## gameplay state the presentation reads, never the other way round (ADR 0003).
+## gameplay state the presentation reads, never the other way round (ADR 0003). Pike's
+## thrust and Skewer sweep a segment each tick (tail to tip), so nothing can tunnel at any
+## speed or render rate; the Skewer's carried enemies are `skewer_carried`.
 
 ## ULTIMATE is last so the earlier phases keep their numeric values.
 enum Phase { IDLE, WINDUP, STRIKE, RECOVER, ULTIMATE }
@@ -44,7 +46,8 @@ var sweep_pivot: Vector2 = Vector2.ZERO
 var sweep_from: float = 0.0
 var sweep_to: float = 0.0
 var sweep_duration: float = SwordDefs.WARDEN_SWEEP_TIME
-## Enemies the current attack has already hit: each is struck at most once per attack.
+## Enemies the current attack has already hit: each is struck at most once per attack
+## (Warden's sweep, Pike's thrust and Skewer all use it; the prototype's `hit` set).
 var sweep_hits: Dictionary[EnemyState, bool] = {}
 
 ## Ultimate recharge: the full time (base times the rarity's cooldown factor) and
@@ -63,6 +66,12 @@ var ultimate_goal: Vector2 = Vector2.ZERO
 var ultimate_victim: EnemyState = null
 var ultimate_time_left: float = 0.0
 var ultimate_beat: float = 0.0
+## Skewer: false while the sword aims (SwordDefs.PIKE_ULT_AIM_TIME), true once it has launched
+## and flies along `dir`, and the enemies it has impaled and carries along (prototype `phase` and
+## `carried`). A carried enemy stays in the list until it dies, is removed from the run, or the
+## sword lets go of it.
+var skewer_flying: bool = false
+var skewer_carried: Array[EnemyState] = []
 
 var damage: float = 0.0
 var cooldown: float = 0.0
@@ -112,12 +121,23 @@ static func _in_play(run: GameRun, enemy: EnemyState) -> bool:
 	return enemy != null and not enemy.dead and run.enemies.has(enemy)
 
 
-## Nearest enemy within range of the player, or null (prototype `acquire`).
+## Nearest enemy within range of the player, or null (prototype `acquire`). A Pike
+## prefers a long thrust: while any candidate is farther than PIKE_FAR_MIN from the player,
+## only those are considered.
 func acquire(run: GameRun) -> EnemyState:
+	var prefer_far: bool = false
+	if spec.type_id == SwordDefs.PIKE:
+		for enemy: EnemyState in run.enemies:
+			var far: float = (enemy.position - run.position).length()
+			if far < attack_range + enemy.radius and far > SwordDefs.PIKE_FAR_MIN:
+				prefer_far = true
+				break
 	var best: EnemyState = null
 	var best_dist: float = INF
 	for enemy: EnemyState in run.enemies:
 		var dist: float = (enemy.position - run.position).length()
+		if prefer_far and dist <= SwordDefs.PIKE_FAR_MIN:
+			continue
 		if dist < attack_range + enemy.radius and dist < best_dist:
 			best = enemy
 			best_dist = dist
@@ -157,12 +177,35 @@ func maelstrom_burst_reach() -> float:
 
 ## The radius of the area this sword's running ultimate acts in, for the HUD and effects.
 func ultimate_area_radius() -> float:
-	return maelstrom_reach() if spec.type_id == SwordDefs.WARDEN else SwordDefs.FANG_ULT_RADIUS
+	match spec.type_id:
+		SwordDefs.WARDEN:
+			return maelstrom_reach()
+		SwordDefs.PIKE:
+			return 0.0
+		_:
+			return SwordDefs.FANG_ULT_RADIUS
+
+
+## 0..1 progress of the thrust's windup (Pike), for the presentation's telegraph; 0 outside it.
+func windup_progress() -> float:
+	if phase != Phase.WINDUP or windup <= 0.0:
+		return 0.0
+	return 1.0 - clampf(timer / windup, 0.0, 1.0)
+
+
+## 0..1 progress of the Skewer's aim phase (1 once it has launched), for the telegraph.
+func skewer_aim_progress() -> float:
+	if phase != Phase.ULTIMATE or spec.type_id != SwordDefs.PIKE:
+		return 0.0
+	if skewer_flying:
+		return 1.0
+	return 1.0 - clampf(ultimate_time_left / SwordDefs.PIKE_ULT_AIM_TIME, 0.0, 1.0)
 
 
 ## Starts this sword's ultimate aimed at `point` (already clamped to its range
-## by the run), interrupting whatever it was doing and starting the recharge.
-func begin_ultimate(point: Vector2) -> void:
+## by the run, except for a skill shot, which only takes its heading from it),
+## interrupting whatever it was doing and starting the recharge.
+func begin_ultimate(run: GameRun, point: Vector2) -> void:
 	phase = Phase.ULTIMATE
 	ultimate_cooldown_left = ultimate_cooldown
 	boost = 1.0
@@ -170,6 +213,8 @@ func begin_ultimate(point: Vector2) -> void:
 	ultimate_victim = null
 	ultimate_point = point
 	sweep_hits.clear()
+	skewer_carried.clear()
+	skewer_flying = false
 	match spec.type_id:
 		SwordDefs.FANG:
 			# Blink straight onto the target area.
@@ -182,6 +227,11 @@ func begin_ultimate(point: Vector2) -> void:
 			ultimate_time_left = SwordDefs.WARDEN_ULT_DURATION
 			ultimate_beat = SwordDefs.WARDEN_ULT_FIRST_BEAT
 			ultimate_spin = atan2(position.y - point.y, position.x - point.x)
+		SwordDefs.PIKE:
+			# A skill shot: the heading is the player-to-point line (the player's facing if
+			# they coincide), fixed for the whole shot.
+			dir = SimMath.norm(point - run.position, run.rng, run.facing, true)
+			ultimate_time_left = SwordDefs.PIKE_ULT_AIM_TIME
 
 
 func begin(new_target: EnemyState, new_aim: Vector2, new_boost: float = 1.0) -> void:
@@ -211,6 +261,7 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 		angle = SimMath.ang_lerp(angle, float(index) * 1.3 + 0.4, minf(1.0, dt * 4.0))
 		phase = Phase.IDLE
 		ultimate_victim = null
+		skewer_carried.clear()
 		return
 
 	var start_phase: Phase = phase
@@ -238,6 +289,8 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 			match spec.type_id:
 				SwordDefs.WARDEN:
 					_update_sweep_windup(dt, to_aim)
+				SwordDefs.PIKE:
+					_update_thrust_windup(dt, to_aim)
 				_:
 					var d: Vector2 = SimMath.norm(aim - position, run.rng, to_aim, true)
 					_spring(run.position + (position - run.position) * 0.98 - d * 18.0, 160.0, 22.0, dt)
@@ -248,6 +301,8 @@ func update(run: GameRun, dt: float, index: int, count: int) -> void:
 			match spec.type_id:
 				SwordDefs.WARDEN:
 					_update_sweep(run, dt)
+				SwordDefs.PIKE:
+					_update_thrust(run, dt)
 				_:
 					_update_strike(run, dt)
 		Phase.ULTIMATE:
@@ -263,6 +318,11 @@ func _start_strike(run: GameRun) -> void:
 			timer = SwordDefs.WARDEN_SWEEP_TIME
 			sweep_duration = timer
 			dir = SimMath.polar((sweep_from + sweep_to) * 0.5)
+		SwordDefs.PIKE:
+			# A fixed line from where the sword hangs toward the aim point, run a little past it.
+			dir = SimMath.norm(aim - position, run.rng)
+			timer = ((aim - position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT) / SwordDefs.PIKE_SPEED
+			angle = atan2(dir.y, dir.x)
 		_:
 			dir = SimMath.norm(aim - position, run.rng)
 			timer = SwordDefs.FANG_STRIKE_TIME
@@ -314,6 +374,38 @@ func _update_sweep(run: GameRun, dt: float) -> void:
 		velocity = SimMath.polar(swung + float(side) * PI * 0.5, SwordDefs.WARDEN_RECOVER_SPEED)
 
 
+## Pike's windup (prototype `Sword.update`, lance branch): the sword springs to a point 0.5
+## lengths + 120 px short of the aim point on the player's line to it and turns to face along
+## that line. Recomputed every tick, so it follows a moving target until the strike.
+func _update_thrust_windup(dt: float, to_aim: Vector2) -> void:
+	_spring(aim - to_aim * (length * SwordDefs.PIKE_WINDUP_STANDOFF_LENGTH + SwordDefs.PIKE_WINDUP_STANDOFF_EXTRA), SwordDefs.PIKE_WINDUP_SPRING_K, SwordDefs.PIKE_WINDUP_SPRING_C, dt)
+	angle = SimMath.ang_lerp(angle, atan2(to_aim.y, to_aim.x), minf(1.0, dt * SwordDefs.PIKE_WINDUP_TURN_RATE))
+
+
+## Pike's thrust (prototype `Sword.update`, lance strike): the sword flies straight along `dir`
+## at PIKE_SPEED and every tick its swept segment, from 0.3 lengths behind where it was to 0.65
+## ahead of where it is, strikes each enemy within radius + 7 once per attack (in enemy order,
+## the dead included: `hit_enemy` ignores them), then parries every orb within 8 of it, hit or
+## no hit. The sword does not stop on a hit; it recovers once the thrust's time is up.
+func _update_thrust(run: GameRun, dt: float) -> void:
+	timer -= dt
+	var previous: Vector2 = position
+	position += dir * SwordDefs.PIKE_SPEED * dt
+	var tail: Vector2 = previous - dir * length * SwordDefs.PIKE_TAIL_FRACTION
+	var tip: Vector2 = position + dir * length * SwordDefs.PIKE_TIP_FRACTION
+	for enemy: EnemyState in run.enemies:
+		if sweep_hits.has(enemy):
+			continue
+		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_HIT_PAD:
+			sweep_hits[enemy] = true
+			run.hit_enemy(enemy, damage * boost, dir, knock, self)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_PARRY_PAD)
+	if timer <= 0.0:
+		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_RECOVER_TIME
+		velocity = dir * SwordDefs.PIKE_RECOVER_SPEED
+
+
 ## The strike dashes the sword along a homing line; the first enemy touched by
 ## the swept segment takes the hit and ends the strike. A sweep that touches no
 ## enemy parries every projectile within reach of its swept segment instead (a
@@ -347,6 +439,8 @@ func _update_ultimate(run: GameRun, dt: float) -> void:
 			_update_viper_flurry(run, dt)
 		SwordDefs.WARDEN:
 			_update_maelstrom(run, dt)
+		SwordDefs.PIKE:
+			_update_skewer(run, dt)
 
 
 ## Viper Flurry: the sword darts between the enemies inside the area, striking
@@ -443,6 +537,78 @@ func _update_maelstrom(run: GameRun, dt: float) -> void:
 		phase = Phase.RECOVER
 		timer = SwordDefs.WARDEN_ULT_RECOVER_TIME
 		velocity = SimMath.polar(ultimate_spin + PI * 0.5, SwordDefs.WARDEN_ULT_RECOVER_SPEED)
+
+
+## Skewer: the sword hangs back and faces the heading for PIKE_ULT_AIM_TIME, then launches from
+## just ahead of the player and flies PIKE_ULT_RANGE along it at PIKE_ULT_SPEED. Each tick of the
+## flight, in this order (the prototype's): every enemy the swept segment (0.3 lengths behind to
+## 0.65 ahead) touches within radius + 18 and that is not yet in this Skewer's hit set takes a
+## heavy blow of 2.2 x damage with no knockback and two doses of the element, shaking the screen;
+## if it survives it is impaled. Enemies are taken in the run's order and the dead are not
+## skipped (a corpse killed earlier this tick joins the hit set, `hit_enemy` ignores it and it is
+## not impaled). Then the impaled that have died or left the run are let go, the rest are moved
+## by the sword's whole step with their velocity zeroed and at least 0.5 s of stun (they are
+## carried even into and past a wall: the enemy's own movement clamps them), and every orb the
+## segment touches within 14 is parried. The flight ends when the range is spent or the tip leaves
+## the arena shrunk by 20 px: whatever is still impaled is flung along the heading (1100 px/s at a
+## wall, where the stunned enemy slams, 750 at the range limit) with at least 0.6 s of stun, and the
+## sword recovers (kicked back from a wall, carried on at the range limit).
+func _update_skewer(run: GameRun, dt: float) -> void:
+	ultimate_time_left -= dt
+	if not skewer_flying:
+		_spring(run.position - dir * SwordDefs.PIKE_ULT_AIM_STANDOFF, SwordDefs.PIKE_ULT_AIM_SPRING_K, SwordDefs.PIKE_ULT_AIM_SPRING_C, dt)
+		angle = atan2(dir.y, dir.x)
+		if ultimate_time_left <= 0.0:
+			skewer_flying = true
+			position = run.position + dir * SwordDefs.PIKE_ULT_LAUNCH_AHEAD
+			ultimate_time_left = SwordDefs.PIKE_ULT_RANGE / SwordDefs.PIKE_ULT_SPEED
+			run.add_shake(SwordDefs.PIKE_ULT_LAUNCH_SHAKE, dir, true)
+			run.add_cue(SimCue.make(SimCue.Kind.SKEWER_LAUNCHED, position, dir))
+		return
+	var step: Vector2 = dir * SwordDefs.PIKE_ULT_SPEED * dt
+	var previous: Vector2 = position
+	position += step
+	velocity = dir * SwordDefs.PIKE_ULT_SPEED
+	var tail: Vector2 = previous - dir * length * SwordDefs.PIKE_ULT_TAIL_FRACTION
+	var tip: Vector2 = position + dir * length * SwordDefs.PIKE_ULT_TIP_FRACTION
+	for enemy: EnemyState in run.enemies:
+		if sweep_hits.has(enemy):
+			continue
+		if SimMath.seg_dist(enemy.position, tail, tip) < enemy.radius + SwordDefs.PIKE_ULT_HIT_PAD:
+			sweep_hits[enemy] = true
+			run.hit_enemy(enemy, damage * SwordDefs.PIKE_ULT_DAMAGE_FACTOR, dir, 0.0, self, true, SwordDefs.PIKE_ULT_STACKS)
+			run.add_shake(SwordDefs.PIKE_ULT_HIT_SHAKE, dir, true)
+			if not enemy.dead:
+				skewer_carried.append(enemy)
+	var still_carried: Array[EnemyState] = []
+	for enemy: EnemyState in skewer_carried:
+		if _in_play(run, enemy):
+			still_carried.append(enemy)
+	skewer_carried = still_carried
+	for enemy: EnemyState in skewer_carried:
+		enemy.position += step
+		enemy.velocity = Vector2.ZERO
+		enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_CARRY_STUN)
+	run.parry_projectiles(tail, tip, SwordDefs.PIKE_ULT_PARRY_PAD)
+	var at_wall: bool = not _inside_skewer_arena(tip)
+	if ultimate_time_left <= 0.0 or at_wall:
+		var released: int = skewer_carried.size()
+		for enemy: EnemyState in skewer_carried:
+			enemy.velocity = dir * (SwordDefs.PIKE_ULT_RELEASE_SPEED_WALL if at_wall else SwordDefs.PIKE_ULT_RELEASE_SPEED_RANGE)
+			enemy.stun = maxf(enemy.stun, SwordDefs.PIKE_ULT_RELEASE_STUN)
+		skewer_carried.clear()
+		phase = Phase.RECOVER
+		timer = SwordDefs.PIKE_ULT_RECOVER_TIME
+		velocity = -dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_WALL if at_wall else dir * SwordDefs.PIKE_ULT_RECOVER_SPEED_RANGE
+		run.add_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, tip, dir, released, at_wall))
+
+
+## The prototype's `WORLD.inflate(-20, -20).collidepoint(tip)`: pygame's rectangle contains its
+## left and top edges and not its right and bottom ones, as Godot's `Rect2.has_point` does.
+func _inside_skewer_arena(point: Vector2) -> bool:
+	var margin: float = SwordDefs.PIKE_ULT_WALL_MARGIN
+	return point.x >= GameRun.WORLD.position.x + margin and point.x < GameRun.WORLD.end.x - margin \
+		and point.y >= GameRun.WORLD.position.y + margin and point.y < GameRun.WORLD.end.y - margin
 
 
 func _add_maelstrom_cue(run: GameRun, kind: SimCue.Kind, reach: float, struck: int) -> void:

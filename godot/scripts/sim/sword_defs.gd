@@ -1,18 +1,20 @@
 class_name SwordDefs
 extends RefCounted
 ## Immutable sword-type and rarity constants copied from game/main.py
-## `SWORD_TYPES` (lines 79-113) and `RARITIES` (126-130). Fang and Warden exist so
-## far; Pike and Colossus land with their own slices. The ultimate constants
+## `SWORD_TYPES` (lines 79-113) and `RARITIES` (126-130). Fang, Warden and Pike exist so
+## far; Colossus lands with its own slice. The ultimate constants
 ## (`SWORD_TYPES[..]["ult"]`) sit beside each type's own and, like the type's base
 ## numbers, are read through per-type accessors (`base_*`, `ultimate_*`): a small
 ## `match` each, not an ability framework.
 ##
 ## The sword type identities are the prototype's own keys: Fang is `fang` and
 ## Warden is `blade` (`SWORD_TYPES["blade"]`, displayed "Warden"; its ultimate is
-## "Maelstrom"), so a saved or logged type id never changes with the display name.
+## "Maelstrom"), so a saved or logged type id never changes with the display name. Pike is
+## `SWORD_TYPES["lance"]` (displayed "Pike"; its ultimate is "Skewer"), so its id is `lance`.
 
 const FANG: StringName = &"fang"
 const WARDEN: StringName = &"blade"
+const PIKE: StringName = &"lance"
 
 ## Rarity: damage, cooldown, range and size multipliers (Common, Rare, Mythic).
 const RARITY_DAMAGE: Array[float] = [1.0, 1.3, 1.75]
@@ -136,6 +138,78 @@ const WARDEN_ULT_BURST_HITSTOP: float = 0.06
 const WARDEN_ULT_RECOVER_TIME: float = 0.3
 const WARDEN_ULT_RECOVER_SPEED: float = 500.0
 
+## Pike: long / piercing thrust (prototype `SWORD_TYPES["lance"]`). The thrust's geometry lives
+## inline in the prototype's lance branches of `Sword.acquire` / `update` / `strike`.
+const PIKE_LENGTH: float = 74.0
+const PIKE_RANGE: float = 430.0
+const PIKE_COOLDOWN: float = 1.35
+const PIKE_DAMAGE: float = 24.0
+const PIKE_KNOCK: float = 380.0
+const PIKE_WINDUP: float = 0.32
+const PIKE_SPEED: float = 2400.0
+const PIKE_HITSTOP: float = 0.06
+const PIKE_SHAKE: float = 0.2
+## Targeting: of the enemies in range, only those farther than this from the player are
+## considered while any exist (the Pike prefers a long thrust), then the nearest of them.
+const PIKE_FAR_MIN: float = 130.0
+## Windup: the sword springs to `aim - d * (STANDOFF_LENGTH x length + STANDOFF_EXTRA)` (d = the
+## player-to-aim heading) with SPRING_K / SPRING_C and turns toward d at TURN_RATE.
+const PIKE_WINDUP_STANDOFF_LENGTH: float = 0.5
+const PIKE_WINDUP_STANDOFF_EXTRA: float = 120.0
+const PIKE_WINDUP_SPRING_K: float = 150.0
+const PIKE_WINDUP_SPRING_C: float = 20.0
+const PIKE_WINDUP_TURN_RATE: float = 16.0
+## The thrust flies along a fixed line at PIKE_SPEED for (distance to the aim point + OVERSHOOT) / speed.
+## Every tick the swept segment runs from TAIL x length behind where the sword was to TIP x length
+## ahead of where it is; an enemy within its radius + HIT_PAD of it is struck once per attack.
+const PIKE_STRIKE_OVERSHOOT: float = 170.0
+const PIKE_TAIL_FRACTION: float = 0.3
+const PIKE_TIP_FRACTION: float = 0.65
+const PIKE_HIT_PAD: float = 7.0
+const PIKE_PARRY_PAD: float = 8.0
+const PIKE_RECOVER_TIME: float = 0.35
+const PIKE_RECOVER_SPEED: float = 420.0
+
+## Pike's ultimate, Skewer (prototype `SWORD_TYPES["lance"]["ult"]`: cd 10.0, range 950, shot, speed
+## 2600) and the numbers inline in `Sword.ultimate` / `Sword.update_ult`. A skill shot: the aim
+## point only gives the heading, the sword flies SKEWER_RANGE px along it.
+const PIKE_ULT_NAME: String = "Skewer"
+const PIKE_ULT_COOLDOWN: float = 10.0
+const PIKE_ULT_RANGE: float = 950.0
+const PIKE_ULT_SPEED: float = 2600.0
+## The aim phase: the sword springs to `player - d x STANDOFF` (SPRING_K / SPRING_C) and faces d
+## for AIM_TIME, then launches from LAUNCH_AHEAD px in front of the player with a shake kick.
+const PIKE_ULT_AIM_TIME: float = 0.38
+const PIKE_ULT_AIM_STANDOFF: float = 40.0
+const PIKE_ULT_AIM_SPRING_K: float = 200.0
+const PIKE_ULT_AIM_SPRING_C: float = 24.0
+const PIKE_ULT_LAUNCH_AHEAD: float = 10.0
+const PIKE_ULT_LAUNCH_SHAKE: float = 0.2
+## The flight: each tick the swept segment runs from TAIL x length behind to TIP x length ahead; an
+## enemy within its radius + HIT_PAD of it (once per Skewer) takes DAMAGE_FACTOR x damage, heavy,
+## no knockback of its own and STACKS doses of the element, shakes the screen, and if it survives
+## is carried (moved by the sword's whole step, velocity zeroed, stunned for at least CARRY_STUN).
+## Every orb within PARRY_PAD of the segment is parried.
+const PIKE_ULT_TAIL_FRACTION: float = 0.3
+const PIKE_ULT_TIP_FRACTION: float = 0.65
+const PIKE_ULT_HIT_PAD: float = 18.0
+const PIKE_ULT_DAMAGE_FACTOR: float = 2.2
+const PIKE_ULT_STACKS: int = 2
+const PIKE_ULT_HIT_SHAKE: float = 0.12
+const PIKE_ULT_CARRY_STUN: float = 0.5
+const PIKE_ULT_PARRY_PAD: float = 14.0
+## The flight ends when the range is spent or the tip leaves the arena shrunk by WALL_MARGIN on
+## every side. Whatever is still impaled is flung along the heading at RELEASE_SPEED (at the
+## wall, where it slams) or RELEASE_SPEED_RANGE (at the range limit), stunned for at least
+## RELEASE_STUN; the sword recovers for RECOVER_TIME, kicked back from a wall.
+const PIKE_ULT_WALL_MARGIN: float = 20.0
+const PIKE_ULT_RELEASE_SPEED_RANGE: float = 750.0
+const PIKE_ULT_RELEASE_SPEED_WALL: float = 1100.0
+const PIKE_ULT_RELEASE_STUN: float = 0.6
+const PIKE_ULT_RECOVER_TIME: float = 0.35
+const PIKE_ULT_RECOVER_SPEED_RANGE: float = 420.0
+const PIKE_ULT_RECOVER_SPEED_WALL: float = 300.0
+
 ## Flash of an enemy hit by a heavy blow (a normal hit flashes 0.11).
 const HEAVY_HIT_FLASH: float = 0.2
 const NORMAL_HIT_FLASH: float = 0.11
@@ -144,62 +218,143 @@ const NORMAL_HIT_FLASH: float = 0.11
 ## Base length, range, recharge-free cooldown, damage, knockback, windup, hitstop and shake
 ## of a sword type's automatic attack (before the rarity factors).
 static func base_length(type_id: StringName) -> float:
-	return WARDEN_LENGTH if type_id == WARDEN else FANG_LENGTH
+	match type_id:
+		WARDEN:
+			return WARDEN_LENGTH
+		PIKE:
+			return PIKE_LENGTH
+		_:
+			return FANG_LENGTH
 
 
 static func base_range(type_id: StringName) -> float:
-	return WARDEN_RANGE if type_id == WARDEN else FANG_RANGE
+	match type_id:
+		WARDEN:
+			return WARDEN_RANGE
+		PIKE:
+			return PIKE_RANGE
+		_:
+			return FANG_RANGE
 
 
 static func base_cooldown(type_id: StringName) -> float:
-	return WARDEN_COOLDOWN if type_id == WARDEN else FANG_COOLDOWN
+	match type_id:
+		WARDEN:
+			return WARDEN_COOLDOWN
+		PIKE:
+			return PIKE_COOLDOWN
+		_:
+			return FANG_COOLDOWN
 
 
 static func base_damage(type_id: StringName) -> float:
-	return WARDEN_DAMAGE if type_id == WARDEN else FANG_DAMAGE
+	match type_id:
+		WARDEN:
+			return WARDEN_DAMAGE
+		PIKE:
+			return PIKE_DAMAGE
+		_:
+			return FANG_DAMAGE
 
 
 static func base_knock(type_id: StringName) -> float:
-	return WARDEN_KNOCK if type_id == WARDEN else FANG_KNOCK
+	match type_id:
+		WARDEN:
+			return WARDEN_KNOCK
+		PIKE:
+			return PIKE_KNOCK
+		_:
+			return FANG_KNOCK
 
 
 static func base_windup(type_id: StringName) -> float:
-	return WARDEN_WINDUP if type_id == WARDEN else FANG_WINDUP
+	match type_id:
+		WARDEN:
+			return WARDEN_WINDUP
+		PIKE:
+			return PIKE_WINDUP
+		_:
+			return FANG_WINDUP
 
 
 static func base_hitstop(type_id: StringName) -> float:
-	return WARDEN_HITSTOP if type_id == WARDEN else FANG_HITSTOP
+	match type_id:
+		WARDEN:
+			return WARDEN_HITSTOP
+		PIKE:
+			return PIKE_HITSTOP
+		_:
+			return FANG_HITSTOP
 
 
 static func base_shake(type_id: StringName) -> float:
-	return WARDEN_SHAKE if type_id == WARDEN else FANG_SHAKE
+	match type_id:
+		WARDEN:
+			return WARDEN_SHAKE
+		PIKE:
+			return PIKE_SHAKE
+		_:
+			return FANG_SHAKE
 
 
 ## Name of a sword type's ultimate.
 static func ultimate_name(type_id: StringName) -> String:
-	return WARDEN_ULT_NAME if type_id == WARDEN else FANG_ULT_NAME if type_id == FANG else String(type_id)
+	match type_id:
+		WARDEN:
+			return WARDEN_ULT_NAME
+		PIKE:
+			return PIKE_ULT_NAME
+		FANG:
+			return FANG_ULT_NAME
+		_:
+			return String(type_id)
 
 
 ## Base recharge of a sword type's ultimate in seconds (before the rarity factor).
 static func ultimate_cooldown(type_id: StringName) -> float:
-	return WARDEN_ULT_COOLDOWN if type_id == WARDEN else FANG_ULT_COOLDOWN if type_id == FANG else 0.0
+	match type_id:
+		WARDEN:
+			return WARDEN_ULT_COOLDOWN
+		PIKE:
+			return PIKE_ULT_COOLDOWN
+		FANG:
+			return FANG_ULT_COOLDOWN
+		_:
+			return 0.0
 
 
 ## How far from the player a targeted ultimate may land; a farther aim point is
-## pulled back onto this distance.
+## pulled back onto this distance. For a skill shot (Skewer) it is the distance the
+## shot flies instead.
 static func ultimate_range(type_id: StringName) -> float:
-	return WARDEN_ULT_RANGE if type_id == WARDEN else FANG_ULT_RANGE if type_id == FANG else 0.0
+	match type_id:
+		WARDEN:
+			return WARDEN_ULT_RANGE
+		PIKE:
+			return PIKE_ULT_RANGE
+		FANG:
+			return FANG_ULT_RANGE
+		_:
+			return 0.0
 
 
 ## Skill-shot ultimates (Pike's Skewer) fire toward the aim point instead of
 ## landing on it, so their aim point is not clamped. Fang's and Warden's land.
-static func ultimate_is_shot(_type_id: StringName) -> bool:
-	return false
+static func ultimate_is_shot(type_id: StringName) -> bool:
+	return type_id == PIKE
 
 
 static func is_supported(type_id: StringName) -> bool:
-	return type_id == FANG or type_id == WARDEN
+	return type_id == FANG or type_id == WARDEN or type_id == PIKE
 
 
 static func display_name(type_id: StringName) -> String:
-	return "Warden" if type_id == WARDEN else "Fang" if type_id == FANG else String(type_id)
+	match type_id:
+		WARDEN:
+			return "Warden"
+		PIKE:
+			return "Pike"
+		FANG:
+			return "Fang"
+		_:
+			return String(type_id)

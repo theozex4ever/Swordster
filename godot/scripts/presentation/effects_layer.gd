@@ -13,7 +13,9 @@ extends Node2D
 ## when it dies frozen, a fire ring when a burning enemy dies, a coloured number for each
 ## damage-over-time landing. A Warden's sweep is telegraphed during its windup (the arc it will
 ## cut) and leaves a fading fan along the arc it cut; its Maelstrom shows the reach of its blades,
-## the range it pulls from, spinning arcs, a ring at every beat and a burst at the end. Purely visual: it reads the
+## the range it pulls from, spinning arcs, a ring at every beat and a burst at the end. A Pike's thrust
+## is telegraphed along its line during the windup; a Skewer shows its aim line while it aims, rings
+## the enemies it carries and ends in a burst where it lets go. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -30,7 +32,8 @@ var _embers: Array[Dictionary] = []
 ## sword was drawn at last tick.
 var _wedges: Array[Dictionary] = []
 var _last_sweep_angle: Dictionary = {}
-## How many times each kind of Warden effect has been drawn (`telegraph`, `fan`, `maelstrom`);
+## How many times each kind of Warden or Pike effect has been drawn (`telegraph`, `fan`, `maelstrom`,
+## `thrust_telegraph`, `skewer_aim`, `skewer_carry`);
 ## checks read it to prove the layer really draws what the sword's state asks for.
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
@@ -89,7 +92,8 @@ func sync(run: GameRun) -> void:
 func _add_dart_streaks(run: GameRun) -> void:
 	for sword: SwordState in run.swords:
 		var key: int = sword.get_instance_id()
-		if sword.phase == SwordState.Phase.ULTIMATE and _last_sword_at.has(key):
+		var streaking: bool = sword.phase == SwordState.Phase.ULTIMATE or (sword.phase == SwordState.Phase.STRIKE and sword.spec.type_id == SwordDefs.PIKE)
+		if streaking and _last_sword_at.has(key):
 			var from: Vector2 = _last_sword_at[key]
 			if from.distance_to(sword.position) > 12.0 and _streaks.size() < MAX_EFFECTS:
 				_streaks.append({"from": from, "to": sword.position, "life": 0.18, "max": 0.18, "color": _sword_color(sword.spec)})
@@ -207,6 +211,18 @@ func apply_cue(cue: SimCue) -> void:
 			_add_ring(cue.position, 10.0, cue.radius, 0.25, Color(1.0, 1.0, 1.0, 0.8), 3.0)
 			for i: int in 30:
 				_add_spark(cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(300.0, 800.0)), _rng.randf_range(0.15, 0.4), burst_tint)
+		SimCue.Kind.SKEWER_LAUNCHED:
+			var launch_tint: Color = Color(1.0, 1.0, 1.0, 0.9)
+			_add_ring(cue.position, 6.0, 44.0, 0.2, launch_tint, 3.0)
+			for i: int in 8:
+				_add_spark(cue.position, SimMath.polar(cue.direction.angle() + _rng.randf_range(-0.35, 0.35), _rng.randf_range(500.0, 1100.0)), _rng.randf_range(0.1, 0.25), Color(1.0, 1.0, 0.9))
+		SimCue.Kind.SKEWER_RELEASED:
+			_add_ring(cue.position, 10.0, 60.0 + float(cue.amount) * 8.0, 0.3, Color(1.0, 0.92, 0.7, 0.95), 4.0)
+			var back: float = cue.direction.angle() + PI
+			for i: int in 12 if cue.critical else 6:
+				_add_spark(cue.position, SimMath.polar(back + _rng.randf_range(-0.9, 0.9), _rng.randf_range(200.0, 700.0)), _rng.randf_range(0.15, 0.35), Color(1.0, 0.85, 0.6))
+			if cue.amount > 0:
+				_add_text(cue.position + Vector2(0.0, -30.0), "%s x%d" % ["SLAM" if cue.critical else "FLUNG", cue.amount], Color(1.0, 0.92, 0.7), 0.7, 24)
 		SimCue.Kind.ULTIMATE_REFUSED:
 			if _run != null:
 				_add_text(cue.position + Vector2(0.0, -46.0), "recharging %ds" % cue.amount, Color(0.62, 0.6, 0.78), 0.5, 22)
@@ -222,7 +238,8 @@ func _apply_ultimate_started(cue: SimCue) -> void:
 	var sword: SwordState = _run.swords[cue.amount]
 	var tint: Color = _sword_color(sword.spec)
 	_add_ring(cue.origin, 4.0, 40.0, 0.25, Color(tint, 0.9), 2.0)
-	_add_ring(sword.ultimate_point, sword.ultimate_area_radius(), 10.0, 0.3, Color(tint, 0.95), 3.0)
+	if not SwordDefs.ultimate_is_shot(sword.spec.type_id):
+		_add_ring(sword.ultimate_point, sword.ultimate_area_radius(), 10.0, 0.3, Color(tint, 0.95), 3.0)
 	_add_text(_run.position + Vector2(0.0, -56.0), SwordDefs.ultimate_name(sword.spec.type_id).to_upper(), tint.lerp(Color.WHITE, 0.3), 1.0, 32)
 
 
@@ -265,7 +282,11 @@ func _draw() -> void:
 	for sword: SwordState in _run.swords:
 		if sword.phase == SwordState.Phase.WINDUP and sword.spec.type_id == SwordDefs.WARDEN:
 			_draw_sweep_telegraph(sword)
-		if sword.phase == SwordState.Phase.ULTIMATE:
+		if sword.phase == SwordState.Phase.WINDUP and sword.spec.type_id == SwordDefs.PIKE:
+			_draw_thrust_telegraph(sword)
+		if sword.phase == SwordState.Phase.ULTIMATE and sword.spec.type_id == SwordDefs.PIKE:
+			_draw_skewer(sword, _sword_color(sword.spec))
+		elif sword.phase == SwordState.Phase.ULTIMATE:
 			var tint: Color = _sword_color(sword.spec)
 			var area: float = sword.ultimate_area_radius()
 			draw_arc(sword.ultimate_point, area, 0.0, TAU, 48, Color(tint, 0.35), 2.0)
@@ -310,6 +331,38 @@ func _draw_sweep_telegraph(sword: SwordState) -> void:
 	var tint: Color = _sword_color(sword.spec)
 	draw_arc(sword.sweep_pivot, mid, sword.sweep_from, sword.sweep_to, 24, Color(tint, 0.05 + 0.15 * u), span)
 	draw_arc(sword.sweep_pivot, sword.length * SwordDefs.WARDEN_TIP, sword.sweep_from, sword.sweep_to, 24, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## The line a Pike is about to thrust along: from where the sword hangs, past the aim point by the
+## thrust's overshoot, brightening as the windup runs out. Follows the target like the thrust.
+func _draw_thrust_telegraph(sword: SwordState) -> void:
+	draw_counts[&"thrust_telegraph"] = draw_counts.get(&"thrust_telegraph", 0) + 1
+	var u: float = sword.windup_progress()
+	var heading: Vector2 = (sword.aim - sword.position).normalized()
+	var tint: Color = _sword_color(sword.spec)
+	var reach: float = (sword.aim - sword.position).length() + SwordDefs.PIKE_STRIKE_OVERSHOOT
+	var from: Vector2 = sword.position + heading * sword.length * SwordDefs.PIKE_TIP_FRACTION
+	var to: Vector2 = sword.position + heading * reach
+	draw_line(from, to, Color(tint, 0.06 + 0.12 * u), 14.0)
+	draw_line(from, to, Color(tint, 0.25 + 0.4 * u), 2.0)
+
+
+## A Skewer: while it aims, the line it will fly along (the prototype's: from the player out to the
+## range, a faint wide band under a thin line, both brightening); in flight, a ring on every
+## enemy it carries and a short line back to the point.
+func _draw_skewer(sword: SwordState, tint: Color) -> void:
+	if not sword.skewer_flying:
+		draw_counts[&"skewer_aim"] = draw_counts.get(&"skewer_aim", 0) + 1
+		var u: float = sword.skewer_aim_progress()
+		var end: Vector2 = _run.position + sword.dir * SwordDefs.PIKE_ULT_RANGE
+		draw_line(_run.position, end, Color(tint, 0.15 + 0.25 * u), 24.0)
+		draw_line(_run.position, end, Color(tint, 0.25 + 0.35 * u), 2.0)
+		return
+	var tip: Vector2 = sword.position + sword.dir * sword.length * SwordDefs.PIKE_ULT_TIP_FRACTION
+	for enemy: EnemyState in sword.skewer_carried:
+		draw_counts[&"skewer_carry"] = draw_counts.get(&"skewer_carry", 0) + 1
+		draw_arc(enemy.position, enemy.radius + 7.0, 0.0, TAU, 20, Color(tint, 0.85), 3.0)
+		draw_line(enemy.position, tip, Color(tint, 0.4), 2.0)
 
 
 ## A running Maelstrom: the range it pulls from (dashed), spinning arcs inside the reach of its

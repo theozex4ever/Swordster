@@ -1,14 +1,16 @@
 class_name PlaceholderSwordVisual
 extends SwordVisual
 ## Temporary drawn sword: a tinted blade that rides above its shadow. Fang is a thin
-## needle; Warden a longer, broader blade with a heavy crossguard and pommel, so the two
-## read apart at a glance. Length, width and lift are this visual's own numbers and do not
+## needle; Warden a longer, broader blade with a heavy crossguard and pommel; Pike a long thin
+## shaft ending in a leaf-shaped head, so the three read apart at a glance. Length, width and lift are this visual's own numbers and do not
 ## feed reach (that is `SwordState`).
 
 const BLADE_LENGTH: float = 34.0
 const BLADE_WIDTH: float = 6.0
 const WARDEN_BLADE_LENGTH: float = 54.0
 const WARDEN_BLADE_WIDTH: float = 9.0
+const PIKE_BLADE_LENGTH: float = 74.0
+const PIKE_BLADE_WIDTH: float = 6.0
 const ELEMENT_COLORS: Dictionary = {
 	&"fire": Color(1.0, 0.46, 0.17),
 	&"ice": Color(0.47, 0.80, 1.0),
@@ -19,6 +21,7 @@ const LIFT_ATTACK: float = 14.0
 
 var _color: Color = Color.WHITE
 var _warden: bool = false
+var _pike: bool = false
 var _angle: float = -PI / 2.0
 var _lift: float = LIFT_IDLE
 var _phase: int = SwordState.Phase.IDLE
@@ -32,6 +35,7 @@ const AFTERIMAGE_LIMIT: int = 6
 func _on_setup(spec: SwordSpec) -> void:
 	_color = ELEMENT_COLORS.get(spec.element, Color.WHITE)
 	_warden = spec.type_id == SwordDefs.WARDEN
+	_pike = spec.type_id == SwordDefs.PIKE
 	queue_redraw()
 
 
@@ -50,20 +54,36 @@ func _on_pose(angle: float, phase: int) -> void:
 
 
 func _draw() -> void:
-	var l: float = WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH
-	var w: float = WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH
-	draw_circle(Vector2(0.0, 6.0), 11.0 if _warden else 8.0, Color(0.0, 0.0, 0.0, 0.3))
+	var l: float = PIKE_BLADE_LENGTH if _pike else WARDEN_BLADE_LENGTH if _warden else BLADE_LENGTH
+	var w: float = PIKE_BLADE_WIDTH if _pike else WARDEN_BLADE_WIDTH if _warden else BLADE_WIDTH
+	draw_circle(Vector2(0.0, 6.0), 11.0 if _warden or _pike else 8.0, Color(0.0, 0.0, 0.0, 0.3))
 	# Viper Flurry afterimages: faint copies of the blade where it just was, so the
 	# darts read as streaks (each is stored in world space, drawn relative to the blade).
 	for i: int in _afterimages.size():
 		var image: Dictionary = _afterimages[i]
 		var fade: float = float(i + 1) / float(_afterimages.size() + 1)
 		draw_set_transform(Vector2(image["world"]) - position + Vector2(0.0, -_lift), float(image["angle"]), Vector2.ONE)
-		draw_line(Vector2(-l * 0.35, 0.0), Vector2(l, 0.0), Color(_color, 0.35 * fade), 5.0 if _warden else 3.0)
+		draw_line(Vector2(-l * 0.35, 0.0), Vector2(l, 0.0), Color(_color, 0.35 * fade), 5.0 if _warden or _pike else 3.0)
 	draw_set_transform(Vector2(0.0, -_lift), _angle, Vector2.ONE)
 	var origin: Vector2 = Vector2(-l * 0.35, 0.0)
 	var bright: Color = _color.lerp(Color.WHITE, 0.55 + (0.3 if _phase == SwordState.Phase.STRIKE or _phase == SwordState.Phase.ULTIMATE else 0.0))
-	if _warden:
+	if _pike:
+		# A long thin shaft with a leaf-shaped head, a narrow crossguard and a round pommel: a
+		# spear, much longer than it is wide.
+		var tail: Vector2 = origin - Vector2(l * 0.28, 0.0)
+		var head: Vector2 = origin + Vector2(l * 0.6, 0.0)
+		var leaf: PackedVector2Array = PackedVector2Array([
+			head + Vector2(0.0, w * 0.35),
+			head + Vector2(l * 0.13, w * 1.35),
+			origin + Vector2(l, 0.0),
+			head + Vector2(l * 0.13, -w * 1.35),
+			head + Vector2(0.0, -w * 0.35),
+		])
+		draw_line(tail, head, _color.darkened(0.4), maxf(2.0, w * 0.55))
+		draw_colored_polygon(leaf, bright)
+		draw_line(head + Vector2(0.0, w * 1.2), head + Vector2(0.0, -w * 1.2), _color, 2.0)
+		draw_circle(tail, maxf(2.0, w * 0.6), _color)
+	elif _warden:
 		# A broad, straight blade with a clipped point, a pale fuller down its middle, a wide
 		# crossguard and a round pommel.
 		var broad: PackedVector2Array = PackedVector2Array([
