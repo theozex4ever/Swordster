@@ -1,7 +1,7 @@
 # Swordster (Godot port)
 
 Godot 4 port of Swordster, built slice by slice. Currently playable: a complete
-Fang survival loop (move, dash, three Fang spirit swords attacking on their own, a
+Fang survival loop (move, dash, three spirit swords attacking on their own, a
 telegraphed wave of eight husks, healing motes, death and restart) with **Viper
 Flurry** on Q / E / R (each sword slot's ultimate, aimed at the cursor), a **crowd
 encounter** with runners and brutes, crowd bowling and wall slams, a **spitter
@@ -11,8 +11,8 @@ arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), and **
 the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), and **Colossus**,
 the sword of crushing slams, with its **Cataclysm** ultimate and the elemental ground field it leaves (a **colossus
 encounter** equips it), on top of the delivery-proof arena, exported to Windows and Web from one Linux command.
-Converge, drops and swaps, the final default loadout and further waves arrive in
-later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
+**Converge** (click) and the prototype's **default loadout** (Fang, Warden, Colossus: the normal start) are in; drops and
+swaps and further waves arrive in later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
 [runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
@@ -31,8 +31,9 @@ mouse and press: the sword blinks to the cursor (at most 420 px from you), darts
 the enemies inside the 150 px area for 1.25 s (one dart every 0.08 s, 1.2x the sword's
 damage), then recovers. The ultimate recharges for 9 s (shorter for Rare and Mythic
 swords) from the moment it starts; the cards at the bottom left show READY, ACTIVE or
-the seconds left, with the sword type under the bar. Three Fang swords are still the normal run's
-fixture loadout, so every slot holds Viper Flurry there; the warden encounter below equips a Fang
+the seconds left, with the sword type under the bar. The normal run equips the prototype's default loadout, so Q holds Viper Flurry (Fang, poison), E Maelstrom (Warden, ice) and R
+Cataclysm (Colossus, fire); the crowd, spitter and conditions encounters keep the three-Fang fixture loadout, so every slot
+holds Viper Flurry there; the warden encounter below equips a Fang
 and two Wardens, whose slots hold Maelstrom, and the pike encounter equips three Pikes, whose slots hold
 Skewer, and the colossus encounter equips three Colossus swords, whose slots hold Cataclysm.
 
@@ -50,8 +51,8 @@ every 0.2 s strikes everything inside the blades' reach for 0.6x damage, and a f
 Warden does not parry during Maelstrom, as in the prototype. To fight with it: the **warden
 encounter** (`Swordster.exe -- --encounter=warden`, `index.html?encounter=warden`, or the dev button / `C`
 after the conditions encounter) is one wave of husks, runners and two brutes against Fang (poison, Q),
-Warden (ice, E) and Warden (fire, R). This mixed loadout is a development fixture, not the final default
-loadout (issue #16); the normal run is unchanged.
+Warden (ice, E) and Warden (fire, R). This mixed loadout is a development fixture, not the default
+loadout (the normal run equips Fang, Warden and Colossus).
 
 ### Pike and Skewer
 
@@ -68,8 +69,7 @@ range (flung at 750 px/s) or when its tip reaches a wall (1100 px/s: the stunned
 wall and bowls others). To fight with it: the **pike encounter** (`Swordster.exe -- --encounter=pike`,
 `index.html?encounter=pike`, or the dev button / `C` after the warden encounter) stands you 700 px south
 of the north wall with a column of foes strung out toward it, against three Pikes (poison, ice, fire):
-aim north. This is a development fixture, not the final default loadout (issue #16); the normal run is
-unchanged.
+aim north. This is a development fixture, not the default loadout; the normal run is unchanged.
 
 ### Colossus and Cataclysm
 
@@ -86,8 +86,22 @@ clock. The sword's height and fall are drawn from the simulation's own altitude 
 reaches the ground), never the other way round. To fight with it: the **colossus encounter**
 (`Swordster.exe -- --encounter=colossus`, `index.html?encounter=colossus`, or the dev button / `C` after the
 pike encounter) puts a cluster east of you and a wave behind it against three Colossi (poison, ice, fire): press
-Q, E and R with the cursor on the crowd and watch all three fields. This is a development fixture, not the final
-default loadout (issue #16); the normal run is unchanged.
+Q, E and R with the cursor on the crowd and watch all three fields. This is a development fixture, not the default
+loadout; the normal run is unchanged.
+
+### Converge and the default loadout
+
+Slice #16 ([reference](../docs/reference/converge.md)). A new run starts with the prototype's **default loadout**: Fang
+(poison), Warden (ice) and Colossus (fire), all Common, in sword slots one to three (Q, E, R). **Converge** is the
+player's coordinated command, not an ultimate: **left or right click** sends all three swords to strike the cursor's world point
+at once (a point more than 460 px from you is pulled back onto that range). Every sword that is not in the middle of a strike,
+stuck in the floor after a slam or in its ultimate drops what it is doing and attacks that point with 0.6x its normal windup and
+1.5x its damage, aimed at the enemy nearest the point if one is within 90 px of it. Each sword type makes its own attack of
+it (Fang dashes, Warden sweeps, Pike thrusts, Colossus slams), and the sword's automatic attacks carry on afterwards. The
+command is shared: after one the next waits 2.5 s (the **converge** line under the dash cooldown counts it down), and it
+is refused while paused or dead. **Tab** or **G** shows a ring around you for each sword's attack range. A click on the HUD's
+own buttons is not a Converge, and neither is a mouse click the engine makes up from a touch (the touch controls arrive with
+issue #20). The aim follows the camera, so it stays right when the window is resized.
 
 ### The crowd encounter
 
