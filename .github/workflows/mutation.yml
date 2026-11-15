@@ -13,7 +13,7 @@ name: Mutation checks
 # first clean failure) may call such a mutation caught; see "Mutation checks" in godot/README.md.
 on:
   push:
-    branches: [main]
+    branches: [main, tooling/35-fast-mutations] # TEMPORARY branch entry: validation only
   workflow_dispatch:
 
 permissions:
@@ -65,11 +65,14 @@ jobs:
         env:
           # Strict mode: the complete suite, probes included, for every mutation.
           FAST: "0"
+          # TEMPORARY (validation only): twelve cheap mutations, one per shard, and shard 5 forced to fail.
+          ONLY: speed-zero,pause-ignored,resume-never,restart-keeps-pose,restart-keeps-input,no-diagonal-clamp,no-wall-clamp,dash-no-cooldown,dash-while-dead,dash-while-paused,dash-no-iframes,hurt-no-iframes
         run: |
           set +e
           SHARD="${{ matrix.shard }}" SHARDS="$SHARDS" tools/godot/mutation-check.sh 2>&1 | tee "shard-${{ matrix.shard }}.log"
           rc=${PIPESTATUS[0]}
           set -e
+          if [[ "${{ matrix.shard }}" == 5 ]]; then rc=1; fi # TEMPORARY forced failure
           # RESULT shard=… mode=… ran=… caught=… survived=… inconclusive=… not_applied=…; absent if
           # the script died early. The shard's exit status is recorded next to it and is
           # validated by the summary job (an absent or non-zero exit fails the pass).
