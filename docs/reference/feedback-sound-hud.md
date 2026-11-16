@@ -75,11 +75,15 @@ slices' stand-ins `hit`, `strike`, `kill` and `wave` are gone.
 
 Browsers keep audio locked until a user gesture. `Main._input` unlocks on the first key press, mouse press or touch press (releases,
 motion and the engine's emulated mouse are not gestures); until then every sound is dropped and the HUD asks for a click or tap.
-`tools/godot/web-feedback-capture.mjs` plays the exported build in headless Chromium with `--autoplay-policy=user-gesture-required`
-and wraps `AudioContext` / `AudioBufferSourceNode.start` before the page loads. The evidence (see the pull request) is the context's
-state before the first click (`suspended`), after it (`running`), the latency Chromium reports, and every sound started with its
-context time. What headless cannot prove: that anything is audible (the output is muted) or how the latency feels on a device;
-real-device sound is deferred to #6 and #22.
+`tools/godot/web-feedback-capture.mjs` plays the exported build in headless Chromium (browser key and mouse events only) with
+`--autoplay-policy=user-gesture-required` and wraps `AudioContext` / `AudioBufferSourceNode.start` before the page loads; the report is
+[web-audio-report.json](feedback-sound-hud/web-audio-report.json). Result for build 20261116-124501-e46522905: **0 sounds started
+before the first click, 6 in the 0.6 s after it (the unlock chirp and the Converge's chime among them), 509 over the whole
+run**, no console errors; the context reports a base latency of 10.7 ms and an output latency of 40-64 ms at 48 kHz, and the first
+start is stamped on the context's own clock right after the click. Honest limits: headless Chromium's context was already `running`
+before the click (the autoplay flag did not suspend it), so the browser's suspended-to-running transition itself is not shown; what
+is shown is that the game's own gate keeps every sound silent until the first gesture and plays afterwards. Nor can headless prove that
+anything is audible (the output is muted) or how the latency feels on a device; real-device sound is deferred to #6 and #22.
 
 ## The HUD
 
@@ -119,5 +123,8 @@ particles; ribbons and cracks; and a 2400-tick normal run through the real Main 
 timeline, final digest). Every wait loop is bounded by a counter that does not depend on the tick. Mutations: the `feedback` section of
 `tools/godot/mutation-check.sh`.
 
-Export evidence: the pull request description lists the Web run (screenshots, `audio-report.json`) and the shipped Windows build under
-Wine writing a movie at 1000x563 on an isolated virtual display.
+Export evidence ([screenshots](feedback-sound-hud/)): the Web build in headless Chromium (help after the first click and hidden with H,
+a fight with the chain counter and hit numbers, WAVE CLEARED over a Cataclysm's floor, pause, the death screen, the restart, and the
+`--visuals=textured` look), and the shipped, unmodified Windows build under Wine 11 on an isolated Xvfb display, `Swordster.exe
+--resolution 1000x563 --write-movie ... --fixed-fps 30`, no input: a 90 s movie (the engine recorded it at its own 1280x720) whose frames
+show the help, the chain, hit numbers, floor cracks and drops, and the audio prompt a player who never clicks keeps seeing.
