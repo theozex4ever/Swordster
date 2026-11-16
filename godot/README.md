@@ -303,7 +303,7 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   the script changes. The mutation checker (`tools/godot/mutation-check.sh`, which
   tests the checks themselves, not the build) has its own workflows: `mutation-gate.yml`
   runs the full pass in the fast mode on every pull request that touches the game or its
-  tooling and on every push to `main` (blocking, 16 shards), and `mutation.yml` runs the
+  tooling and on every push to `main` (blocking, 8 shards), and `mutation.yml` runs the
   strict classic pass weekly and on manual dispatch (both call `mutation-pass.yml`, which
   shards the list and judges the shards). See *Mutation checks* under *Checks*.
 - **Where the build is:** open the run (Actions → *Build*, or `gh run list
@@ -466,7 +466,7 @@ Procedure for a slice (what an implementer does, and what CI does):
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
    whole section for each fix.
 3. **Do not run the full pass yourself.** The pull request's *Mutation gate* job (`mutation-gate.yml`) is the full
-   pass: every mutation of the list in the fast mode, split over 16 shards, in about `@WALL@` of wall time. It runs on
+   pass: every mutation of the list in the fast mode, split over 8 shards, in about `@WALL@` of wall time. It runs on
    every pull request that touches `godot/`, `tools/godot/`, `tools/reference/` or a mutation workflow, and on every
    push to `main`, and it is **blocking**: its *all shards* job fails unless every shard ran and recorded exit status 0,
    the shards together covered the whole list (the summary derives the expected share of each shard from the list itself:

@@ -2,7 +2,7 @@ name: Mutation gate
 
 # The mutation checks (tools/godot/mutation-check.sh) as a gate: every deliberate bug must be
 # rejected by a genuine failing check. The FULL list runs in FAST mode (the checker's focused /
-# quick / full steps, so a mutation costs a few seconds and the whole pass about ten minutes of
+# quick / full steps, so a mutation costs a second or two and the whole pass a few minutes of
 # wall time over the shards) on
 #   - every pull request that touches godot/, tools/godot/, tools/reference/ or a mutation workflow, and
 #   - every push to main (no path filter: main always has a verdict for its head).
@@ -36,8 +36,9 @@ jobs:
     uses: ./.github/workflows/mutation-pass.yml
     with:
       mode: fast
-      # About 1,100 mutations at a few seconds each: 16 shards keep the wall time near ten minutes
-      # (measured in the pull request that introduced this gate; see godot/README.md). The repository is
-      # public, so the runner minutes are free.
-      shards: 16
+      # About 1,070 mutations at 1-2 seconds each: a shard of 66 mutations (16 shards) took 2.5 minutes after
+      # a minute of setup, but the runner pool ran only about ten jobs at once, so 16 shards queued into two
+      # waves (14 minutes in all). Eight shards (about 134 mutations, ~5 minutes) all start together. The
+      # repository is public, so the runner minutes are free.
+      shards: 8
       timeout-minutes: 40
