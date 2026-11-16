@@ -146,6 +146,7 @@ func _check_actor_cues() -> void:
 	var actor: TexturedActorVisual = (load("res://scenes/textured_actor.tscn") as PackedScene).instantiate() as TexturedActorVisual
 	_tree.root.add_child(actor)
 	var sprite: Sprite2D = actor.body_sprite()
+	_ok("the actor is shown: visible in the tree, its body and shadow drawn from a non-empty texture region", _actor_on_screen(actor))
 	_ok("the body sprite takes its art's pivot, scale and sheet", sprite.texture == settings.body.texture and sprite.hframes == 5 and not sprite.centered and sprite.offset.is_equal_approx(-settings.body.pivot) and sprite.scale.is_equal_approx(settings.body.visual_scale))
 	_ok("the shadow sits at its own offset", actor.shadow_sprite().position.is_equal_approx(settings.shadow_offset) and actor.shadow_sprite().offset.is_equal_approx(-settings.shadow.pivot))
 	actor.apply_pose(Vector2(300.0, 200.0), Vector2.RIGHT, false)
@@ -206,6 +207,33 @@ func _overlap(a: Dictionary, b: Dictionary) -> bool:
 	return false
 
 
+# ------------------------------------------------------------------- on screen
+## True when `sprite` is shown: visible in the tree and drawn from a texture whose frame (its region) has an area.
+func _sprite_on_screen(sprite: Sprite2D) -> bool:
+	if sprite == null or not sprite.is_visible_in_tree() or sprite.texture == null:
+		return false
+	var frame: Rect2 = sprite.get_rect()
+	return frame.size.x > 0.0 and frame.size.y > 0.0 and sprite.scale.x != 0.0 and sprite.scale.y != 0.0
+
+
+## A textured sword is on screen when it, its blade, its glow and its shadow are.
+func _sword_on_screen(sword: TexturedSwordVisual) -> bool:
+	return sword.is_visible_in_tree() and _sprite_on_screen(sword.blade_sprite()) and _sprite_on_screen(sword.glow_sprite()) and _sprite_on_screen(sword.shadow_sprite())
+
+
+## A sword's sprites hold a drawable frame, hidden or not (a lying sword is hidden on the off beats of its expiry blink).
+func _sword_drawable(sword: TexturedSwordVisual) -> bool:
+	for sprite: Sprite2D in [sword.blade_sprite(), sword.glow_sprite(), sword.shadow_sprite()]:
+		if sprite == null or sprite.texture == null or sprite.get_rect().size.x <= 0.0 or sprite.get_rect().size.y <= 0.0:
+			return false
+	return true
+
+
+## A textured actor is on screen when it, its body and its shadow are.
+func _actor_on_screen(actor: TexturedActorVisual) -> bool:
+	return actor.is_visible_in_tree() and _sprite_on_screen(actor.body_sprite()) and _sprite_on_screen(actor.shadow_sprite())
+
+
 # ------------------------------------------------------------------- sword cues
 func _check_sword_cues() -> void:
 	print("visual replacement: every sword type, element and rarity reaches the picture")
@@ -216,6 +244,7 @@ func _check_sword_cues() -> void:
 	var correct_glow: bool = true
 	var correct_size: bool = true
 	var correct_pose: bool = true
+	var shown_ok: bool = true
 	var tints_seen: Dictionary = {}
 	var glows_seen: Dictionary = {}
 	var failing: String = ""
@@ -238,6 +267,7 @@ func _check_sword_cues() -> void:
 				var blade_length: float = art.frame_size().y * art.visual_scale.y * SwordDefs.RARITY_SIZE[rarity]
 				var size_ok: bool = blade.scale.is_equal_approx(art.visual_scale * SwordDefs.RARITY_SIZE[rarity]) and is_equal_approx(sword.glow_sprite().scale.x * settings.glow.frame_size().x, blade_length * 1.5) and sword.glow_sprite().texture == settings.glow.texture
 				var pose_ok: bool = sword.position == Vector2(120.0, 80.0) and is_equal_approx(blade.rotation, 0.7 + deg_to_rad(art.orientation_degrees))
+				shown_ok = shown_ok and _sword_on_screen(sword)
 				correct_art = correct_art and art_ok
 				correct_tint = correct_tint and tint_ok
 				correct_glow = correct_glow and glow_ok
@@ -249,6 +279,7 @@ func _check_sword_cues() -> void:
 				glows_seen[sword.glow_sprite().modulate.to_html(false)] = true
 				sword.free()
 	_ok("each type draws its own sheet with the art's pivot (36 swords; first wrong: '%s')" % failing, correct_art)
+	_ok("every one of the 36 swords is shown: visible in the tree, its blade, glow and shadow drawn from a non-empty texture region", shown_ok)
 	_ok("the element tints the blade (fire, ice, poison)", correct_tint and tints_seen.size() == 3)
 	_ok("the glow is the rarity's colour for a Rare or Mythic sword and the element's for a Common one (%d colours)" % glows_seen.size(), correct_glow and glows_seen.size() == 5)
 	_ok("rarity scales the blade by its size factor, and the glow rings the blade at 1.5 blade lengths across", correct_size)
@@ -376,13 +407,15 @@ func _check_equivalence() -> void:
 		_ok("%s: the textured look plays it tick for tick too: movement, hit geometry, damage, timing, cooldowns and targets" % fight, textured["trace"] == bare["trace"], "%s vs %s" % [textured["trace"], bare["trace"]])
 		_ok("%s: the textured look ends on the very same outcome digest" % fight, textured["digest"] == bare["digest"] and drawn["digest"] == bare["digest"])
 		_ok("%s: the textured look really was on screen (%d sword visuals, frames %s, %d clips finished)" % [fight, textured["textured_swords"], textured["frames_seen"], textured["clips_finished"]], int(textured["textured_swords"]) >= 3 and (textured["frames_seen"] as Array).size() >= 3 and int(textured["clips_finished"]) > 0 and bool(textured["textured_actor"]))
+		_ok("%s: the textured actor and every equipped sword were visible on every tick, drawn from a non-empty texture region (%d of %d ticks with something hidden or empty)" % [fight, textured["hidden_ticks"], TICKS], int(textured["hidden_ticks"]) == 0 and int(textured["shown_ticks"]) == TICKS)
 		_ok("%s: the drawn look had none of it" % fight, int(drawn["textured_swords"]) == 0 and not bool(drawn["textured_actor"]))
 		if fight == RenderRateScenario.DROPS:
-			_ok("drops: the lying swords were drawn with the textured look too (up to %d at once)" % textured["pickups"], int(textured["pickups"]) >= 2)
+			_ok("drops: the lying swords were drawn with the textured look too (up to %d at once, %d tick(s) with one drawn from an empty texture region, shown on %d)" % [textured["pickups"], textured["empty_pickup_ticks"], textured["shown_pickup_ticks"]], int(textured["pickups"]) >= 2 and int(textured["empty_pickup_ticks"]) == 0 and int(textured["shown_pickup_ticks"]) > 0)
 
 
 func _check_hostile_replacements() -> void:
 	print("visual replacement: art of any size, pivot, orientation, speed and length changes nothing")
+	_check_retime_is_exact()
 	var variants: Dictionary = {
 		"animations a tenth of the speed": _variant(func(art: Node) -> void: _retime(art, 0.1, false)),
 		"animations sixty times faster, each playing once": _variant(func(art: Node) -> void: _retime(art, 60.0, true)),
@@ -394,6 +427,7 @@ func _check_hostile_replacements() -> void:
 			var result: Dictionary = await _play_main(fight, "", variants[name] as Callable)
 			_ok("%s with %s: still the bare simulation's fight, tick for tick" % [fight, name], result["trace"] == bare["trace"] and result["digest"] == bare["digest"], "%s vs %s" % [result["trace"], bare["trace"]])
 			_ok("%s with %s: the replacement really drew differently (%d clips finished, %s frames)" % [fight, name, result["clips_finished"], (result["frames_seen"] as Array).size()], int(result["textured_swords"]) >= 3 and bool(result["textured_actor"]))
+			_ok("%s with %s: it was on screen on every tick (%d of %d ticks with something hidden or empty)" % [fight, name, result["hidden_ticks"], TICKS], int(result["hidden_ticks"]) == 0 and int(result["shown_ticks"]) == TICKS)
 			if name.begins_with("animations sixty"):
 				_ok("%s: its animations ran out over and over (%d times) without moving a hair of the fight" % [fight, result["clips_finished"]], int(result["clips_finished"]) >= 50)
 			if name.begins_with("huge"):
@@ -414,17 +448,43 @@ func _variant(change: Callable) -> Callable:
 		return scenes
 
 
-## Every clip's speed times `speed`; with `once` no clip loops, so every one of them runs out over and over.
+## Every clip's rate times exactly `speed`, with no cap: a 60x variant of an 8 fps clip really plays at 480 fps (eight frames
+## a tick). With `once` no clip loops, so every one of them runs out over and over.
 func _retime(root: Node, speed: float, once: bool) -> void:
 	var settings: Resource = root.get("settings") as Resource
 	var copy: Resource = settings.duplicate(true)
 	for property: Dictionary in copy.get_property_list():
 		var value: Variant = copy.get(property["name"])
 		if value is SpriteClip:
-			(value as SpriteClip).fps = clampf((value as SpriteClip).fps * speed, 0.1, 60.0)
+			(value as SpriteClip).fps = (value as SpriteClip).fps * speed
 			if once:
 				(value as SpriteClip).loop = false
 	root.set("settings", copy)
+
+
+## The speed variants run at exactly the speed they are named for: every clip's rate is the original's times the factor.
+func _check_retime_is_exact() -> void:
+	var exact: bool = true
+	var clips: int = 0
+	var slowest: float = INF
+	var fastest: float = 0.0
+	for path: String in [VisualSets.scene_path(VisualSets.TEXTURED, "actor"), VisualSets.scene_path(VisualSets.TEXTURED, "sword")]:
+		var root: Node = (load(path) as PackedScene).instantiate()
+		var original: Resource = root.get("settings") as Resource
+		for speed: float in [0.1, 60.0]:
+			_retime(root, speed, false)
+			var retimed: Resource = root.get("settings") as Resource
+			for property: Dictionary in retimed.get_property_list():
+				var value: Variant = retimed.get(property["name"])
+				if value is SpriteClip:
+					var base: SpriteClip = original.get(property["name"]) as SpriteClip
+					clips += 1
+					exact = exact and is_equal_approx((value as SpriteClip).fps, base.fps * speed)
+					slowest = minf(slowest, (value as SpriteClip).fps)
+					fastest = maxf(fastest, (value as SpriteClip).fps)
+			root.set("settings", original)
+		root.free()
+	_ok("the speed variants are exact: all %d clip rates are the original's times 0.1 or times 60 (%.2f to %.0f fps, no cap)" % [clips, slowest, fastest], exact and clips >= 16 and slowest < 1.0 and fastest > 60.0)
 
 
 ## Other textures altogether (size and sheet layout), pivots moved far away, much bigger, turned by 33 degrees.
@@ -519,6 +579,10 @@ func _play_main(fight: String, visuals: String, scenes: Callable = Callable()) -
 	var textured_swords: int = 0
 	var blade_scale: Vector2 = Vector2.ZERO
 	var blade_offset: Vector2 = Vector2.ZERO
+	var shown_ticks: int = 0
+	var hidden_ticks: int = 0
+	var shown_pickup_ticks: int = 0
+	var empty_pickup_ticks: int = 0
 	for step: int in TICKS:
 		for command: GameCommand in RenderRateScenario.commands_at(main.run.tick, fight):
 			main.run.apply(command)
@@ -527,6 +591,20 @@ func _play_main(fight: String, visuals: String, scenes: Callable = Callable()) -
 		cues += _record(context, main.run)
 		main._present()
 		if shown == VisualSets.TEXTURED:
+			# Every tick the textured actor and every equipped sword must be on screen, and a lying sword must be drawable.
+			var everything_shown: bool = main.visual is TexturedActorVisual and _actor_on_screen(main.visual as TexturedActorVisual) and main._presenter._sword_visuals.size() == main.run.swords.size() and not main.run.swords.is_empty()
+			for visual: Node in main._presenter._sword_visuals.values():
+				everything_shown = everything_shown and visual is TexturedSwordVisual and _sword_on_screen(visual as TexturedSwordVisual)
+			if everything_shown:
+				shown_ticks += 1
+			else:
+				hidden_ticks += 1
+			for visual: Node in main._presenter._pickup_visuals.values():
+				if visual is TexturedSwordVisual:
+					if not _sword_drawable(visual as TexturedSwordVisual):
+						empty_pickup_ticks += 1
+					elif _sword_on_screen(visual as TexturedSwordVisual):
+						shown_pickup_ticks += 1
 			textured_swords = 0
 			for child: Node in main._presenter.get_children():
 				if child is TexturedSwordVisual:
@@ -549,20 +627,26 @@ func _play_main(fight: String, visuals: String, scenes: Callable = Callable()) -
 	result["clips_finished"] = finished
 	result["blade_scale"] = blade_scale
 	result["blade_offset"] = blade_offset
+	result["shown_ticks"] = shown_ticks
+	result["hidden_ticks"] = hidden_ticks
+	result["shown_pickup_ticks"] = shown_pickup_ticks
+	result["empty_pickup_ticks"] = empty_pickup_ticks
 	main.queue_free()
 	await _tree.process_frame
 	return result
 
 
 ## Folds one tick of everything gameplay owns into the running hash: the observation snapshot, each sword's phase, timers,
-## cooldowns, heading and target, and every cue the tick produced (where, which way, how much, how far it reached). Returns
+## cooldowns, heading, target and raw hit geometry (reach, length, sweep, impact point, enemy radius), and every cue the tick produced (where, which way, how much, how far it reached). Returns
 ## how many cues there were.
 func _record(context: HashingContext, run: GameRun) -> int:
 	context.update(var_to_bytes(run.snapshot()))
 	for sword: SwordState in run.swords:
 		context.update(var_to_bytes([sword.phase, sword.timer, sword.cooldown_left, sword.angle, sword.position, sword.boost, sword.target.serial if sword.target != null else -1, sword.spec.display_name()]))
+		# The raw hit geometry: how long and how far the blade reaches, how it is sized, the Warden's sweep, the slam's point.
+		context.update(var_to_bytes([sword.length, sword.attack_range, sword.size_scale, sword.sweep_pivot, sword.sweep_from, sword.sweep_to, sword.sweep_duration, sword.side, sword.impact, sword.ultimate_point, sword.altitude, sword.dir, sword.aim]))
 	for enemy: EnemyState in run.enemies:
-		context.update(var_to_bytes([enemy.serial, enemy.position, enemy.hp, enemy.stun, enemy.flash]))
+		context.update(var_to_bytes([enemy.serial, enemy.position, enemy.hp, enemy.stun, enemy.flash, enemy.radius]))
 	for cue: SimCue in run._cues:
 		context.update(var_to_bytes([cue.kind, cue.position, cue.direction, cue.amount, cue.critical, cue.origin, String(cue.element), cue.radius, cue.spec.display_name() if cue.spec != null else ""]))
 	return run._cues.size()
