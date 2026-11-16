@@ -3,9 +3,15 @@
 Procedure for the maintainer to put one build on one unlisted itch.io page (browser play plus a
 free Windows download) and to collect real-device evidence. It covers issue
 [#6](https://github.com/theozex4ever/Swordster/issues/6) of the Godot port
-([#4](https://github.com/theozex4ever/Swordster/issues/4)). **Nothing here has been done yet:**
-no page exists, nothing was uploaded and no device has run a build. Record results in
+([#4](https://github.com/theozex4ever/Swordster/issues/4)). Record results in
 [`itchio-evidence.md`](itchio-evidence.md); every result there starts as `UNVERIFIED`.
+
+**Status (2026-11-16):**
+- **Page:** the maintainer has created the itch.io page.
+- **Upload:** it was held back until the swords, enemies and combat were ported (#16, closed 2026-11-15). The hold is now lifted.
+- **Build:** a verified pair, `20261116-121017-92c0c6f19` from main `92c0c6f`, has been built for the first upload, with its Web ZIP checked as in section 2. The maintainer uploads it through the website.
+- **Not yet done:** the device checks in section 6. No result is recorded in the evidence file yet.
+- **Next build:** #19 (feedback and sound), #20 (touch controls) and #21 (sprite replacement) are not in this build. #22 re-checks a later build.
 
 This is the manual, first-time path through the itch.io website. Automated publication
 (butler/CI), retention and rollback belong to issue #7 and are not described here.
@@ -162,25 +168,42 @@ Run these on every target in the evidence file, using the itch.io page (the Wind
 downloaded from the page, not copied over from the build machine). Use the same `<BUILD_ID>`
 everywhere.
 
-### What the game shows (this slice of the port)
+### What the game shows (build `20261116-121017-92c0c6f19`)
 
-- A small arena: dark grid floor inside a purple border. A placeholder shape is the player; the
-  camera follows it.
-- **Top-left:** `Build <BUILD_ID> (<first 9 chars of the commit>)`, below it the hint
-  `WASD / arrows: move   P / Esc: pause   R: restart` and `Touch: drag on the left half to move`.
-- **Top-right:** `Pause` and `Restart` buttons (`Pause` becomes `Resume` while paused).
-- **Bottom-centre:** `Click or tap to enable sound` until the first key press, mouse click or touch.
+This build is main `92c0c6f`: every sword, enemy, wave and drop is in. #19 (feedback, sound and HUD polish), #20 (touch controls) and #21 (sprite replacement) are not.
+
+**Screen layout**
+- **Top-left:**
+  - `Build <BUILD_ID> (<first 9 chars of the commit>)`;
+  - below it, the control hint;
+  - then health, `dash ready` and `converge ready`.
+- **Top-right:**
+  - the `Pause` and `Restart` buttons (`Pause` becomes `Resume` while paused);
+  - the developer button `Dev: Crowd (restarts)`;
+  - `WAVE n    kills n`.
+- **Bottom:** the three sword cards. A pickup card shows when standing near a dropped sword.
+- **Bottom-centre:** `Click or tap to enable sound`, until the first key press, mouse click or touch.
 - **Paused:** big `PAUSED` text (`Press P / Esc or tap Resume`).
-- There is no combat, enemies or dash yet. Controls: W A S D or arrow keys move; P or Esc
-  pause/resume; R restart. Touch: drag in the left part of the screen (about the left 55%, below
-  the top strip) to move with a floating ring stick, and use the on-screen buttons.
-- Losing focus (switching tab/window/app) pauses automatically and releases input; resuming is
-  always explicit.
-- The mouse only clicks the on-screen buttons (and counts as the first input for sound unlock).
-  Mouse drags do **not** move the player in this slice (`emulate_touch_from_mouse` is off).
-- The game has **no fullscreen control** of its own. Fullscreen only exists through the itch.io
-  page's Fullscreen Button (section 4) and, on a phone with Mobile Friendly on, itch.io's forced
-  fullscreen launch.
+
+**Controls**
+- Move: W A S D or the arrow keys.
+- Dash: Space or Shift.
+- Converge at the cursor: click.
+- Ultimates at the cursor: Q / E / R.
+- Swap a dropped sword into slot 1 / 2 / 3: the 1 / 2 / 3 keys.
+- Show attack ranges: Tab or G.
+- Pause / resume: P or Esc.
+- Restart after death: R.
+- `C` (next dev encounter) and the `Dev:` button are developer shortcuts. Testers can ignore them.
+
+**Touch (this build only)**
+- Drag on the left part of the screen to move.
+- Use the `Dash` button and the on-screen buttons.
+- The full touch control set (#20) comes in a later build.
+
+**Other behaviour**
+- Losing focus (switching tab, window or app) pauses the game automatically and releases input. Resuming is always explicit.
+- The game has **no fullscreen control** of its own. Fullscreen only exists through the itch.io page's Fullscreen Button (section 4) and, on a phone with Mobile Friendly on, itch.io's forced fullscreen launch.
 
 ### Checks to record
 

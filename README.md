@@ -55,6 +55,15 @@ A Godot 4 port is underway alongside this prototype. Its Windows and Web builds
 come from one Linux command, `./build-godot.sh`; see [godot/README.md](godot/README.md).
 The Python game above is unchanged and remains the behavioural reference.
 
+**Status (paused 2026-11-16, resuming the week of 2026-11-23):**
+- **Done:** all combat is ported (swords, enemies, waves, drops), along with feedback, sound,
+  the HUD and sprite replacement.
+- **Open:** three PRs are paused mid-review: CI speed-up, Android touch controls, and
+  visual-check fixes.
+- **Next:** the first hosted tester build is waiting for its itch.io upload and device checks.
+
+[docs/godot-port-status.md](docs/godot-port-status.md) has the details and where to resume.
+
 ## How to play
 
 - **Survive the waves.** Position yourself while your three swords attack nearby enemies automatically.

@@ -143,6 +143,14 @@ scene. Do this before investing in the full rewrite. Success means another perso
 can unzip and launch on Windows without development tools, and open the served
 browser build with sound and working input.
 
+**Status (2026-11-16):**
+- **Build and export half:** done (issue #5).
+- **Hosted half** (the first itch.io upload and the real-device checks, issue #6):
+  - Decided 2026-11-14 to defer it until combat was ported, because the small scene was too bare to show testers.
+  - #16 closed on 2026-11-15, so it is unblocked.
+  - Its first build is prepared and the device evidence is pending (see `itchio-setup.md`).
+- **Consequence:** combat milestones 2 and 3 did not wait for it, so a hosting or device problem can surface later than first planned.
+
 ## Proposed implementation boundaries
 
 Create `godot/project.godot` alongside the existing prototype. Keep Python runnable
