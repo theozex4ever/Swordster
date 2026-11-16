@@ -1,7 +1,7 @@
 name: Mutation pass (reusable)
 
 # One sharded pass of tools/godot/mutation-check.sh over the WHOLE mutation list, called by
-#   mutation-gate.yml  mode=fast     every pull request that touches the game or its tooling, and every push to main
+#   mutation-gate.yml  mode=fast     every pull request (the shards are skipped for a documentation-only one, see `skip`), and every push to main
 #   mutation.yml       mode=classic  the weekly strict pass and manual dispatch
 # The shard count is an input and the matrix is generated from it, so the matrix, the checker
 # (SHARDS) and the summary (SHARDS) can never disagree. It publishes nothing and holds no secrets.
@@ -20,6 +20,11 @@ on:
         description: "Job time limit of one shard"
         required: true
         type: number
+      skip:
+        description: "True for a documentation-only pull request: no shard runs, and `all shards` still reports (a success that says so), so a required check never stays pending"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,6 +50,7 @@ jobs:
   mutation:
     name: shard ${{ matrix.shard }}
     needs: plan
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
@@ -125,12 +131,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Documentation-only change, nothing to gate
+        if: ${{ inputs.skip }}
+        run: |
+          echo "Every changed file is documentation (see tools/godot/mutation-gate-paths.sh), so the mutation shards were skipped and this check passes." | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Check out the summary script
+        if: ${{ !inputs.skip }}
         uses: actions/checkout@v7 # v7.0.1; the major tag is the pin
         with:
           persist-credentials: false
 
       - name: Collect every shard's result and log
+        if: ${{ !inputs.skip }}
         uses: actions/download-artifact@v8 # v8.0.2
         # Nothing to download when no shard got far enough to upload (the next step reports it).
         continue-on-error: true
@@ -140,6 +153,7 @@ jobs:
           merge-multiple: true
 
       - name: Judge the pass
+        if: ${{ !inputs.skip }}
         shell: bash
         env:
           MATRIX_RESULT: ${{ needs.mutation.result }}

@@ -2,14 +2,16 @@ name: Mutation gate
 
 # The mutation checks (tools/godot/mutation-check.sh) as a gate: every deliberate bug must be
 # rejected by a genuine failing check. The FULL list runs in FAST mode (the checker's focused /
-# quick / full steps, so a mutation costs a second or two and the whole pass a few minutes of
-# wall time over the shards) on
-#   - every pull request, EXCEPT one that changes only files that cannot affect the game or its checks (the
-#     `paths-ignore` list below: the docs, repository-level Markdown and issue templates). The filter is a deny
-#     list on purpose: a file that is not named there (the build script, the Python behavioural reference
-#     `game/`, `.github/workflows/build.yml`, this workflow and mutation-pass.yml, a tool added tomorrow) gates the
-#     pull request by default, so a new dependency can never slip past the gate; and
-#   - every push to main (no path filter: main always has a verdict for its head).
+# quick / full steps) on
+#   - EVERY pull request, and
+#   - every push to main (main always has a verdict for its head).
+# The workflow triggers on every pull request on purpose: `mutation / all shards` is meant to be a REQUIRED check, and a
+# workflow skipped by a path filter never reports it (the check would stay pending for ever). So the decision
+# not to run the expensive work is made INSIDE the workflow: the `changes` job lists the pull request's files and
+# tools/godot/mutation-gate-paths.sh says whether every one of them is documentation (docs/**, root Markdown, issue
+# templates, LICENSE). Then the shards are skipped and `mutation / all shards` still reports, as a success that says
+# so. Any other file (the build script, `game/**`, build.yml, these workflows, a tool added tomorrow) gates the pull
+# request by default.
 # It is blocking: the "all shards" job fails unless every shard ran, the shards together covered
 # the whole list, and every mutation was caught (see tools/godot/mutation-summary.sh). A mutation
 # that is caught-with-warning (a genuine FAIL line and then a crash or timeout) is listed but
@@ -17,12 +19,6 @@ name: Mutation gate
 # run in mutation.yml. See "Mutation checks" in godot/README.md.
 on:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "*.md"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/*.md"
-      - "LICENSE*"
   push:
     branches: [main]
 
@@ -36,14 +32,47 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.decide.outputs.docs_only }}
+    steps:
+      - name: Check out the decision script
+        uses: actions/checkout@v7 # v7.0.1; the major tag is the pin
+        with:
+          persist-credentials: false
+      - id: decide
+        name: Is this pull request documentation only?
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Pushes to main always run the pass. For a pull request the file list comes from the API (new and old
+          # names); if that fails the list is empty, which the script treats as "not docs-only".
+          if [[ "$EVENT" == pull_request ]]; then
+            files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)' || true)"
+            printf '%s\n' "$files" | tools/godot/mutation-gate-paths.sh | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+
   mutation:
     name: mutation
+    needs: changes
     uses: ./.github/workflows/mutation-pass.yml
     with:
+      skip: ${{ needs.changes.outputs.docs_only == 'true' }}
       mode: fast
-      # About 1,070 mutations at 1-2 seconds each: a shard of 66 mutations (16 shards) took 2.5 minutes after
-      # a minute of setup, but the runner pool ran only about ten jobs at once, so 16 shards queued into two
-      # waves (14 minutes in all). Eight shards (about 134 mutations, ~5 minutes) all start together. The
-      # repository is public, so the runner minutes are free.
+      # About 1,330 mutations: eight shards (about 165 mutations each, 7 to 14 minutes) all start together on a
+      # free pool; 16 shards queued into two waves on the runner pool of the time. The repository is public, so
+      # the runner minutes are free.
       shards: 8
       timeout-minutes: 40

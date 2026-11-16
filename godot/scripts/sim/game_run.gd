@@ -934,6 +934,12 @@ func state_digest() -> Dictionary:
 	return StateDigest.of(self, STATE_DIGEST_EXCLUDED)
 
 
+## A 64-bit fingerprint of exactly the state `state_digest()` describes, cheap enough to take on every tick (see
+## StateDigest.fingerprint).
+func state_fingerprint() -> int:
+	return StateDigest.fingerprint(self, STATE_DIGEST_EXCLUDED)
+
+
 ## Observation adapter for checks: plain values only.
 func snapshot() -> Dictionary:
 	var sword_positions: Array[Vector2] = []

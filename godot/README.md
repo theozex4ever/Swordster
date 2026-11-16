@@ -340,9 +340,9 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   sandboxed builds, minutes of runtime) is a tooling self-test run by hand when
   the script changes. The mutation checker (`tools/godot/mutation-check.sh`, which
   tests the checks themselves, not the build) has its own workflows: `mutation-gate.yml`
-  runs the full pass in the fast mode on every pull request except one that changes only docs and
-  repository-level Markdown (a deny list: a build dependency such as `build-godot.sh`, `game/` or `build.yml` gates it by
-  default) and on every push to `main` (blocking, 8 shards), and `mutation.yml` runs the
+  runs the full pass in the fast mode on every pull request (the shards are skipped, and the check still reports, only for
+  one that changes nothing but docs and repository-level Markdown: a build dependency such as `build-godot.sh`, `game/` or
+  `build.yml` gates it) and on every push to `main` (blocking, 8 shards), and `mutation.yml` runs the
   strict classic pass weekly and on manual dispatch (both call `mutation-pass.yml`, which
   shards the list and judges the shards). See *Mutation checks* under *Checks*.
 - **Where the build is:** open the run (Actions → *Build*, or `gh run list
@@ -424,8 +424,10 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   script variable of the run and of every object it reaches: the player with its dash, cooldowns and iframes,
   each sword's full state, each enemy with its conditions, projectiles, fields, pickups, motes, the wave director with
   its queue and markers, Converge's cooldown, counters and clocks, and the gameplay random generator's seed and
-  state). It is hashed every 50 ticks and kept in full at the end of each segment; every checkpoint must be equal at
-  every rate. The group also checks the digest itself: it pins the few members it leaves out (`GameRun.STATE_DIGEST_EXCLUDED`,
+  state). A 64-bit fingerprint of the same state is taken on EVERY tick and chained, so a difference that lasts a single tick (it
+  expires before the next sample) still changes every later chain value; the chain, the readable digest's hash (every 50
+  ticks, to say what differed) and the digest in full at the end of each segment must be equal at every rate. The fingerprint
+  costs about 2 ms a tick (the readable digest about 8 ms), so the group is about 20 s of a suite on a loaded machine. The group also checks the digest itself: it pins the few members it leaves out (`GameRun.STATE_DIGEST_EXCLUDED`,
   each with a reason), and changes every plain value of the run, and of one instance of every class it reaches, to
   require that the digest notices. It also checks the `--encounter=` launch options, which are only read at engine
   start, and requires every child process to end with exit status 0 **and** valid output. It replaced nine per-slice probes
@@ -454,7 +456,7 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
 
 ### Mutation checks
 
-The checker lists every deliberate bug (about 1,100) in sections, one per slice
+The checker lists every deliberate bug (about 1,330 at the time of writing; `SECTIONS=count` prints the number) in sections, one per slice
 (`# --- <title> (slice #N)` in the script), after an ungrouped `core` block of
 simulation basics (speed, pause and resume, restart, the diagonal and wall clamps).
 Each mutation gets one of these verdicts:
@@ -466,6 +468,13 @@ Each mutation gets one of these verdicts:
 | `INCONCLUSIVE` | no failing check, and a crash, script error, timeout or no verdict at all: nothing was proved (retried once first) | fails the run |
 | `SURVIVED` | the complete suite accepts the broken project | fails the run |
 | `MUTATION NOT APPLIED` | the search text no longer matches exactly once, so no bug was planted | fails the run |
+
+**What the token protects against, and what it does not.** The per-run `--verdict-token` defeats an *accidental* spoof:
+an engine diagnostic, a `push_error` or printed text that happens to contain `  FAIL ...` can never be mistaken for a
+failing check, because only standard-output lines carrying that run's random token count. It is not meant to resist a
+*malicious* mutant: game code can read the token from `OS.get_cmdline_user_args()` and print a counterfeit
+`FAIL[<token>]`. A mutant is a one-line substitution we write ourselves in this script, so that threat is out of scope and
+nothing here tries to make the token unforgeable.
 
 A check that crashes or hangs once it runs on a broken project is a bug in the checks, not a gap in
 coverage, and a hang already fails the normal build, which has a time limit; so the verdict follows the
@@ -543,10 +552,13 @@ Procedure for a slice (what an implementer does, and what CI does):
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
    whole section for each fix.
 3. **Do not run the full pass yourself.** The pull request's *Mutation gate* job (`mutation-gate.yml`) is the full
-   pass: every mutation of the list in the fast mode, split over 8 shards, in about 7 minutes of wall time (measured: 7 min on the pull request that introduced it). It runs on
-   every pull request except one that changes only `docs/**`, repository-root Markdown or issue templates (a `paths-ignore`
-   deny list, so any file not named there, build dependencies included, gates the pull request), and on every
-   push to `main`, and it is **blocking**: its *all shards* job fails unless every shard ran and recorded exit status 0,
+   pass: every mutation of the list in the fast mode, split over 8 shards, in about 14 minutes of wall time (measured: 14 min 18 s for 1,321 mutations on a shared runner pool; the shards take 7 to 14 minutes and the slowest decides). It is
+   triggered by **every** pull request and every push to `main` (a path-filtered workflow never reports its check on a
+   pull request it skips, which would leave a *required* check pending for ever), and decides inside: a `changes` job
+   lists the pull request's files and `tools/godot/mutation-gate-paths.sh` skips the shards only when every file is
+   `docs/**`, root-level Markdown, `.github/*.md`, issue templates or a licence (anything else, build dependencies
+   included, gates it; an empty or failed file list gates it). A docs-only pull request still gets `mutation / all shards`, as a
+   success that says the shards were skipped. It is **blocking**: its *all shards* job fails unless every shard ran and recorded exit status 0,
    the shards together covered the whole list (the summary derives the expected share of each shard from the list itself:
    a missing, duplicate, extra, filtered or short shard fails it, and so does a shard that ran in the wrong mode), and every
    mutation was caught (no survivor, none inconclusive, none not applied). A new push to the pull request cancels the

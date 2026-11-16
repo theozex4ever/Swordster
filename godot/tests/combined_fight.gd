@@ -9,8 +9,9 @@ extends RefCounted
 ## fixed-step loop at different frame rates; the checks also play it with bare `GameRun.step()` calls.
 ## The digest is `GameRun.state_digest()`: the whole run state by reflection (dash and Converge cooldowns, the gameplay
 ## random generator, every sword and enemy member, fields, pickups, wave director), taken at every CHECKPOINT_EVERY ticks
-## (as a hash) and at the end of each segment (in full), so nothing that could differ at a frame-rate-dependent moment
-## hides between two equal endings.
+## (as a hash) and at the end of each segment (in full), and its fingerprint (`GameRun.state_fingerprint()`, the same state
+## folded into an integer) on EVERY tick, chained, so a difference that lasts a single tick cannot hide between two
+## equal checkpoints.
 ##
 ## The fight has two SEGMENTS, because a wave can only be cleared once nothing stands any more:
 ##   - FIGHT (segment 0, FIGHT_TICKS): the mechanics. The player stands 400 px from the north and east walls with the
@@ -39,7 +40,10 @@ extends RefCounted
 const FIGHT_TICKS: int = 1700
 const WAVES_TICKS: int = 1000
 const TOTAL_TICKS: int = FIGHT_TICKS + WAVES_TICKS
-## The state is hashed every this many ticks of each segment (and the end of each segment is kept in full).
+## The readable state digest is hashed every this many ticks of each segment (and the end of each segment is kept in
+## full). The state FINGERPRINT is taken on every tick and chained; the chain is recorded at the same ticks, so a
+## difference that appears for a single tick is in every later chain value, and the first differing checkpoint says
+## which window of CHECKPOINT_EVERY ticks it began in.
 const CHECKPOINT_EVERY: int = 50
 ## The normal run of segment 1: its own seed, a short first break, fixed first cooldowns.
 const WAVES_SEED: int = 43
@@ -215,6 +219,9 @@ var segment: int = 0
 var finished: bool = false
 ## "segment:tick" -> hash of the full state digest at that moment.
 var checkpoints: Dictionary = {}
+## "segment:tick" -> the chain of the per-tick state fingerprints up to that moment (as text: 64-bit values do not survive JSON numbers).
+var chains: Dictionary = {}
+var _chain: int = 0
 ## The full state digest at the end of each segment, and the counters read from the run at that moment.
 var finals: Array[Dictionary] = []
 var counters: Array[Dictionary] = []
@@ -224,11 +231,16 @@ var _last_tick: int = -1
 
 
 func before_tick(run: GameRun) -> void:
-	while not finished:
+	# Each pass either returns or moves to the next segment, so SEGMENTS + 1 passes are all there can be.
+	for _pass: int in SEGMENTS + 1:
+		if finished:
+			return
 		if run.tick == _last_tick:
 			return
 		_last_tick = run.tick
+		_chain = StateDigest.mix(_chain, run.state_fingerprint())
 		if run.tick % CHECKPOINT_EVERY == 0:
+			chains["%d:%d" % [segment, run.tick]] = str(_chain)
 			checkpoints["%d:%d" % [segment, run.tick]] = JSON.stringify(run.state_digest()).sha256_text()
 		if run.tick >= segment_ticks(segment):
 			finals.append(run.state_digest())
@@ -253,7 +265,7 @@ func before_tick(run: GameRun) -> void:
 
 ## What a probe or a check reports of a finished fight: every checkpoint hash and the end-of-segment digests.
 func result() -> Dictionary:
-	return {"checkpoints": checkpoints, "finals": finals}
+	return {"checkpoints": checkpoints, "chains": chains, "finals": finals}
 
 
 ## Plays the whole fight with bare simulation steps. Returns `result()` plus, for the coverage checks, the counters of

@@ -135,36 +135,40 @@ if wants summary; then
     mode="$(sed -n 's/^      mode: \([a-z]*\)$/\1/p' "$wf")"; shards="$(sed -n 's/^      shards: \([0-9]*\)$/\1/p' "$wf")"
     if [[ ( "$mode" == fast || "$mode" == classic ) && "$shards" =~ ^[1-9][0-9]*$ ]]; then report "workflow ${wf##*/}: mode $mode, $shards shards" PASS; else report "workflow ${wf##*/}: mode and shards" "mode='$mode' shards='$shards'"; fi
   done
-  # The pull-request path filter is a deny list: a change to a build dependency must trigger the gate, a docs-only one must not.
-  filter_log="$ROOT/path-filter.log"
-  if python3 -I - "$REPO/.github/workflows/mutation-gate.yml" >"$filter_log" 2>&1 <<'PY'
+  # The gate is a REQUIRED check, so its workflow triggers on every pull request (no path filter: a skipped workflow would leave a
+  # required check pending for ever) and decides inside whether the expensive work is needed.
+  gate_log="$ROOT/gate-workflow.log"
+  if python3 -I - "$REPO/.github/workflows/mutation-gate.yml" "$REPO/.github/workflows/mutation-pass.yml" >"$gate_log" 2>&1 <<'PY'
 import re, sys
-text = open(sys.argv[1]).read()
-block = re.search(r"^  pull_request:\n((?:    .*\n|      .*\n)+)", text, re.M).group(1)
-assert "    paths:" not in block, "an allow list (paths:) lets an unlisted build dependency skip the gate"
-ignore = re.search(r"    paths-ignore:\n((?:      - .*\n)+)", block).group(1)
-patterns = [line.strip()[2:].strip().strip('"') for line in ignore.splitlines()]
-def rx(pattern):  # GitHub's glob: ** crosses directories, * and ? do not
-    out = ""
-    i = 0
-    while i < len(pattern):
-        if pattern.startswith("**/", i): out += "(?:.*/)?"; i += 3
-        elif pattern.startswith("**", i): out += ".*"; i += 2
-        elif pattern[i] == "*": out += "[^/]*"; i += 1
-        elif pattern[i] == "?": out += "[^/]"; i += 1
-        else: out += re.escape(pattern[i]); i += 1
-    return re.compile(out + r"\Z")
-ignored = lambda path: any(rx(p).match(path) for p in patterns)
-for path in ["build-godot.sh", "game/main.py", ".github/workflows/build.yml", ".github/workflows/mutation-gate.yml",
-             ".github/workflows/mutation-pass.yml", ".github/workflows/mutation.yml", "godot/scripts/main.gd", "godot/README.md",
-             "godot/tests/render_rate_checks.gd", "tools/godot/mutation-check.sh", "tools/reference/capture_waves.py", "tools/new-thing.sh"]:
-    assert not ignored(path), path + " is ignored by the gate's path filter although it can change the game or its checks"
-for path in ["docs/reference/waves.md", "docs/reference/waves/shot.png", "GLOSSARY.md", "AGENTS.md", ".github/ISSUE_TEMPLATE/bug.md"]:
-    assert ignored(path), path + " should not trigger the gate"
+gate, reusable = (open(p).read() for p in sys.argv[1:3])
+on = re.search(r"^on:\n((?:(?:  .*)?\n)+)", gate, re.M).group(1)
+assert "paths" not in on, "the gate's trigger has a path filter (paths / paths-ignore): a docs-only pull request would never report the required check"
+assert re.search(r"^  pull_request:", on, re.M), "the gate no longer triggers on pull requests"
+assert "mutation-gate-paths.sh" in gate and "skip: ${{ needs.changes.outputs.docs_only == 'true' }}" in gate, "the gate does not decide docs-only inside the workflow"
+# `all shards` must always run and report: it is `if: always()` and the skip path succeeds without judging.
+summary = reusable[reusable.index("  summary:"):]
+assert "name: all shards" in summary and "if: always()" in summary, "the aggregate job must always run"
+assert summary.count("if: ${{ !inputs.skip }}") == 3 and "if: ${{ inputs.skip }}" in summary, "the aggregate job must judge unless skipped, and say so when skipped"
+assert "if: ${{ !inputs.skip }}" in reusable[reusable.index("  mutation:"):reusable.index("  summary:")], "the shards must be skipped when inputs.skip"
 print("ok")
 PY
-  then report "workflow mutation-gate.yml: path filter gates every build dependency, skips only docs" PASS
-  else report "workflow mutation-gate.yml: path filter gates every build dependency, skips only docs" "see log" "$filter_log"; fi
+  then report "workflow mutation-gate.yml: every pull request triggers it, docs-only skips the shards, all shards always reports" PASS
+  else report "workflow mutation-gate.yml: every pull request triggers it, docs-only skips the shards, all shards always reports" "see log" "$gate_log"; fi
+  # Which changes skip the expensive work.
+  paths_is() { # name want file...
+    local name="$1" want="$2"; shift 2
+    local got; got="$(printf '%s\n' "$@" | "$REPO/tools/godot/mutation-gate-paths.sh")"
+    if [[ "$got" == "docs_only=$want" ]]; then report "gate paths: $name" PASS; else report "gate paths: $name" "got '$got', wanted docs_only=$want"; fi
+  }
+  paths_is "documentation and root Markdown only skip" true docs/reference/waves.md docs/reference/waves/shot.png GLOSSARY.md AGENTS.md .github/ISSUE_TEMPLATE/bug.md .github/CONTRIBUTING.md LICENSE
+  paths_is "a docs-only change skips" true docs/adr/0001-x.md
+  for file in build-godot.sh game/main.py .github/workflows/build.yml .github/workflows/mutation-gate.yml .github/workflows/mutation-pass.yml .github/workflows/mutation.yml \
+              godot/scripts/main.gd godot/README.md godot/tests/render_rate_checks.gd tools/godot/mutation-check.sh tools/reference/capture_waves.py tools/new-thing.sh godot/project.godot README.txt .github/dependabot.yml; do
+    paths_is "$file gates" false "$file"
+  done
+  paths_is "one gating file among documentation gates" false docs/a.md godot/scripts/main.gd GLOSSARY.md
+  paths_is "a nested Markdown file outside docs gates" false tools/notes/README.md
+  paths_is "an empty file list (the API failed) gates" false
 fi
 
 # ---- 1. stale mutation text
@@ -199,12 +203,15 @@ if wants crash; then
   # ever reaches. The unmutated project is unaffected (the tripwire needs a speed of zero), so
   # the baseline passes.
   python3 -I - "$sb/repo/godot/scripts/sim/game_run.gd" <<'PY'
-import sys
+import re, sys
 path = sys.argv[1]
 text = open(path).read()
-old = "func kill(enemy: EnemyState, direction: Vector2) -> void:\n"
-assert text.count(old) == 1
-open(path, "w").write(text.replace(old, old + "\tvar tripwire_speed: float = PLAYER_SPEED\n\tif tripwire_speed < 1.0 and scenario.seed == 41:\n\t\tOS.crash(\"test tripwire: a kill after the movement failure\")\n"))
+# Whatever parameters kill() has today (it gained `big: bool = false`; a later slice may add more): anchor on its name and first
+# parameter only, and insert the tripwire right after the signature line.
+pattern = re.compile(r"^func kill\(enemy: EnemyState[^\n]*\) -> void:\n", re.M)
+assert len(pattern.findall(text)) == 1, "expected exactly one func kill(enemy: EnemyState, ...) in game_run.gd"
+tripwire = "\tvar tripwire_speed: float = PLAYER_SPEED\n\tif tripwire_speed < 1.0 and scenario.seed == 41:\n\t\tOS.crash(\"test tripwire: a kill after the movement failure\")\n"
+open(path, "w").write(pattern.sub(lambda m: m.group(0) + tripwire, text, count=1))
 PY
   log="$ROOT/crash-fast.log"; status="$(checker "$sb" 1 "$log")"; problem=PASS
   [[ "$status" == 0 ]] || problem="exit $status, wanted 0"

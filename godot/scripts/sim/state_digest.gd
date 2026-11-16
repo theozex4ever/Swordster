@@ -43,6 +43,100 @@ static func member_names(root: Object, excluded: Dictionary) -> Array[String]:
 	return names
 
 
+## A 64-bit fingerprint of the same state, cheap enough to take on EVERY tick (the readable digest costs about 8 ms,
+## this a fraction of it): the same walk over the same members and objects, folded into one integer instead of built
+## into text. Floats are folded bit for bit, so two runs agree only if they are identical. `GameRun.state_fingerprint()`
+## is the entry point; `CombinedFight` chains it tick after tick, so a difference that appears on one tick and is gone
+## by the next checkpoint still changes the chain for good.
+static func fingerprint(root: Object, excluded: Dictionary) -> int:
+	var walker: StateDigest = StateDigest.new()
+	walker._excluded = excluded
+	walker._seen[root.get_instance_id()] = 0
+	return walker._fold_members(root, true)
+
+
+## Per script: the names of its script variables (reflection is the slow part, so it is done once per class).
+static var _names_of: Dictionary[Script, PackedStringArray] = {}
+
+const _PRIME: int = 1099511628211
+
+
+static func _names(object: Object) -> PackedStringArray:
+	var script: Script = object.get_script() as Script
+	if script != null and _names_of.has(script):
+		return _names_of[script]
+	var names: PackedStringArray = PackedStringArray()
+	for property: Dictionary in object.get_property_list():
+		if int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE != 0:
+			names.append(String(property["name"]))
+	if script != null:
+		_names_of[script] = names
+	return names
+
+
+## Folds `value` into `accumulator` (FNV-style, wrapping); also how a chain of per-tick fingerprints is built.
+static func mix(accumulator: int, value: int) -> int:
+	return (accumulator ^ value) * _PRIME
+
+
+func _fold_members(object: Object, is_root: bool) -> int:
+	var accumulator: int = -3750763034362895579
+	for name: String in _names(object):
+		if is_root and _excluded.has(name):
+			continue
+		accumulator = mix(accumulator, _fold(object.get(name)))
+	return accumulator
+
+
+func _fold(value: Variant) -> int:
+	match typeof(value):
+		TYPE_NIL:
+			return 0
+		TYPE_BOOL, TYPE_INT:
+			return int(value) + 7
+		TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_COLOR:
+			return hash(value)
+		TYPE_STRING, TYPE_STRING_NAME:
+			return String(value).hash()
+		TYPE_ARRAY:
+			var accumulator: int = (value as Array).size()
+			for item: Variant in value:
+				accumulator = mix(accumulator, _fold(item))
+			return accumulator
+		TYPE_DICTIONARY:
+			var accumulator: int = (value as Dictionary).size()
+			for key: Variant in value:
+				accumulator = mix(accumulator, _fold_key(key))
+				accumulator = mix(accumulator, _fold(value[key]))
+			return accumulator
+		TYPE_OBJECT:
+			return _fold_object(value as Object)
+	return var_to_str(value).hash()
+
+
+func _fold_object(object: Object) -> int:
+	if object == null:
+		return 0
+	var id: int = object.get_instance_id()
+	if _seen.has(id):
+		return mix(1, _seen[id])
+	_seen[id] = _seen.size()
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return mix(mix(2, generator.seed), generator.state)
+	return _fold_members(object, false)
+
+
+func _fold_key(key: Variant) -> int:
+	if typeof(key) == TYPE_OBJECT:
+		var object: Object = key as Object
+		if object != null and "serial" in object:
+			return mix(3, int(object.get("serial")))
+		return _fold_object(object)
+	return _fold(key)
+
+
+
 func _members(object: Object, is_root: bool) -> Dictionary:
 	var members: Dictionary = {}
 	for property: Dictionary in object.get_property_list():

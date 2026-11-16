@@ -17,7 +17,7 @@
 # line that crashes, errors or times out (engine crash, timeout, parse/script error, no verdict at all) proves
 # nothing: it is INCONCLUSIVE, retried once, then reported and, if it persists, makes the script fail.
 # A project the complete run accepts is SURVIVED, and fails the run. This holds in both modes below.
-# QUICK_TIMEOUT (default 60) and FULL_TIMEOUT (default 120) are the seconds a quick or focused step and a
+# QUICK_TIMEOUT (default 60) and FULL_TIMEOUT (default 240) are the seconds a quick or focused step and a
 # full or classic step may run before they are cut off (the runner's own regression test shortens them).
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
 #
@@ -166,7 +166,7 @@ export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
 "$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1
 
-QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-120}"
+QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-240}"
 [[ "$QUICK_TIMEOUT" =~ ^[1-9][0-9]*$ && "$FULL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "QUICK_TIMEOUT and FULL_TIMEOUT must be positive integers" >&2; exit 2; }
 
 # execute DIR MODE [FOCUS] [SECONDS] runs the checks once and judges the run (see `judge`). classic = the complete run
@@ -2549,6 +2549,14 @@ func _notification(what: int) -> void:"
 mutate render-dash-cooldown-per-frame           scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
 	if run.dash_cooldown_left > 0.0:
 		run.dash_cooldown_left += delta
+
+
+func _notification(what: int) -> void:"
+# The round-2 reviewer's fault: a transient difference (an active dash's invulnerability is cut per rendered frame, and has
+# run out on its own before the next 50-tick checkpoint): only the per-tick fingerprint chain sees it.
+mutate render-dash-iframes-drained-per-frame    scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if run.dash_left > 0.0:
+		run.iframes -= delta
 
 
 func _notification(what: int) -> void:"

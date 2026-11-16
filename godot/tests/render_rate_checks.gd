@@ -10,7 +10,7 @@ extends RefCounted
 ## restarts into the normal run and plays a wave transition (spawn markers, arrival, clear with its slow motion, the
 ## break, the next wave). The checks play it with bare `GameRun.step()` calls, then through the real Main scene in a
 ## child Godot process at each of PROBE_FRAME_RATES frames per second (the engine runs three 1/60 s ticks per frame at 20
-## fps and one tick every four frames at 240 fps) and require the same state at every checkpoint and at the end. The state
+## fps and one tick every four frames at 240 fps) and require the same state on EVERY tick (a chained per-tick fingerprint), at every checkpoint and at the end. The state
 ## is `GameRun.state_digest()`: the whole run by reflection, so a member nobody listed anywhere is compared too. The child
 ## processes run at the same time, each bounded by a deadline, so the whole group costs about as much as one of them.
 ## The launch options (`--encounter=`) are checked in child processes too, because their arguments are only read at
@@ -103,19 +103,26 @@ func _check_state_digest() -> void:
 	var before_draw: Dictionary = played[0].state_digest()
 	played[0].rng.randi()
 	_ok("a draw from the gameplay random generator changes the state digest", played[0].state_digest() != before_draw)
-	_ok("the same state gives the same digest twice", played[0].state_digest() == played[0].state_digest())
+	var fingerprint_before: int = played[0].state_fingerprint()
+	played[0].rng.randi()
+	_ok("a draw from the gameplay random generator changes the state fingerprint", played[0].state_fingerprint() != fingerprint_before)
+	_ok("the same state gives the same digest and fingerprint twice", played[0].state_digest() == played[0].state_digest() and played[0].state_fingerprint() == played[0].state_fingerprint())
 
 
-## A run of `scenario` after `ticks` ticks of nothing but time.
+## A run of `scenario` after `ticks` ticks (the fight's own commands in segment 0). Bounded: a run whose ticks do not
+## advance (a broken `step()`) ends after a fixed number of steps with a failing check instead of waiting for ever.
 func _run_to(scenario: RunScenario, ticks: int) -> GameRun:
 	var run: GameRun = GameRun.new(scenario)
 	var segment_zero: bool = scenario.encounter == RunScenario.ENCOUNTER_NORMAL and not scenario.generated_waves
-	while run.tick < ticks:
+	var steps: int = 0
+	while run.tick < ticks and steps < ticks * 10:
 		if segment_zero:
 			for command: GameCommand in CombinedFight.commands_at(0, run.tick):
 				run.apply(command)
 		run.step()
 		run.take_cues()
+		steps += 1
+	_ok("the simulation reaches tick %d within %d steps for the state digest check (reached %d)" % [ticks, ticks * 10, run.tick], run.tick >= ticks)
 	return run
 
 
@@ -124,6 +131,7 @@ func _run_to(scenario: RunScenario, ticks: int) -> GameRun:
 ## class names and counts the values tried. The top-level object is walked in full; further instances of a class are skipped.
 func _perturb_everything(root: GameRun, _full: bool, reached: Dictionary, silent: Array[String]) -> void:
 	var before: Dictionary = root.state_digest()
+	var before_fingerprint: int = root.state_fingerprint()
 	var queue: Array[Object] = [root]
 	var visited: Dictionary[int, bool] = {root.get_instance_id(): true}
 	while not queue.is_empty():
@@ -145,7 +153,9 @@ func _perturb_everything(root: GameRun, _full: bool, reached: Dictionary, silent
 					object.set(name, changed)
 					reached["values"] = int(reached.get("values", 0)) + 1
 					if root.state_digest() == before:
-						silent.append("%s.%s" % [kind, name])
+						silent.append("%s.%s (digest)" % [kind, name])
+					if root.state_fingerprint() == before_fingerprint:
+						silent.append("%s.%s (fingerprint)" % [kind, name])
 					object.set(name, value)
 			for child: Object in _objects_in(value):
 				if child != null and not visited.has(child.get_instance_id()) and child.get_script() != null:
@@ -194,7 +204,7 @@ func _objects_in(value: Variant) -> Array[Object]:
 func _check_combined_fight() -> void:
 	var played: Dictionary = CombinedFight.play()
 	# Probe output travels as JSON text, so compare both sides after the same round trip.
-	var expected: Dictionary = JSON.parse_string(JSON.stringify({"checkpoints": played["checkpoints"], "finals": played["finals"]}))
+	var expected: Dictionary = JSON.parse_string(JSON.stringify({"checkpoints": played["checkpoints"], "chains": played["chains"], "finals": played["finals"]}))
 	for coverage: Array in CombinedFight.coverage_failures(played):
 		_ok(String(coverage[0]), false, String(coverage[1]))
 	_ok("the combined fight covers everything it is meant to (%s)" % CombinedFight.coverage_summary(played), CombinedFight.coverage_failures(played).is_empty())
@@ -211,13 +221,13 @@ func _check_combined_fight() -> void:
 		var run: Dictionary = runs[i]
 		var line: String = _probe_line(String(run["output"]))
 		var result: Dictionary = JSON.parse_string(line) if not line.is_empty() else {}
-		var valid: bool = result.has("checkpoints") and result.has("finals") and result.has("frames")
+		var valid: bool = result.has("checkpoints") and result.has("chains") and result.has("finals") and result.has("frames")
 		_ok("the engine played the combined fight at %d fps and ended cleanly (exit status %d, output %s)" % [rate, int(run["code"]), "valid" if valid else "missing or not valid"], int(run["code"]) == 0 and valid, _tail(String(run["output"])))
 		if not valid:
 			continue
 		frames[rate] = int(result["frames"])
-		var comparable: Dictionary = {"checkpoints": result["checkpoints"], "finals": result["finals"]}
-		_ok("at %d fps the real Main scene plays the combined fight exactly like the bare simulation: the same whole run state at all %d checkpoints and at the end of each segment" % [rate, (expected["checkpoints"] as Dictionary).size()], comparable == expected, _first_difference(expected, comparable))
+		var comparable: Dictionary = {"checkpoints": result["checkpoints"], "chains": result["chains"], "finals": result["finals"]}
+		_ok("at %d fps the real Main scene plays the combined fight exactly like the bare simulation: the same whole run state on every one of %d ticks (the chained per-tick fingerprint), at all %d checkpoints and at the end of each segment" % [rate, CombinedFight.TOTAL_TICKS, (expected["checkpoints"] as Dictionary).size()], comparable == expected, _first_difference(expected, comparable))
 		var last: Dictionary = (counted[counted.size() - 1] as Dictionary)
 		_ok("at %d fps every living enemy and lying sword has its visual (alive %d, visuals %d, pickups %d, pickup visuals %d)" % [rate, int(result["enemies"]), int(result["visuals"]), int(result["pickups"]), int(result["pickup_visuals"])],
 			int(result["visuals"]) == int(result["enemies"]) + 3 and int(result["pickup_visuals"]) == int(result["pickups"]) and int(result["pickups"]) == int(last["pickups"]))
