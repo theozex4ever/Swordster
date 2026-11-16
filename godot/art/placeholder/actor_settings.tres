@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="ActorSpriteSettings" load_steps=11 format=3]
+
+; PLACEHOLDER art settings for the `textured` visual set. Edit these numbers (or point them at new PNGs) to
+; replace the actor; see docs/art/replacing-visuals.md.
+
+[ext_resource type="Script" path="res://scripts/presentation/actor_sprite_settings.gd" id="settings"]
+[ext_resource type="Script" path="res://scripts/presentation/sprite_art.gd" id="art"]
+[ext_resource type="Script" path="res://scripts/presentation/sprite_clip.gd" id="clip"]
+[ext_resource type="Texture2D" path="res://art/placeholder/actor.png" id="actor_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/shadow.png" id="shadow_png"]
+
+[sub_resource type="Resource" id="body"]
+script = ExtResource("art")
+texture = ExtResource("actor_png")
+frame_count = 5
+pivot = Vector2(32, 44)
+visual_scale = Vector2(0.9, 0.9)
+orientation_degrees = -90
+
+[sub_resource type="Resource" id="shadow"]
+script = ExtResource("art")
+texture = ExtResource("shadow_png")
+frame_count = 1
+pivot = Vector2(24, 12)
+visual_scale = Vector2(1.0, 1.0)
+orientation_degrees = 0
+
+[sub_resource type="Resource" id="idle"]
+script = ExtResource("clip")
+frames = PackedInt32Array(0, 1)
+fps = 2.0
+loop = true
+
+[sub_resource type="Resource" id="moving"]
+script = ExtResource("clip")
+frames = PackedInt32Array(2, 3)
+fps = 8.0
+loop = true
+
+[sub_resource type="Resource" id="dead"]
+script = ExtResource("clip")
+frames = PackedInt32Array(4)
+fps = 6.0
+loop = false
+
+[resource]
+script = ExtResource("settings")
+body = SubResource("body")
+shadow = SubResource("shadow")
+idle_clip = SubResource("idle")
+moving_clip = SubResource("moving")
+dead_clip = SubResource("dead")

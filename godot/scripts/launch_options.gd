@@ -55,3 +55,20 @@ static func requested_encounter() -> String:
 		if query is String:
 			return query as String
 	return ""
+
+
+const VISUALS_ARGUMENT_PREFIX: String = "--visuals="
+const VISUALS_QUERY: String = "visuals"
+
+
+## The visual set asked for at launch (`--visuals=textured`, `index.html?visuals=textured`), or "" for the default look.
+## Which sets exist, and what an unknown value means: `VisualSets`.
+static func requested_visuals() -> String:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with(VISUALS_ARGUMENT_PREFIX):
+			return argument.trim_prefix(VISUALS_ARGUMENT_PREFIX)
+	if OS.has_feature("web"):
+		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % VISUALS_QUERY)
+		if query is String:
+			return query as String
+	return ""

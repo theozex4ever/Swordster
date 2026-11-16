@@ -10,6 +10,10 @@ extends Node2D
 @export var sword_visual: PackedScene
 @export var enemy_visual: PackedScene
 
+## Which visual set (`VisualSets`) draws the run; empty takes the launch option, then the default look. Checks set it
+## before adding the scene to the tree.
+var visuals: String = ""
+
 ## Starting conditions of the run. Checks set it before adding the scene to the
 ## tree; the game leaves it null for the prototype defaults.
 var scenario: RunScenario
@@ -31,6 +35,7 @@ func _ready() -> void:
 		scenario = LaunchOptions.requested_scenario()
 	run = GameRun.new(scenario)
 	_fx_rng.randomize()
+	VisualSets.apply(visuals if not visuals.is_empty() else LaunchOptions.requested_visuals(), self)
 	visual = actor_visual.instantiate() as ActorVisual
 	add_child(visual)
 	move_child(visual, _presenter.get_index())
