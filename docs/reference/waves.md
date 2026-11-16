@@ -153,7 +153,30 @@ foes were armed.
 
 ## Validation
 
-See the pull request for the figures of the head it was opened on (check count, mutation pass, build id, export evidence).
+Linux, Godot 4.7.2-stable. Branch `feat/18-waves-rewards`, started from `origin/main` `44e077b` (drops, swaps and the arming rule
+behind `arm_waves`). Tooling issue #41 (one combined render-rate probe, a full FAST pass as a PR CI job) had **not merged** when
+this slice was done, so the group adds **no render-rate probe of its own**: the frame-rate independence of the wave machine is
+checked in the group by running the same normal run with different visuals and cosmetic randomness (below); when #41 lands, wave,
+break and arming coverage belongs in its combined fight (`combined_fight.gd`), per its README.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1967` (the group adds 103 to #17's 1864). Full build OK on a clean tree: `20261116-040801-53b6e8c17` (head `53b6e8c17`, `SHA256SUMS` verified; every screenshot and frame below is from it). Later commits change only documentation. |
+| `tools/godot/mutation-check.sh` | The new section `waves` (slice #18): **83 of 83** deliberate bugs caught in FAST mode, one at a time (`SECTIONS=waves`): every constant of `WaveDefs`, the unlock gates and pool order, the draw edge and fallback, the spawn clamp, refusal and attempt count, each of the three completion conditions, the break, slow motion and banner timings and texts, the dead player's wave machine, the first spawn gap, arming (off, off by one, by the wrong wave), the marker and the enemy forgetting their sword, health that ignores the wave, the speed range, the chain cue, the restart keeping the banner line, the HUD's chain threshold, banner line, fade, placement and the pickup card ignoring the banner, the game-over line, the chain text's size, colour, life and place, and the silent gong. The full-list FAST pass and its figures are in the pull request. |
+| Reference regeneration | `capture_waves.py` rerun gives output byte-identical to itself and to the committed `waves.json` (`cmp`, three runs); no earlier reference was touched (`git diff origin/main -- godot/tests/reference` adds only `waves.json`). |
+| Per-tick comparison with the prototype | Marker and arrival ticks for ten waves; the clear, slow motion, break (every 0.5 s of it) and next-wave tick for a played clear (221 ticks); the first wave 97 ticks after the start; the chain's end 157 ticks after its last kill; 384 scripted spawn positions. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261116-040801-53b6e8c17`, the **normal run** (no `?encounter`), played for four minutes by **browser key and mouse events only** (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=waves`: WASD, left clicks for Converge, Q, E, R and 1, 2, 3, the page paused with P for every screenshot; no autopilot exists in the game). It plays waves 1 to 6 (kills past 85, chains to 18), shows the banners, spawn markers, armed foes carrying swords, drops with cards and swaps, the break after each clear, the player's death at wave 6 and the restart to wave 1 (27 screenshots). Console: the three Godot start-up lines, no errors. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | The same build's ZIP extracted unmodified, its `SHA256SUMS` verified (all five files OK), the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie Z:/<frames>/f.png --fixed-fps 10 --quit-after 1000` on an isolated Xvfb display (`:77`, no network listener, so no window reached the desktop; Xvfb was unpacked from the distribution's signed package into a scratch directory): engine-side frames, no desktop capture, no input, nothing added to the game. A stationary player plays wave 1, wave 2 (banner, break, drops), wave 3 and **dies in wave 3 with 32 kills and a best chain of 11**, the game over screen reading `wave 3   kills 32   best chain 11`; the frames show the wave banners, the "10 CHAIN!" announcement, WAVE CLEARED and the lying drops. **What this does not show:** input in a Windows build (a restart, a swap): that belongs to the deferred device matrix (#6/#22); the Web run shows them. |
+
+Screenshots (in `docs/reference/waves/`):
+[`web-waves-cleared-card-clear.png`](waves/web-waves-cleared-card-clear.png) (WAVE CLEARED with its second line; the pickup card has stepped below it),
+[`web-waves-wave3-banner.png`](waves/web-waves-wave3-banner.png) (WAVE 3 and what to do, a Cataclysm over the arriving foes),
+[`web-waves-wave5-chain-drops.png`](waves/web-waves-wave5-chain-drops.png) (wave 5, chain 18, a Rare Venom Warden in slot two, a drop's card),
+[`web-waves-wave6-drops.png`](waves/web-waves-wave6-drops.png) (wave 6),
+[`wine-shipped-wave-cleared.png`](waves/wine-shipped-wave-cleared.png),
+[`wine-shipped-wave3-banner.png`](waves/wine-shipped-wave3-banner.png),
+[`wine-shipped-10-chain.png`](waves/wine-shipped-10-chain.png) and
+[`wine-shipped-game-over.png`](waves/wine-shipped-game-over.png) (shipped pack, no input).
 
 ## What was not verified
 
