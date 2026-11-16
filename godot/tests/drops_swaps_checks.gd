@@ -1204,7 +1204,10 @@ func _check_main_scene() -> void:
 	_tick_main(main, 1)
 	await _tree.process_frame
 	var rings_drawn: int = effects.draw_counts.get(&"pickup_ring", 0) - rings_before
-	_ok("a drop in the hidden half of its blink is not drawn (the layer drew %d of 3 rings and its visual is hidden: %s)" % [rings_drawn, not (presenter._pickup_visuals[common_drop.get_instance_id()] as Node2D).visible], rings_drawn == 2 and not (presenter._pickup_visuals[common_drop.get_instance_id()] as Node2D).visible and (presenter._pickup_visuals[mythic.get_instance_id()] as Node2D).visible)
+	var blink_visual: Node2D = presenter._pickup_visuals.get(common_drop.get_instance_id()) as Node2D
+	var mythic_visual: Node2D = presenter._pickup_visuals.get(mythic.get_instance_id()) as Node2D
+	var blink_hidden: bool = blink_visual != null and not blink_visual.visible
+	_ok("a drop in the hidden half of its blink is not drawn (the layer drew %d of 3 rings and its visual is hidden: %s)" % [rings_drawn, blink_hidden], rings_drawn == 2 and blink_hidden and mythic_visual != null and mythic_visual.visible)
 	common_drop.life = 45.0
 	var visual: PlaceholderSwordVisual = null
 	for child: Node in presenter.get_children():

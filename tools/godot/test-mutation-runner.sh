@@ -117,9 +117,13 @@ if wants summary; then
     want=0; ((len == SHARDS)) || want=1
     if [[ "$status" == "$want" ]]; then report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" PASS; else report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" "exit $status, wanted $want" "$out"; fi
   done
-  # The real workflow file must agree with SHARDS=12 of its own env block.
-  wf="$REPO/.github/workflows/mutation.yml"; d="$ROOT/s-real-workflow"; results "$d"; status=0; out="$ROOT/summary-real-workflow.log"
-  WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-real-workflow.md" MATRIX_RESULT=success SHARDS="$(sed -n 's/^  SHARDS: \([0-9]*\)$/\1/p' "$wf")" "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
+  # The real workflow file must agree with the SHARDS of its own env block (whatever it is: the clean results are
+  # generated for that many shards).
+  wf="$REPO/.github/workflows/mutation.yml"; d="$ROOT/s-real-workflow"; status=0; out="$ROOT/summary-real-workflow.log"
+  workflow_shards="$(sed -n 's/^  SHARDS: \([0-9]*\)$/\1/p' "$wf")"
+  SHARDS="$workflow_shards"; results "$d"
+  WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-real-workflow.md" MATRIX_RESULT=success SHARDS="$workflow_shards" "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
+  SHARDS=12
   if [[ "$status" == 0 ]]; then report "summary: the real workflow's SHARDS matches its matrix" PASS; else report "summary: the real workflow's SHARDS matches its matrix" "exit $status" "$out"; fi
 fi
 

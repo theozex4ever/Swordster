@@ -27,19 +27,20 @@ concurrency:
 
 env:
   # Keep in step with the matrix below: SHARDS is its length. Classic mode costs about a
-  # minute per mutation, so the ~450 mutations are spread over 12 shards.
-  SHARDS: 12
+  # minute per mutation, so the ~1,070 mutations are spread over 24 shards (12 shards ran past the old
+  # 75 minute job limit once the list passed 1,000).
+  SHARDS: 24
 
 jobs:
   mutation:
     name: shard ${{ matrix.shard }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 120
     strategy:
       # Every shard reports its own counts even when another one fails.
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
     steps:
       - name: Check out the commit under test
         uses: actions/checkout@v7 # v7.0.1; the major tag is the pin

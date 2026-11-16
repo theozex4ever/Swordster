@@ -447,7 +447,7 @@ Per-PR procedure for a slice:
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
    whole section for each fix.
 3. Do not run the full pass for the PR. After merge, the *Mutation checks* workflow
-   runs every section on `main` in the classic mode (12 shards), and its *all shards*
+   runs every section on `main` in the classic mode (24 shards), and its *all shards*
    job fails unless the whole matrix succeeded and every shard's result file is
    present, records exit status 0 and shows every mutation caught (no survivor, no
    inconclusive, none not applied). A failed, cancelled or timed-out shard fails it
