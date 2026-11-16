@@ -91,8 +91,13 @@ var origin: Vector2 = Vector2.ZERO
 var element: StringName = &""
 ## The reach of an area effect (a Maelstrom beat or burst), in pixels.
 var radius: float = 0.0
-## The spirit sword a drop or swap cue speaks of.
+## The spirit sword a drop or swap cue speaks of; on an ENEMY_HIT, SWORD_STRIKE or ULTIMATE_STARTED the sword that
+## struck, started its attack or began its ultimate (the sound and the sparks take their character from it).
 var spec: SwordSpec = null
+## An ENEMY_HIT that was a heavy blow (a Fang dart, a Maelstrom beat or burst, a Skewer, a slam): no hit sound of its own.
+var heavy: bool = false
+## The kind of enemy an ENEMY_KILLED cue speaks of (its colour tints the burst) and the size of its body in `radius`.
+var enemy_kind: StringName = &""
 
 
 static func make(kind_value: Kind, at: Vector2, direction_value: Vector2 = Vector2.ZERO, amount_value: int = 0, critical_value: bool = false) -> SimCue:
