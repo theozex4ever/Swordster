@@ -17,6 +17,8 @@ signal encounter_pressed
 signal shove_pressed
 
 const HP_BAR_SIZE: Vector2 = Vector2(260.0, 18.0)
+## The banner's second line sits this far above the view's centre (the title is 180 px above it).
+const BANNER_SUB_OFFSET: float = -118.0
 ## Death screen fades in after this many gameplay seconds (prototype 0.8).
 const OUTCOME_FADE_START: float = GameRun.RESTART_DELAY
 
@@ -42,6 +44,8 @@ var _converge_label: Label
 var _converge_track: ColorRect
 var _converge_bar: ColorRect
 var _banner_label: Label
+## The line under the banner (what to do in the wave that starts or the break that follows).
+var _banner_sub_label: Label
 var _outcome_shade: ColorRect
 var _outcome_title: Label
 var _outcome_detail: Label
@@ -123,6 +127,11 @@ func _ready() -> void:
 	_fill_and_center(_banner_label, VERTICAL_ALIGNMENT_CENTER)
 	_banner_label.offset_top = -180.0
 	_banner_label.offset_bottom = -180.0
+	_banner_sub_label = _make_label(root, "")
+	_banner_sub_label.add_theme_font_size_override("font_size", 22)
+	_fill_and_center(_banner_sub_label, VERTICAL_ALIGNMENT_CENTER)
+	_banner_sub_label.offset_top = BANNER_SUB_OFFSET
+	_banner_sub_label.offset_bottom = BANNER_SUB_OFFSET
 
 	_outcome_shade = _make_rect(root, Color(0.0, 0.0, 0.0, 0.0))
 	_outcome_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -564,6 +573,8 @@ func show_run(run: GameRun) -> void:
 	_show_pickup(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
+	_banner_sub_label.text = run.banner_sub if not run.dead else ""
+	_banner_sub_label.modulate.a = _banner_label.modulate.a
 
 	match run.outcome():
 		GameRun.Outcome.LOST:

@@ -59,7 +59,7 @@ static func make(kind_value: StringName, at: Vector2, wave: int, speed_factor: f
 	enemy.serial = serial_value
 	enemy.position = at
 	enemy.radius = def.radius
-	enemy.max_hp = def.hp * (1.0 + EnemyDefs.HP_PER_WAVE * float(wave - 1)) * (LootDefs.ARMED_HP_FACTOR if armed_spec != null else 1.0)
+	enemy.max_hp = def.hp * WaveDefs.hp_factor(wave) * (LootDefs.ARMED_HP_FACTOR if armed_spec != null else 1.0)
 	enemy.armed = armed_spec
 	enemy.hp = enemy.max_hp
 	enemy.speed = def.speed * speed_factor

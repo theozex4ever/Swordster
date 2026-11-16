@@ -119,14 +119,14 @@ var sword_start_cooldowns: Array[float] = []
 var waves_enabled: bool = true
 ## Delay before the first wave starts (prototype `break_t = 1.6`).
 var first_wave_delay: float = 1.6
-## Waves the run plays before it counts as survived. Multi-wave generation
-## arrives later; this slice plays exactly one.
+## Waves the run plays before it counts as survived; 0 plays on until the player dies (the normal run).
+## A fixture plays exactly one by default.
 var wave_count: int = 1
 ## Husks in the wave; negative uses the prototype formula `5 + 3 * wave`.
 var husk_count: int = -1
 ## Explicit wave composition, spawned in this order. Empty means `husk_count`
 ## husks. The prototype only unlocks runners and brutes from wave 2; a fixture
-## can field them in the first wave (full wave generation is issue #18).
+## can field them in the first wave. Ignored when `generated_waves` is on.
 var wave_kinds: Array[StringName] = []
 ## Husks already standing when the run starts (world positions).
 var initial_husks: Array[Vector2] = []
@@ -150,9 +150,23 @@ var crit_chance: float = 0.12
 ## game itself always plays with conditions on.
 var conditions_enabled: bool = true
 ## True: every enemy of a wave is rolled for a sword to carry (`LootDefs.roll_armed`), drawing from the gameplay stream
-## when the wave starts. False: waves are unarmed and draw nothing for it (every earlier slice's fixture, and the normal
-## run until the full wave generation, issue #18, arms its waves).
+## when the wave starts. False: waves are unarmed and draw nothing for it (every earlier slice's fixture; the normal
+## run, `normal_run()`, arms its waves).
 var arm_waves: bool = false
+## True: every wave is the prototype's own (`WaveDefs`: `5 + 3 w` enemies drawn from the weighted pool the wave unlocks), and
+## `wave_kinds` / `husk_count` are ignored. False: the fixture's own composition (every earlier slice's fixtures).
+var generated_waves: bool = false
+
+
+## The normal run (issue #18), the prototype's own game: the default loadout, then wave after wave of the prototype's
+## composition with its unlocks and scaling, armed foes carrying swords, until the player dies. Every field not named here
+## keeps its prototype default. The fixtures below (`RunScenario.new()` and the named encounters) never use it.
+static func normal_run() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.generated_waves = true
+	scenario.arm_waves = true
+	scenario.wave_count = 0
+	return scenario
 
 
 ## Turns this scenario into a condition-free fixture (see `conditions_enabled`).
