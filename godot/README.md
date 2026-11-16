@@ -10,9 +10,9 @@ encounter** with ranged foes, enemy orbs and sword parries, **elemental conditio
 arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), and **Pike**,
 the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), and **Colossus**,
 the sword of crushing slams, with its **Cataclysm** ultimate and the elemental ground field it leaves (a **colossus
-encounter** equips it), on top of the delivery-proof arena, exported to Windows and Web from one Linux command.
-**Converge** (click) and the prototype's **default loadout** (Fang, Warden, Colossus: the normal start) are in; drops and
-swaps and further waves arrive in later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
+encounter** equips it), **Converge** (click), the prototype's **default loadout** (Fang, Warden, Colossus: the normal start) and
+**armed enemies, sword drops and swaps** (a **drops encounter**) on top of the delivery-proof arena, exported to Windows
+and Web from one Linux command. Further waves arrive in later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
 [runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
@@ -21,7 +21,8 @@ and keeps working. Reference values, tolerances and deliberate exceptions:
 [elemental conditions](../docs/reference/elemental-conditions.md) (#11) and
 [Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13) and
 [Pike and Skewer](../docs/reference/pike-skewer.md) (#14) and
-[Colossus and Cataclysm](../docs/reference/colossus-cataclysm.md) (#15).
+[Colossus and Cataclysm](../docs/reference/colossus-cataclysm.md) (#15) and
+[drops and swaps](../docs/reference/drops-swaps.md) (#17).
 
 ### Viper Flurry (Q / E / R)
 
@@ -103,6 +104,27 @@ is refused while paused or dead. **Tab** or **G** shows a ring around you for ea
 own buttons is not a Converge, and neither is a mouse click the engine makes up from a touch (the touch controls arrive with
 issue #20). The aim follows the camera, so it stays right when the window is resized.
 
+### Drops and swaps (1 / 2 / 3)
+
+Slice #17 ([reference](../docs/reference/drops-swaps.md)). An **armed enemy** carries one spirit sword, of
+any type, element and rarity (Common, Rare or Mythic), drawn beside it; its health is 1.35 times an unarmed
+one's. When it dies the exact sword lies where it fell for 45 s (it blinks for the last 6) with a ring of its
+rarity's colour, a pillar of light for a Rare or Mythic one and its name floating up. Stand within 80 px of a drop
+(the **nearest** one counts, the first of two equally near) and a card shows its name, what the type is for, damage,
+speed and range with the rarity applied, its element, its ultimate and how long that takes to recharge, and how it
+compares with each of the three swords you hold. **1, 2 or 3** swap it into that **sword slot**: the new sword
+starts where the drop lay and rises to your side, the old one drops just below it (up to 20 px to either side) to be
+claimed back, and the slot **keeps its ultimate recharge as a fraction**, so a swap can neither reset a recharge nor skip
+one (a Common sword with half its Cataclysm recharge left becomes a Mythic one with half of *its* shorter recharge
+left). With nothing in reach the key says so and changes nothing. Rarity makes a sword larger, faster and harder-hitting
+(Rare 1.3x damage, 0.87x cooldown, 1.06x range, 1.08x size; Mythic 1.75x, 0.74x, 1.12x, 1.18x), the slot cards carry
+the rarity as a border and tag, and each card says which key swaps its slot. To play it: the **drops encounter**
+(`Swordster.exe -- --encounter=drops`, `index.html?encounter=drops`, or the dev button / `C` after the colossus
+encounter) walks twelve armed foes (every enemy type, every sword type, all three rarities and elements) in from a
+ring against Fang, Warden and Colossus, followed by a wave armed by the prototype's rule (the first two foes are
+armed for sure, the first with a Pike). This is a development fixture: **the normal run is unchanged and arms no
+enemies** until the full wave generation (issue #18) turns the same arming rule on for it.
+
 ### The crowd encounter
 
 A development fixture for slice #9: one wave of five husks, five runners and two
@@ -110,7 +132,7 @@ brutes against the three-Fang fixture loadout, with a **shove** that flings near
 foes like a heavy Colossus blow (the sword types that cause bowling and wall slams
 are not ported yet). The **`Dev: ... (restarts)`** button (top right, under Pause) and
 `C` cycle the dev encounters, restarting play each time: normal → crowd → spitters →
-conditions → warden → pike → colossus → normal; shove with the **Shove** button or `F`. To start in it:
+conditions → warden → pike → colossus → drops → normal; shove with the **Shove** button or `F`. To start in it:
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
@@ -331,6 +353,12 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   the fall's timing from different altitudes, area damage and falloff at 56 + 12 probe points, hitstop and shake,
   projectile clearing, Cataclysm's rise, fall and field, every element's doses and cadence, overlapping fields,
   expiry, deaths by condition, corpses, pause and restart, plus the HUD, effects and a render-rate fight.
+- `godot/tests/drops_swaps_checks.gd` (issue #17) replays the Python prototype's captured drop and swap cases
+  (`godot/tests/reference/drops_swaps.json`, regenerated by `tools/reference/capture_drops_swaps.py`) on the real
+  simulation: all 36 type x rarity x element swords, the armed health, every arming roll and rarity threshold, drops
+  on death, a pickup's life under pause, hitstop and slow motion, the 80 px reach and nearest / tie rules, 36 swaps
+  with ready, part-spent and full recharges, ten in a row, the swapped-in sword's flight tick by tick, keys, pause,
+  death and restart, plus the pickup card, slot cards, effects and a render-rate fight.
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one; a crash or timeout is reported as inconclusive, not as caught.
@@ -341,7 +369,7 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
 
 ### Mutation checks
 
-The checker lists every deliberate bug (about 450) in sections, one per slice
+The checker lists every deliberate bug (nearly 1,000) in sections, one per slice
 (`# --- <title> (slice #N)` in the script), after an ungrouped `core` block of
 simulation basics (speed, pause and resume, restart, the diagonal and wall clamps).
 A mutation is **caught** only when `run_checks.gd` itself rejects it (exit 1, a
@@ -385,7 +413,15 @@ A check group takes part by starting its `run_all()` with
 `if not CheckFocus.includes("<file name without _checks.gd>"): return` and its
 render-rate check with `if not RenderRateScenario.probes_enabled(): return`, as the
 existing groups do. A group without those lines is not wrong, only slower: it runs
-in every step. The section's group is found by the table in the script (the early
+in every step.
+
+A check must also end when the code under test is broken, because a mutation can break exactly what it waits for: every
+loop in a check group is bounded (a tick or press counter next to the real condition), a group whose fixtures are built
+from the prototype's sword keys verifies the keys first and skips the rest with a failure when one is wrong (a renamed
+key would otherwise crash it: a script error is *inconclusive*, never *caught*), and a check never indexes what an earlier
+failing check may have left empty. A timeout or script error in the classic pass is a bug in the checks, not in the mutation.
+
+The section's group is found by the table in the script (the early
 slices) or, for a later section, by a group file whose name starts with the section's
 key (`pike` finds `pike_skewer_checks.gd`).
 
@@ -411,7 +447,7 @@ Per-PR procedure for a slice:
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
    whole section for each fix.
 3. Do not run the full pass for the PR. After merge, the *Mutation checks* workflow
-   runs every section on `main` in the classic mode (12 shards), and its *all shards*
+   runs every section on `main` in the classic mode (24 shards), and its *all shards*
    job fails unless the whole matrix succeeded and every shard's result file is
    present, records exit status 0 and shows every mutation caught (no survivor, no
    inconclusive, none not applied). A failed, cancelled or timed-out shard fails it

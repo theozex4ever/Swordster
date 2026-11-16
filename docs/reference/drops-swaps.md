@@ -1,0 +1,215 @@
+# Reference: armed enemies, sword drops, rarity and swaps
+
+Slice #17 of the Godot port ([spec #4](https://github.com/theozex4ever/Swordster/issues/4)),
+following [the Fang survival loop](fang-survival-loop.md),
+[runners, brutes and crowds](runners-brutes-crowd.md),
+[spitters, projectiles and parries](spitters-projectiles-parries.md), [Viper Flurry](viper-flurry.md),
+[elemental conditions](elemental-conditions.md), [Warden and Maelstrom](warden-maelstrom.md),
+[Pike and Skewer](pike-skewer.md) and [Colossus and Cataclysm](colossus-cataclysm.md). The Python prototype
+`game/main.py` is the behavioural oracle. This file records what was captured from it, the tolerances, the checks that
+assert each value, and every deliberate exception. Vocabulary follows `GLOSSARY.md`: an **armed enemy** carries one
+**spirit sword** (a **sword type**, **element** and **rarity**) that lies where it fell as a **sword drop**; a **swap**
+puts the nearest drop within reach into a chosen **sword slot** (keys 1, 2, 3) and the sword it replaces becomes a drop;
+**Converge** (issue #16) and the **ultimate** are different commands.
+
+Sword type identities are unchanged: Warden is `blade`, Pike is `lance` (`SwordDefs`). Elements are `fire`, `ice`,
+`poison`; rarity is the index 0 Common, 1 Rare, 2 Mythic.
+
+## How the reference was captured
+
+`tools/reference/capture_drops_swaps.py` reuses the loader and helpers of `capture_fang_survival_loop.py` and
+`capture_viper_flurry.py`, drives the prototype's real classes (`Game`, `Sword`, `Enemy`, `Pickup`) under SDL's dummy
+drivers and writes `godot/tests/reference/drops_swaps.json`. Regenerate with:
+
+```sh
+python3 -I tools/reference/capture_drops_swaps.py godot/tests/reference/drops_swaps.json
+```
+
+The output is byte-identical on every run (every case seeds `random`; the returned drop's random offset and a pickup's
+bobbing phase are the only randomness, handled below). Nothing is re-implemented:
+
+- the rarity modifiers, names and stats come from `Sword.__init__` and `Sword.name`;
+- the armed health from `Enemy.__init__`; the drop from `Game.kill` (reached through the real `Game.hit_enemy`);
+- the arming rolls from `Game.start_wave`, driven with a **scripted random source** (`Script` replaces
+  `random.uniform`, `random.random` and `random.choice` for one call and fails the capture if any draw is missing, extra or
+  out of range), so each branch and boundary is pinned without any seed;
+- the pickup's life, removal, hitstop, pause and slow-motion behaviour from `Game.update` (3,200 ticks, seven scripts);
+- the expiry blink from `Game.draw_pickup`, by looking at the pixels it draws on cleared surfaces;
+- the swap from `Game.swap` (called directly and through the real key handler `Game.handle` with synthetic `KEYDOWN` events);
+- the pickup card's six lines from `Game.draw_pickup_card` itself, recorded through a stand-in font.
+
+Building a `Game` synthesises its sounds and takes seconds, so one is built and put back to its start by the prototype's own
+`Game.reset` for each case. Every case's fixture is in the JSON; the swords of a swap case are parked (auto-attack cooldown
+99 s) so no enemy, hit or Converge is involved (`fixture_scope`). The JSON holds 36 swords, 36 swaps, 7 pickup-life scripts,
+174 + 12 arming probes, 23 blink samples, 4 swapped-in flight traces of 150 ticks and 10 chained swaps.
+
+**Rolls in the arming probes are rounded to nine places** before they are fed to the prototype and written down: Godot's JSON
+parser is only good to about 1e-15, so a roll sitting exactly on a threshold (e.g. 0.12000000000000001) would not survive the
+round trip. What the prototype does with the rounded value is what is recorded.
+
+## Tolerances
+
+As in the earlier slices: position ±0.05 px, velocity ±0.5 px/s, timers / cooldowns / flash / recharge ±0.002, angles
+±0.002 rad. Stats are rounded to four places in the reference (±0.0006). Pickup life is compared to ±0.002 per tick and its
+removal tick must be exact. In practice the swapped-in sword's 150-tick flights agree within 0.0007 px, 0.0016 px/s and 0.00005 rad.
+
+## Reference values and the checks asserting them
+
+All in `godot/tests/drops_swaps_checks.gd` (group `drops_swaps`), run through the real `GameRun`, `GameCommand`,
+`InputTranslator` and `Main` scene.
+
+### The tables (`RARITIES` 118–122; `ELEMENTS` 109–113; `SWORD_TYPES` 79–103; `DROP_WEIGHTS` 104; `ENEMY_TYPES[..]["armed"]` 125–128)
+
+| | Common | Rare | Mythic |
+|---|---|---|---|
+| damage x | 1.0 | 1.3 | 1.75 |
+| cooldown x | 1.0 | 0.87 | 0.74 |
+| range x | 1.0 | 1.06 | 1.12 |
+| size x | 1.0 | 1.08 | 1.18 |
+| colour (RGB) | 205 205 215 | 90 175 255 | 255 196 60 |
+
+Element adjectives: fire "Ember", ice "Frost", poison "Venom" (a sword is named "Rare Ember Fang"). Armed chances: husk 0.20,
+runner 0.12, spitter 0.22, brute 0.75. Drop weights Fang 3, Warden 3, Pike 2.5, Colossus 1.6 (total 10.1). Armed health 1.35x
+(`Enemy.__init__`), checked for every kind at waves 1, 2 and 5. A pickup lives 45 s and is claimed from strictly less than 80 px.
+Checks: `_check_definitions`, `_check_matrix` (all 36 type x rarity x element swords: name, damage, cooldown, range, ultimate
+recharge, size, length, element colour and the six card lines; plus Common < Rare < Mythic for every type).
+
+### Arming (`Game.start_wave` 1451–1460)
+
+For each enemy of a wave, in order: `(wave == 1 and j < 2) or random() < chance(kind)`; the type is a Pike for wave 1's first
+enemy, else `weighted(DROP_WEIGHTS)` (walk the list taking each weight off the draw; `<= 0` takes it); the rarity is Mythic below
+`min(0.25, 0.02 + 0.02 w) + bonus x 0.5`, Rare below `min(0.55, 0.16 + 0.04 w) + bonus`, else Common, with `bonus = 0.15` for a
+brute; the element is `random.choice` of fire, ice, poison. `LootDefs.armed_from_draws` is that function of its draws and the
+reference pins it with 186 scripted probes (every kind's chance at, just under and just over; every weight edge exactly and +/-0.001;
+all three elements; every wave 1–12's two rarity thresholds at, below and above, for a husk and a brute; the guarantees of wave 1's
+first four enemies with a roll of 0 and of 0.99, and their absence for wave 2's first two). `LootDefs.roll_armed` makes the same draws from the
+run's gameplay stream and only the draws the prototype makes. Checks: `_check_arming`, `_check_armed_waves`.
+
+**Scope (wave generation is issue #18).** The prototype arms inside `start_wave`, which also decides the wave's composition and
+size; those are #18. This slice ports the arming **rule and data** and a switch, `RunScenario.arm_waves`, that rolls every enemy of
+the wave the director builds. The switch is **off by default**, so the normal run and every earlier fixture start their waves
+unarmed and draw nothing from the gameplay stream (asserted: the generator state is identical before and after the wave start). The
+drops encounter turns it on; #18 turns it on for the normal run together with the prototype's wave composition. `WaveDirector.queue_armed`
+carries each queued enemy's sword through the spawn telegraph (`SpawnMarker.armed`) to the enemy (`EnemyState.armed`).
+
+### Drops (`Game.kill` 1290–1296)
+
+The sword an armed enemy carries lies at its position with 45 s of life, once, whichever way it died (a blow, damage over time,
+a wall slam, bowling, a direct kill, two at once). `kill` resolves each enemy once, so a second blow on a corpse drops nothing. 16
+reference kills (4 enemy kinds x 4 swords), the unarmed case and two simultaneous deaths in order; the four causes of death; and a
+real fight (a Fang kills an armed husk). A drop produces one `SWORD_DROPPED` cue naming the sword. Checks: `_check_death_drops`,
+`_check_cues`.
+
+### A pickup's life (`Game.update` 1612–1615)
+
+`pk.t += dt; pk.life -= dt`, then only `life > 0` remains, after the motes and on gameplay time: frozen by pause and hitstop,
+slowed by slow motion (including the death's), running on while the player is dead. Seven scripts: plain (removed on tick 2701:
+45 s of 1/60 steps accumulate a hair above zero), a 0.5 s hitstop at tick 100 (2732), a 1.4 s x0.25 slow motion at tick 200 (2764),
+a pause over ticks 50–110 (2761), a 1 s life (60), a life of one tick (1) and a death at tick 30 (2769). The per-tick lives of the
+first 420 ticks and every removal tick match. In its last six seconds a drop is hidden on every other eighth of a second
+(`int(life x 8)` even; 23 reference samples from the real drawing function). Checks: `_check_life`, `_check_blink`.
+
+### Reach and choosing (`Game.swap` 1417–1422)
+
+A swap claims the nearest drop **strictly** within 80 px of the player (`(pk.pos - p.pos).length() < 80`); of equal distances the
+first in the arena's order wins (Python's `min`). Reference: 21 single-pickup cases (0, 40, 79.95, 80.0, 80.05, 120 and 400 px in
+three directions: claimed only below 80), nine multi-pickup layouts (nearest of three, ties in both orders and a three-way tie, a far
+one ignored, all out of reach, two on the player, a diagonal at 79.9 and 80.2 px), a slot that holds no sword, and no pickup at all.
+Checks: `_check_reach`.
+
+### The swap (`Game.swap` 1417–1440)
+
+The slot gets `Sword(pk.kind, pk.rarity, pk.element, pk.pos)` with `cd = 0.4`, `z = 10`, `flash = 1`, `vel = (0, -200)`, and
+`ult_cd = new.ult_max x old.ult_cd / old.ult_max`: **the slot keeps its ultimate's recharge fraction**, so the same fraction of a
+different (rarity-scaled) recharge is left, a ready ultimate stays ready, a just-used one stays just used, and a running ultimate
+hands its fraction on and ends. The claimed pickup is removed and the old sword is appended as a pickup at
+`pk.pos + (uniform(-20, 20), 24)` with 45 s of life. 36 swaps (every type, rarity and element, into every slot, with recharge
+fractions 0, 0.37 and 1) match field for field; ten chained swaps match step for step, a recharge running between them; the swapped-in
+sword's flight (a Fang, Warden, Pike and Colossus for 150 ticks) matches tick by tick. The offset of the returned drop is random: over
+400 swaps it is exactly 24 px down and within 20 px sideways, spread across the range. Checks: `_check_swaps`, `_check_returned_drops`,
+`_check_repeated`, `_check_trace`, `_check_shared_definitions`.
+
+### Keys, pause, death, restart (`Game.handle` 1538–1544; `Game.reset`)
+
+Keys 1, 2, 3 are slots 0, 1, 2 (a held key does not repeat). Paused or dead the key does nothing (the prototype's key handler
+returns early; no refusal either). Restart (the button, the R key after the death screen, a scenario switch) clears every drop and
+all counters. Checks: `_check_rules`.
+
+## What the port adds, and how it is shared
+
+- **Definitions are data.** `LootDefs` (constants and the arming function), `SwordDefs` (`RARITY_*`, names, colours, blurbs,
+  `damage_of`/`cooldown_of`/`range_of`/`length_of`/`ultimate_recharge_of`) and `SwordSpec` (an immutable type/rarity/element) are
+  read-only; `SwordState.equip` computes a sword's own numbers from them and writes only to itself, and a pickup holds the same
+  `SwordSpec` the sword was built from. Checked after 36 swaps (tables unchanged; a Mythic Fang built between two Common ones
+  leaves them equal).
+- **Gameplay and cosmetic randomness are separate.** The returned drop's offset and the arming rolls draw from the run's gameplay
+  stream; a drop's bobbing phase (the prototype's random `Pickup.t`), its sparks and the swap's effects never touch it (the layer has
+  its own generator; the phase comes from the pickup's serial). A pickup's `serial` is its own counter, so a drop never shifts the
+  serial an enemy spawns with.
+- **Presentation.** `PickupState`s are drawn by the same replaceable sword scene as the equipped swords (`SwordVisual.apply_hover`),
+  hanging point-down above a shadow; the ground ring, pillar of light (Rare and Mythic) and glows are `EffectsLayer`'s
+  (`pickup_ring`, `pickup_beam`, `pickup_glow_rarity`, `pickup_glow_element`). Equipped swords are as much larger as the rarity's size
+  factor with a glow in the rarity's colour (the element's for a Common one) that flares after a swap (`apply_flash`); an armed enemy
+  draws its sword beside it (`EnemyVisual.apply_armed`). The HUD's pickup card is `PickupCard` (the prototype's six lines plus, new,
+  a comparison with each equipped sword), placed at the free spot nearest the one beside the drop (right of it, above it) that lies inside
+  the view and covers no live HUD element nor the drop itself (`Hud._pickup_card_spot`; the elements are read from the HUD's own controls by
+  `Hud.pickup_card_avoid`: the build and hint lines, the health bar and value, the dash and Converge readouts, the wave line, the Pause /
+  Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the three slot cards, each as the rectangle it draws on
+  plus a 6 px margin; hidden ones reserve nothing). Not reserved, by design: the wave banner and the outcome and pause overlays (full-screen
+  text shown over everything), the touch joystick indicator and the world-space effects (range rings, floating texts). If no spot clears
+  the HUD (a view smaller than the card plus the HUD; the 1280 x 720 minimum logical view never is, checked) the card goes where it covers
+  the least HUD area and stays inside the view; each slot card
+  gains a rarity tag, a border in the rarity's colour and a "key N swaps this sword" line. A new baked sound, `sfx_chime`, stands in
+  for the prototype's chime.
+- **Dev encounter.** `drops` (`RunScenario.drops_encounter`; the dev button / `C` after the colossus encounter, `--encounter=drops`,
+  `?encounter=drops`): twelve armed foes ringed 520 px around the player (all four enemy kinds, all four sword types, four of each
+  rarity, elements in rotation) walk in, followed by a ten-enemy wave armed by the prototype's rule, against Fang / Warden / Colossus
+  with poison / ice / fire (explicit; the final default is issue #16). The cycle is now normal, crowd, spitters, conditions, warden,
+  pike, colossus, drops.
+
+## Deliberate exceptions
+
+1. **A refused swap with nothing in reach is visible.** The prototype's `swap` returns silently. Here the sword slots and drops are
+   unchanged exactly as there (asserted), but `SWAP_REFUSED` makes the layer print "no sword within reach" (the slot of a missing
+   sword and a paused or dead run stay silent). The standing request for the Web evidence ("show refusal when no pickup") is why.
+2. **No pickup phase randomisation in the simulation.** `Pickup.t` starts at `uniform(0, 5)` in the prototype and only drives the bob
+   in drawing; here `age` starts at zero and the visual derives its phase from the pickup's serial.
+3. **A swap by the touch action path while dead** is not offered: the prototype's key handler ignores 1/2/3 while dead and its touch
+   action path (`name == "swap"`) is only paused-checked; the port refuses both (the touch buttons are issue #20).
+4. **A new `Sword`'s random starting cooldown is not drawn**: the swap overwrites it with 0.4 in the prototype, so the port builds the
+   sword with 0.4 directly (the prototype's draw consumed random state that no rule reads).
+5. **Armed enemies are only in the drops encounter**, see *Scope* above.
+6. **The pickup sword's hover is the prototype's** (0.6 blade lengths plus 3 px of bob) but the point-down pose, the shadow and the
+   sway are the placeholder visual's own; exact pixels are not a gate (spec decision 12).
+7. **Colossus's start height after a swap** is `z = 10` as in the prototype; other types keep no height in the simulation.
+
+## Validation
+
+Linux, Godot 4.7.2-stable. Branch `feat/17-drops-swaps`, started from `origin/main` `82470e9` (which contains all four sword
+types, the conditions and the fast mutation runner). Issue #16 (Converge and the default loadout) was still open and merges first:
+nothing below includes it, and the checks name their loadouts explicitly so they do not depend on the default.
+
+| What | Result |
+|---|---|
+| `./build-godot.sh --checks-only` / full `./build-godot.sh` | `CHECKS PASSED: 1864` after the round-2 review fixes (round 1: 1853): the pickup-card clearance group (below), the sword-type identity guards of the converge and drops groups and the bounded cycle walk. Full build OK on a clean tree: `20261116-003527-17165e49a` (head `17165e4`; its `SHA256SUMS` verified; **all** the Web screenshots and Wine frames below are from it). |
+| `tools/godot/mutation-check.sh` | **1068 of 1068** deliberate bugs caught in one complete fast pass (`SHARDS=3`, 356 each) on head `17165e4`, 0 inconclusive, 0 survived, 0 not applied. The authoritative classic pass (`FAST=0`, the CI workflow, 12 shards) on the same head: see the pull request for its run and summary. Round 1 had added `pickup-card-too-narrow-for-its-text`, `pickup-card-comparison-font-grows` and `controls-hint-runs-into-the-buttons`; round 2 added 16 that remove each region the pickup card must keep clear of (`pickup-card-over-the-text-lines`, `-health`, `-health-value`, `-cooldowns`, `-converge-bar`, `-buttons`, `-dev-button`, `-shove-button`, `-dash-button`, `-legend`, `-audio-prompt`, `-drop`) or break the placement (`pickup-card-ignores-the-hud-search`, `-label-box-not-text`, `-label-alignment-lost`, `-fallback-ignores-overlap`) and rewrote the three existing placement mutations (`pickup-card-x-unclamped`, `-y-unclamped`, `-over-the-slot-cards`) for the new placement code. (Removing the Pause or Restart button or the wave line from the list changes nothing: the Dev button spans both buttons and the hint line spans the wave line, so the card can never reach them alone; no such mutation is listed.) |
+| Reference regeneration | `capture_drops_swaps.py` rerun twice gives output byte-identical to itself and to the committed JSON; the nine other captures (`fang_survival_loop`, `crowd_and_walls`, `spitters_and_parries`, `viper_flurry`, `elemental_conditions`, `warden_maelstrom`, `pike_skewer`, `colossus_cataclysm`, `converge`) rerun on the merged head give output byte-identical (`cmp`) to their committed JSON. |
+| Low/high render rates | The scripted fight (Fang, Warden and Colossus kill eight armed foes standing close, their swords drop, a Cataclysm and a Viper Flurry start recharges, two refused swaps, seven swaps into all three slots, drops left lying) played in the real Main scene under the engine's fixed-step loop at 5, 20, 60 and 240 fps ends with a digest identical to the bare simulation's: drops, swaps, refusals, loadout, every lying sword's position and life, recharges, kills, positions. |
+| Per-tick comparison with the prototype | Swapped-in sword pose, velocity, heading, cooldown, recharge, flash and (Colossus) height for 150 ticks per type; every pickup's life for the first 420 ticks of seven scripts and its removal tick; 36 swaps and ten chained swaps field by field. |
+| **Web export, headless Chromium (software WebGL 2 via SwiftShader, 1280x720)** | Build `20261116-003527-17165e49a`, served over HTTP with `?encounter=drops` and driven only by browser key events (`tools/godot/web-encounter-capture.mjs`, `SCENARIO=drops`): **1** right after the engine starts, with nothing lying about, is refused (the "no sword within reach" tag over the player); then the player walks about (WASD) while the armed foes come and die, and **1, 2, 3** are pressed in turn each round, the page paused with **P** for every screenshot (the software-rendered page takes seconds per screenshot while the game runs on). The shots show the drops lying with their rings, pillars of light and names, the card of the sword in reach with its comparison against the three equipped swords, swaps landing (the name over the player, the old sword lying beside the claimed spot, the legend counting "dropped 8, swapped 2"), a Mythic slot with its gold border and tag, and refusals. Console: the three Godot start-up lines, no errors. The timing of presses against drops is the browser\'s, not the simulation\'s. |
+| **Windows export, under Wine 11 on Linux (not a Windows machine)** | Build `20261116-003527-17165e49a` (the one above; refreshed in round 2, so the frames show the 448 px card and the grouped hint line): the full build\'s ZIP extracted unmodified, its own `SHA256SUMS` verified (all five files OK), the shipped `Swordster.exe` and `Swordster.pck` run as `wine ./Swordster.exe --resolution 1000x563 --write-movie <frames> --fixed-fps 30 --quit-after 900 -- --encounter=drops` (a scratch Wine prefix, on an isolated Xvfb display so no window reached the desktop; the movie writer recorded the game\'s own 1280x720 viewport): engine-side frames, no desktop capture, no input, nothing added to the game. The frames show the drops encounter\'s HUD and legend, armed foes carrying their swords, **drops of every rarity lying with their pillars of light, and the pickup card with its comparison for a Mythic Frost Fang within reach of the stationary player**, the legend counting the drops (13 by the last frame). **What this does not show:** a swap or a refusal in the Windows build. No key event was sent to the shipped build (no autopilot exists in the game), so 1 / 2 / 3 in a Windows build belong to the deferred device matrix (#6/#22); swaps and refusals are shown in the Web build. |
+
+Screenshots (in `docs/reference/drops-swaps/`):
+[`web-drops-refused-no-pickup.png`](drops-swaps/web-drops-refused-no-pickup.png) (1 with nothing in reach),
+[`web-drops-first-drops.png`](drops-swaps/web-drops-first-drops.png) (the first drops, "Mythic Frost Fang" announced),
+[`web-drops-card-and-swap.png`](drops-swaps/web-drops-card-and-swap.png) (a Mythic Venom Warden just swapped into slot one, and the card of the Common Venom Fang now in reach, its comparison lines inside the 448 px panel),
+[`web-drops-mythic-slot.png`](drops-swaps/web-drops-mythic-slot.png) (slot one a Mythic Warden: gold border and tag),
+[`wine-shipped-drops-card.png`](drops-swaps/wine-shipped-drops-card.png) and
+[`wine-shipped-drops-mythic-card.png`](drops-swaps/wine-shipped-drops-mythic-card.png) (shipped pack, no input).
+
+## What was not verified
+
+- Real-Windows input and real-device touch (issues #6, #22 and #20, by standing ruling). Windows evidence is engine-side frames
+  of the shipped pack under Wine with no input: no swap key was sent to it.
+- Swapping with the touch buttons (issue #20) and the final default loadout (issue #16).
+- Multi-wave arming in a normal run (issue #18); the rolls themselves are pinned, but no normal run uses them yet.

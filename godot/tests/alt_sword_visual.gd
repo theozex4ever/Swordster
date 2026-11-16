@@ -9,6 +9,8 @@ var pose_calls: int = 0
 ## The height the simulation last reported (a Colossus's altitude); this visual only records it.
 var last_altitude: float = 0.0
 var configured_with: SwordSpec = null
+## The hover height a dropped sword was last given (0 for an equipped one).
+var last_hover: float = 0.0
 
 
 func _init() -> void:
@@ -28,3 +30,7 @@ func _on_pose(angle: float, phase: int) -> void:
 
 func _on_altitude(height: float) -> void:
 	last_altitude = height
+
+
+func _on_hover(height: float) -> void:
+	last_hover = height

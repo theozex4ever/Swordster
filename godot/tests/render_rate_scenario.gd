@@ -13,7 +13,10 @@ extends RefCounted
 ## and a corner, with refused presses and an orb parried) and "colossus" (issue #15: three Colossi crushing
 ## standing packs, four Cataclysms (two on one spot) leaving poison, ice and fire fields over them, orbs cleared
 ## by slams, refused presses) and "converge" (issue #16: the default loadout, Fang / Warden / Colossus, commanded
-## by Converge at near, far and empty points and by their ultimates, with refusals by the cooldown and by busy swords). The probe (`frame_rate_probe.gd`)
+## by Converge at near, far and empty points and by their ultimates, with refusals by the cooldown and by busy swords).
+## and "drops" (issue #17: eight armed foes standing a few steps from the player die and
+## drop their swords, which Cataclysm and Viper Flurry recharges and a run of swaps put into all three slots, with
+## refused swaps before anything lies and a drop left lying). The probe (`frame_rate_probe.gd`)
 ## plays one through the real Main scene under the engine's own fixed-step loop
 ## at different frame rates; the checks also play it with bare `GameRun.step()`
 ## calls.
@@ -30,6 +33,7 @@ const WARDEN: String = "warden"
 const PIKE: String = "pike"
 const COLOSSUS: String = "colossus"
 const CONVERGE: String = "converge"
+const DROPS: String = "drops"
 const TOTAL_TICKS: int = 900
 ## Set in the environment by run_checks.gd's --fail-fast once a check has failed.
 const STOPPED_ENV: String = "SWORDSTER_CHECKS_STOPPED"
@@ -152,6 +156,23 @@ const CONVERGE_COMMANDS: Array[Vector4] = [
 	Vector4(520.0, 0.0, 262.0, 5.0), Vector4(640.0, 0.0, 262.0, 5.0), Vector4(700.0, 1.0, 270.0, 0.0), Vector4(705.0, 0.0, -250.0, 60.0),
 	Vector4(790.0, 0.0, 0.0, 0.0),
 ]
+## The drops script: the player stands still while Fang, Warden and Colossus (poison, ice, fire) kill eight armed foes that stand
+## close (so every drop lands within the 80 px reach) and carry every sword type and rarity; swaps are commanded as drops
+## appear (the first two before anything lies, so they are refused), after a Cataclysm and a Viper Flurry have started
+## recharges so the swaps hand fractions on. Commands: (tick, kind, slot): kind 0 swaps into the slot, kind 1 starts its
+## ultimate at the aim offset (250, 0).
+const DROPS_POSTS: Array[Vector2] = [
+	Vector2(46.0, 4.0), Vector2(34.0, 38.0), Vector2(-4.0, 48.0), Vector2(-38.0, 34.0), Vector2(-48.0, -6.0), Vector2(-30.0, -40.0), Vector2(8.0, -50.0), Vector2(40.0, -34.0),
+]
+const DROPS_KINDS: Array[StringName] = [&"husk", &"runner", &"brute", &"spitter", &"husk", &"brute", &"runner", &"husk"]
+const DROPS_SWORDS: Array[Vector3] = [
+	Vector3(0.0, 0.0, 0.0), Vector3(1.0, 1.0, 1.0), Vector3(2.0, 2.0, 2.0), Vector3(3.0, 1.0, 0.0), Vector3(0.0, 2.0, 1.0), Vector3(1.0, 0.0, 2.0), Vector3(2.0, 1.0, 0.0), Vector3(3.0, 2.0, 1.0),
+]
+const DROPS_HP: float = 45.0
+const DROPS_COMMANDS: Array[Vector3] = [
+	Vector3(5.0, 0.0, 1.0), Vector3(12.0, 0.0, 0.0), Vector3(20.0, 1.0, 2.0), Vector3(50.0, 1.0, 0.0),
+	Vector3(200.0, 0.0, 2.0), Vector3(240.0, 0.0, 0.0), Vector3(280.0, 0.0, 1.0), Vector3(330.0, 0.0, 2.0), Vector3(380.0, 0.0, 0.0), Vector3(470.0, 0.0, 1.0), Vector3(700.0, 0.0, 1.0),
+]
 ## The first SPITTER_PINNED shooters stand their ground (their shots keep flying
 ## along the husk spokes the swords strike); the rest move as spitters do.
 const SPITTER_PINNED: int = 8
@@ -176,6 +197,8 @@ static func scenario(name: String = CROWD) -> RunScenario:
 		return _colossus_scenario()
 	if name == CONVERGE:
 		return _converge_scenario()
+	if name == DROPS:
+		return _drops_scenario()
 	var file: FileAccess = FileAccess.open(REFERENCE_PATH, FileAccess.READ)
 	var reference: Dictionary = JSON.parse_string(file.get_as_text())
 	var crowd: Dictionary = reference["crowd_encounter"]
@@ -332,6 +355,23 @@ static func _colossus_scenario() -> RunScenario:
 	return scenario
 
 
+static func _drops_scenario() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.seed = 17
+	scenario.waves_enabled = false
+	scenario.loadout = RunScenario.drops_fixture_loadout()
+	scenario.sword_start_cooldowns = [0.3, 0.4, 0.5]
+	var placements: Array[EnemyPlacement] = []
+	for i: int in DROPS_POSTS.size():
+		var carried: Vector3 = DROPS_SWORDS[i]
+		var post: EnemyPlacement = EnemyPlacement.make(DROPS_KINDS[i], GameRun.WORLD.get_center() + DROPS_POSTS[i]).armed_with(SwordSpec.make(LootDefs.DROP_TYPES[int(carried.x)], int(carried.y), SwordDefs.ELEMENT_ORDER[int(carried.z)]))
+		post.speed_scale = 0.0
+		post.hp = DROPS_HP
+		placements.append(post)
+	scenario.initial_enemies = placements
+	return scenario
+
+
 ## A standing post; health 0 leaves the enemy kind's own (so the blow of a Skewer kills it).
 static func _pike_post(kind: StringName, at: Vector2, hp: float = PIKE_HP) -> EnemyPlacement:
 	var post: EnemyPlacement = EnemyPlacement.make(kind, at)
@@ -404,6 +444,14 @@ static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[Gam
 				var aim: Vector2 = GameRun.WORLD.get_center() + Vector2(entry.z, entry.w)
 				commands.append(GameCommand.converge(aim) if int(entry.y) == 0 else GameCommand.ultimate(int(entry.y) - 1, aim))
 		return commands
+	if name == DROPS:
+		for entry: Vector3 in DROPS_COMMANDS:
+			if completed_ticks == int(entry.x):
+				if int(entry.y) == 0:
+					commands.append(GameCommand.swap(int(entry.z)))
+				else:
+					commands.append(GameCommand.ultimate(int(entry.z), GameRun.WORLD.get_center() + Vector2(250.0, 0.0)))
+		return commands
 	if name == COLOSSUS:
 		for i: int in COLOSSUS_COMMANDS.size():
 			var entry: Vector3 = COLOSSUS_COMMANDS[i]
@@ -448,11 +496,15 @@ static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[Gam
 ## Plays the whole script with bare simulation steps.
 static func play_headless(name: String = CROWD) -> Dictionary:
 	var run: GameRun = GameRun.new(scenario(name))
-	while run.tick < TOTAL_TICKS:
+	# A guard of ten steps per scripted tick (hitstop and slow motion add steps that do not advance the tick): a mutation that
+	# stops the tick counter must end the script, not hang it.
+	var steps: int = 0
+	while run.tick < TOTAL_TICKS and steps < TOTAL_TICKS * 10:
 		for command: GameCommand in commands_at(run.tick, name):
 			run.apply(command)
 		run.step()
 		run.take_cues()
+		steps += 1
 	return digest(run)
 
 
@@ -498,6 +550,11 @@ static func digest(run: GameRun) -> Dictionary:
 		"refused_cues": run.cue_count(SimCue.Kind.ULTIMATE_REFUSED),
 		"converge_cues": run.cue_count(SimCue.Kind.CONVERGE),
 		"converge_cooldown": snappedf(run.converge_cooldown_left, 0.001),
+		"drop_cues": run.cue_count(SimCue.Kind.SWORD_DROPPED),
+		"swap_cues": run.cue_count(SimCue.Kind.SWORD_SWAPPED),
+		"swap_refused_cues": run.cue_count(SimCue.Kind.SWAP_REFUSED),
+		"loadout": run.swords.map(func(sword: SwordState) -> String: return sword.spec.display_name()),
+		"pickups": run.pickups.map(func(pickup: PickupState) -> String: return "%s:%.3f:%.3f:%.3f:%.3f" % [pickup.spec.display_name(), pickup.position.x, pickup.position.y, pickup.life, pickup.age]),
 		"frozen_cues": run.cue_count(SimCue.Kind.ENEMY_FROZEN),
 		"shatter_cues": run.cue_count(SimCue.Kind.ENEMY_SHATTERED),
 		"spread_cues": run.cue_count(SimCue.Kind.FIRE_SPREAD),

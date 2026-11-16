@@ -428,7 +428,7 @@ mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.
 mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_wave_kinds)" "		queue.append_array([])"
 mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
 mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
-mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run)))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run)))"
+mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run), carried))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run), carried))"
 mutate stun-flag-dropped    scripts/presentation/run_presenter.gd "enemy.hp / enemy.max_hp, enemy.stun > 0.0, enemy.telegraph())" "enemy.hp / enemy.max_hp, false, enemy.telegraph())"
 mutate brute-drawn-small    scripts/presentation/placeholder_enemy_visual.gd "			return 30.0" "			return 16.0"
 mutate runner-same-colour   scripts/presentation/placeholder_enemy_visual.gd "const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)" "const RUNNER_COLOR: Color = Color(0.84, 0.28, 0.34)"
@@ -490,7 +490,7 @@ mutate spitter-shoots-over-the-dead scripts/sim/enemy_state.gd "		if run.dead:
 mutate spitter-telegraph-lost      scripts/sim/enemy_state.gd "return clampf(charge / EnemyDefs.SPITTER_CHARGE_TIME, 0.0, 1.0)" "return 0.0"
 mutate spawned-spitter-no-cooldown scripts/sim/wave_director.gd "cooldown = run.rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
 mutate placed-spitter-no-cooldown-draw scripts/sim/game_run.gd "cooldown = rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)" "cooldown = 0.0"
-mutate placement-cooldown-dropped  scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0))" "placement.phase, 0.0)"
+mutate placement-cooldown-dropped  scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0), placement.armed)" "placement.phase, 0.0, placement.armed)"
 mutate placement-charge-dropped    scripts/sim/game_run.gd "		enemy.charge = placement.charge
 " ""
 mutate projectile-never-moves      scripts/sim/game_run.gd "projectile.position += projectile.velocity * dt" "projectile.position += Vector2.ZERO"
@@ -602,7 +602,7 @@ mutate flurry-recharge-not-armed   scripts/sim/sword_state.gd "	ultimate_cooldow
 	boost = 1.0"
 mutate flurry-recharge-pauses      scripts/sim/sword_state.gd "	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)" "	if phase != Phase.ULTIMATE:
 		ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)"
-mutate flurry-recharge-ignores-rarity scripts/sim/sword_state.gd "SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate flurry-recharge-ignores-rarity scripts/sim/sword_state.gd "SwordDefs.ultimate_recharge_of(spec_value)" "SwordDefs.ultimate_cooldown(spec_value.type_id)"
 mutate flurry-starts-on-cooldown   scripts/sim/sword_state.gd "	sword.position = at
 " "	sword.position = at
 	sword.ultimate_cooldown_left = sword.ultimate_cooldown
@@ -836,7 +836,7 @@ mutate chill-does-not-slow                scripts/sim/enemy_state.gd "		if condi
 mutate fixture-flag-does-nothing          scripts/sim/run_scenario.gd "	conditions_enabled = false
 	return self" "	return self"
 mutate conditions-off-by-default          scripts/sim/run_scenario.gd "var conditions_enabled: bool = true" "var conditions_enabled: bool = false"
-mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
+mutate conditions-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_SPITTERS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate conditions-encounter-no-brutes     scripts/sim/run_scenario.gd "	&\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"brute\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\"," "	&\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\","
 mutate conditions-launch-option-lost      scripts/launch_options.gd "		\"conditions\":
 			return RunScenario.conditions_encounter()" "		\"conditions\":
@@ -946,12 +946,12 @@ mutate sweep-cue-lost                               scripts/sim/sword_state.gd "
 
 
 ## Warden's windup"
-mutate warden-uses-fang-damage                      scripts/sim/sword_state.gd "	sword.damage = SwordDefs.base_damage(type_id) * SwordDefs.RARITY_DAMAGE[rarity]" "	sword.damage = SwordDefs.FANG_DAMAGE * SwordDefs.RARITY_DAMAGE[rarity]"
-mutate warden-uses-fang-range                       scripts/sim/sword_state.gd "	sword.attack_range = SwordDefs.base_range(type_id) * SwordDefs.RARITY_RANGE[rarity]" "	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]"
-mutate warden-uses-fang-cooldown                    scripts/sim/sword_state.gd "	sword.cooldown = SwordDefs.base_cooldown(type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]"
+mutate warden-uses-fang-damage                      scripts/sim/sword_state.gd "	sword.damage = SwordDefs.damage_of(spec_value)" "	sword.damage = SwordDefs.FANG_DAMAGE * SwordDefs.RARITY_DAMAGE[rarity]"
+mutate warden-uses-fang-range                       scripts/sim/sword_state.gd "	sword.attack_range = SwordDefs.range_of(spec_value)" "	sword.attack_range = SwordDefs.FANG_RANGE * SwordDefs.RARITY_RANGE[rarity]"
+mutate warden-uses-fang-cooldown                    scripts/sim/sword_state.gd "	sword.cooldown = SwordDefs.cooldown_of(spec_value)" "	sword.cooldown = SwordDefs.FANG_COOLDOWN * SwordDefs.RARITY_COOLDOWN[rarity]"
 mutate warden-uses-fang-knockback                   scripts/sim/sword_state.gd "	sword.knock = SwordDefs.base_knock(type_id)" "	sword.knock = SwordDefs.FANG_KNOCK"
 mutate warden-rarity-size-lost                      scripts/sim/sword_state.gd "	sword.size_scale = SwordDefs.RARITY_SIZE[rarity]" "	sword.size_scale = 1.0"
-mutate warden-rarity-recharge-lost                  scripts/sim/sword_state.gd "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]" "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id)"
+mutate warden-rarity-recharge-lost                  scripts/sim/sword_state.gd "	sword.ultimate_cooldown = SwordDefs.ultimate_recharge_of(spec_value)" "	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id)"
 mutate hit-stop-always-fang                         scripts/sim/game_run.gd "(sword.hit_stop if sword != null else SwordDefs.FANG_HITSTOP) * (CRIT_HITSTOP_FACTOR" "SwordDefs.FANG_HITSTOP * (CRIT_HITSTOP_FACTOR"
 mutate hit-shake-always-fang                        scripts/sim/game_run.gd "add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS" "add_shake(SwordDefs.FANG_SHAKE + (CRIT_SHAKE_BONUS"
 mutate maelstrom-blinks-like-flurry                 scripts/sim/sword_state.gd "			ultimate_spin = atan2(position.y - point.y, position.x - point.x)" "			position = point
@@ -1005,7 +1005,7 @@ mutate maelstrom-keeps-the-old-hit-set              scripts/sim/sword_state.gd "
 mutate maelstrom-area-radius-is-flurry-radius       scripts/sim/sword_state.gd "		SwordDefs.WARDEN:
 			return maelstrom_reach()" "		SwordDefs.WARDEN:
 			return SwordDefs.FANG_ULT_RADIUS"
-mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]"
+mutate warden-encounter-not-in-cycle                scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate warden-encounter-slot-lost                   scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 " "		RunScenario.new(),
 "
@@ -1228,7 +1228,7 @@ mutate skewer-death-keeps-carrying                  scripts/sim/sword_state.gd "
 mutate skewer-area-radius-nonzero                   scripts/sim/sword_state.gd "		SwordDefs.PIKE:
 			return 0.0" "		SwordDefs.PIKE:
 			return 100.0"
-mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_COLOSSUS]"
+mutate pike-encounter-not-in-cycle                  scripts/sim/run_scenario.gd "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]"
 mutate pike-encounter-slot-lost                     scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
 " "		RunScenario.new(),
 "
@@ -1549,7 +1549,7 @@ mutate orbs-cleared-as-parried                      scripts/sim/game_run.gd "pro
 mutate orbs-cleared-counter-kept-on-restart         scripts/sim/game_run.gd "	projectiles_cleared = 0
 " ""
 mutate snapshot-field-count-lost                    scripts/sim/game_run.gd "		\"field_count\": fields.size()," "		\"field_count\": 0,"
-mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]" "ENCOUNTER_WARDEN, ENCOUNTER_PIKE]"
+mutate colossus-encounter-not-in-cycle              scripts/sim/run_scenario.gd "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_DROPS]"
 mutate colossus-encounter-slot-lost                 scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
 " "		RunScenario.new(),
 "
@@ -1610,7 +1610,7 @@ mutate slam-sound-lost                              scripts/audio/sfx_bank.gd "	
 			play(\"hit\")" "		SimCue.Kind.COLOSSUS_SLAM:
 			pass"
 mutate colossus-visual-needle                       scripts/presentation/placeholder_sword_visual.gd "	_colossus = spec.type_id == SwordDefs.COLOSSUS" "	_colossus = false"
-mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
+mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _hover if _resting else _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = _hover if _resting else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
 mutate colossus-visual-altitude-ignored             scripts/presentation/placeholder_sword_visual.gd "func _on_altitude(height: float) -> void:
 	_altitude = height" "func _on_altitude(height: float) -> void:
 	pass"
@@ -1765,6 +1765,317 @@ mutate spitter-encounter-takes-the-default-loadout        scripts/sim/run_scenar
 	var scenario: RunScenario = RunScenario.new()"
 mutate converge-chime-sound-missing-from-the-bank         scripts/audio/sfx_bank.gd "	\"chime\": preload(\"res://audio/sfx_chime.wav\"),
 " ""
+# --- Drops and swaps (slice #17)
+mutate pickup-life-shortened                   scripts/sim/loot_defs.gd "const PICKUP_LIFE: float = 45.0" "const PICKUP_LIFE: float = 40.0"
+mutate pickup-reach-widened                    scripts/sim/loot_defs.gd "const PICKUP_REACH: float = 80.0" "const PICKUP_REACH: float = 90.0"
+mutate pickup-blink-window                     scripts/sim/loot_defs.gd "const PICKUP_BLINK_BELOW: float = 6.0" "const PICKUP_BLINK_BELOW: float = 5.0"
+mutate pickup-blink-rate                       scripts/sim/loot_defs.gd "const PICKUP_BLINK_RATE: float = 8.0" "const PICKUP_BLINK_RATE: float = 6.0"
+mutate return-drop-distance                    scripts/sim/loot_defs.gd "const RETURN_DROP: float = 24.0" "const RETURN_DROP: float = 20.0"
+mutate return-spread-widened                   scripts/sim/loot_defs.gd "const RETURN_SPREAD: float = 20.0" "const RETURN_SPREAD: float = 40.0"
+mutate swap-start-cooldown                     scripts/sim/loot_defs.gd "const SWAP_START_COOLDOWN: float = 0.4" "const SWAP_START_COOLDOWN: float = 0.5"
+mutate swap-altitude                           scripts/sim/loot_defs.gd "const SWAP_ALTITUDE: float = 10.0" "const SWAP_ALTITUDE: float = 30.0"
+mutate swap-start-velocity                     scripts/sim/loot_defs.gd "Vector2(0.0, -200.0)" "Vector2(0.0, -100.0)"
+mutate swap-flash-weak                         scripts/sim/loot_defs.gd "const SWAP_FLASH: float = 1.0" "const SWAP_FLASH: float = 0.5"
+mutate armed-hp-factor                         scripts/sim/loot_defs.gd "const ARMED_HP_FACTOR: float = 1.35" "const ARMED_HP_FACTOR: float = 1.3"
+mutate drop-weight-colossus                    scripts/sim/loot_defs.gd "[3.0, 3.0, 2.5, 1.6]" "[3.0, 3.0, 2.5, 2.0]"
+mutate drop-weight-fang                        scripts/sim/loot_defs.gd "[3.0, 3.0, 2.5, 1.6]" "[4.0, 3.0, 2.5, 1.6]"
+mutate drop-types-order                        scripts/sim/loot_defs.gd "[SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS]" "[SwordDefs.WARDEN, SwordDefs.FANG, SwordDefs.PIKE, SwordDefs.COLOSSUS]"
+mutate first-wave-armed-count                  scripts/sim/loot_defs.gd "const FIRST_WAVE_ARMED: int = 2" "const FIRST_WAVE_ARMED: int = 1"
+mutate mythic-cap                              scripts/sim/loot_defs.gd "const MYTHIC_CAP: float = 0.25" "const MYTHIC_CAP: float = 0.3"
+mutate mythic-base                             scripts/sim/loot_defs.gd "const MYTHIC_BASE: float = 0.02" "const MYTHIC_BASE: float = 0.03"
+mutate mythic-per-wave                         scripts/sim/loot_defs.gd "const MYTHIC_PER_WAVE: float = 0.02" "const MYTHIC_PER_WAVE: float = 0.03"
+mutate rare-cap                                scripts/sim/loot_defs.gd "const RARE_CAP: float = 0.55" "const RARE_CAP: float = 0.5"
+mutate rare-base                               scripts/sim/loot_defs.gd "const RARE_BASE: float = 0.16" "const RARE_BASE: float = 0.2"
+mutate rare-per-wave                           scripts/sim/loot_defs.gd "const RARE_PER_WAVE: float = 0.04" "const RARE_PER_WAVE: float = 0.05"
+mutate brute-rarity-bonus                      scripts/sim/loot_defs.gd "const BRUTE_RARITY_BONUS: float = 0.15" "const BRUTE_RARITY_BONUS: float = 0.1"
+mutate armed-chance-husk                       scripts/sim/loot_defs.gd "const ARMED_CHANCE_HUSK: float = 0.2" "const ARMED_CHANCE_HUSK: float = 0.25"
+mutate armed-chance-runner                     scripts/sim/loot_defs.gd "const ARMED_CHANCE_RUNNER: float = 0.12" "const ARMED_CHANCE_RUNNER: float = 0.15"
+mutate armed-chance-spitter                    scripts/sim/loot_defs.gd "const ARMED_CHANCE_SPITTER: float = 0.22" "const ARMED_CHANCE_SPITTER: float = 0.25"
+mutate armed-chance-brute                      scripts/sim/loot_defs.gd "const ARMED_CHANCE_BRUTE: float = 0.75" "const ARMED_CHANCE_BRUTE: float = 0.7"
+mutate armed-chance-spitter-as-runner          scripts/sim/loot_defs.gd "			return ARMED_CHANCE_SPITTER" "			return ARMED_CHANCE_RUNNER"
+mutate arming-guarantee-every-wave             scripts/sim/loot_defs.gd "	return wave == 1 and index < FIRST_WAVE_ARMED" "	return index < FIRST_WAVE_ARMED"
+mutate arming-pike-on-second                   scripts/sim/loot_defs.gd "SwordDefs.PIKE if wave == 1 and index == 0 else drop_type_for(drop_draw)" "SwordDefs.PIKE if wave == 1 and index == 1 else drop_type_for(drop_draw)"
+mutate arming-pike-every-wave                  scripts/sim/loot_defs.gd "SwordDefs.PIKE if wave == 1 and index == 0 else drop_type_for(drop_draw)" "SwordDefs.PIKE if index == 0 else drop_type_for(drop_draw)"
+mutate drop-draw-edge-exclusive                scripts/sim/loot_defs.gd "		if remaining <= 0.0:" "		if remaining < 0.0:"
+mutate rarity-mythic-full-bonus                scripts/sim/loot_defs.gd "MYTHIC_PER_WAVE * float(wave)) + bonus * 0.5:" "MYTHIC_PER_WAVE * float(wave)) + bonus:"
+mutate rarity-rare-bonus-lost                  scripts/sim/loot_defs.gd "RARE_PER_WAVE * float(wave)) + bonus:" "RARE_PER_WAVE * float(wave)):"
+mutate rarity-bonus-for-husks                  scripts/sim/loot_defs.gd "BRUTE_RARITY_BONUS if kind == EnemyDefs.BRUTE else 0.0" "BRUTE_RARITY_BONUS if kind == EnemyDefs.HUSK else 0.0"
+mutate arming-chance-edge-inclusive            scripts/sim/loot_defs.gd "if not is_guaranteed(wave, index) and arm_roll >= armed_chance(kind):" "if not is_guaranteed(wave, index) and arm_roll > armed_chance(kind):"
+mutate arming-element-never-poison             scripts/sim/loot_defs.gd "rng.randi_range(0, SwordDefs.ELEMENT_ORDER.size() - 1)" "rng.randi_range(0, SwordDefs.ELEMENT_ORDER.size() - 2)"
+mutate arming-draw-range-short                 scripts/sim/loot_defs.gd "rng.randf_range(0.0, total_drop_weight())" "rng.randf_range(0.0, 8.5)"
+mutate arming-guaranteed-still-rolls           scripts/sim/loot_defs.gd "	if not is_guaranteed(wave, index):
+		arm_roll = rng.randf()" "	if true:
+		arm_roll = rng.randf()"
+mutate arming-pike-still-draws                 scripts/sim/loot_defs.gd "	if not (wave == 1 and index == 0):
+		drop_draw" "	if true:
+		drop_draw"
+mutate pickup-blink-parity                     scripts/sim/pickup_state.gd "% 2 == 0" "% 2 == 1"
+mutate pickup-never-blinks                     scripts/sim/pickup_state.gd "return life < LootDefs.PICKUP_BLINK_BELOW and " "return false and "
+mutate pickup-spawns-short                     scripts/sim/pickup_state.gd "var life: float = LootDefs.PICKUP_LIFE" "var life: float = 30.0"
+mutate rarity-color-common                     scripts/sim/sword_defs.gd "Color(205.0 / 255.0, 205.0 / 255.0, 215.0 / 255.0)," "Color(205.0 / 255.0, 205.0 / 255.0, 200.0 / 255.0),"
+mutate rarity-color-rare                       scripts/sim/sword_defs.gd "Color(90.0 / 255.0, 175.0 / 255.0, 255.0 / 255.0)," "Color(90.0 / 255.0, 175.0 / 255.0, 200.0 / 255.0),"
+mutate rarity-color-mythic                     scripts/sim/sword_defs.gd "Color(255.0 / 255.0, 196.0 / 255.0, 60.0 / 255.0)," "Color(255.0 / 255.0, 196.0 / 255.0, 160.0 / 255.0),"
+mutate element-order                           scripts/sim/sword_defs.gd "const ELEMENT_ORDER: Array[StringName] = [&\"fire\", &\"ice\", &\"poison\"]" "const ELEMENT_ORDER: Array[StringName] = [&\"ice\", &\"fire\", &\"poison\"]"
+mutate element-adjective-fire                  scripts/sim/sword_defs.gd "&\"fire\": \"Ember\"" "&\"fire\": \"Embers\""
+mutate element-adjective-ice                   scripts/sim/sword_defs.gd "&\"ice\": \"Frost\"" "&\"ice\": \"Frosty\""
+mutate element-adjective-poison                scripts/sim/sword_defs.gd "&\"poison\": \"Venom\"" "&\"poison\": \"Toxic\""
+mutate element-tag-fire                        scripts/sim/sword_defs.gd "&\"fire\": \"FIRE  burns, spreads\"," "&\"fire\": \"FIRE  burns\","
+mutate element-tag-ice                         scripts/sim/sword_defs.gd "&\"ice\": \"ICE  chills, freezes\"," "&\"ice\": \"ICE  chills\","
+mutate element-tag-poison                      scripts/sim/sword_defs.gd "&\"poison\": \"POISON  stacking toxin\"," "&\"poison\": \"POISON  toxin\","
+mutate blurb-fang                              scripts/sim/sword_defs.gd "const FANG_BLURB: String = \"close / rapid\"" "const FANG_BLURB: String = \"close\""
+mutate blurb-warden                            scripts/sim/sword_defs.gd "const WARDEN_BLURB: String = \"mid / sweeping arc\"" "const WARDEN_BLURB: String = \"mid\""
+mutate blurb-pike                              scripts/sim/sword_defs.gd "const PIKE_BLURB: String = \"long / piercing thrust\"" "const PIKE_BLURB: String = \"long\""
+mutate blurb-colossus                          scripts/sim/sword_defs.gd "const COLOSSUS_BLURB: String = \"far / slow / crushing slam\"" "const COLOSSUS_BLURB: String = \"far\""
+mutate blurb-pike-is-fang                      scripts/sim/sword_defs.gd "		PIKE:
+			return PIKE_BLURB" "		PIKE:
+			return FANG_BLURB"
+mutate damage-of-uses-range-factor             scripts/sim/sword_defs.gd "return base_damage(spec.type_id) * RARITY_DAMAGE[spec.rarity]" "return base_damage(spec.type_id) * RARITY_RANGE[spec.rarity]"
+mutate cooldown-of-uses-damage-factor          scripts/sim/sword_defs.gd "return base_cooldown(spec.type_id) * RARITY_COOLDOWN[spec.rarity]" "return base_cooldown(spec.type_id) * RARITY_DAMAGE[spec.rarity]"
+mutate range-of-uses-cooldown-factor           scripts/sim/sword_defs.gd "return base_range(spec.type_id) * RARITY_RANGE[spec.rarity]" "return base_range(spec.type_id) * RARITY_COOLDOWN[spec.rarity]"
+mutate length-of-uses-damage-factor            scripts/sim/sword_defs.gd "return base_length(spec.type_id) * RARITY_SIZE[spec.rarity]" "return base_length(spec.type_id) * RARITY_DAMAGE[spec.rarity]"
+mutate recharge-of-ignores-rarity              scripts/sim/sword_defs.gd "return ultimate_cooldown(spec.type_id) * RARITY_COOLDOWN[spec.rarity]" "return ultimate_cooldown(spec.type_id)"
+mutate full-name-order                         scripts/sim/sword_defs.gd "[RARITY_NAMES[spec.rarity], ELEMENT_ADJECTIVES.get(spec.element, String(spec.element)), display_name(spec.type_id)]" "[ELEMENT_ADJECTIVES.get(spec.element, String(spec.element)), RARITY_NAMES[spec.rarity], display_name(spec.type_id)]"
+mutate swap-recharge-seconds-kept              scripts/sim/sword_state.gd "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown" "replaced.ultimate_cooldown_left"
+mutate swap-recharge-reset                     scripts/sim/sword_state.gd "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown" "0.0"
+mutate swap-recharge-full                      scripts/sim/sword_state.gd "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown" "sword.ultimate_cooldown"
+mutate swap-recharge-wrong-divisor             scripts/sim/sword_state.gd "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown" "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / sword.ultimate_cooldown"
+mutate swap-recharge-from-new-sword            scripts/sim/sword_state.gd "sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown" "replaced.ultimate_cooldown * replaced.ultimate_cooldown_left / sword.ultimate_cooldown"
+mutate swap-start-cooldown-lost                scripts/sim/sword_state.gd "equip(spec_value, at, LootDefs.SWAP_START_COOLDOWN)" "equip(spec_value, at, 0.0)"
+mutate swap-velocity-lost                      scripts/sim/sword_state.gd "	sword.velocity = LootDefs.SWAP_START_VELOCITY
+" ""
+mutate swap-flash-lost                         scripts/sim/sword_state.gd "	sword.flash = LootDefs.SWAP_FLASH
+" ""
+mutate swap-altitude-lost                      scripts/sim/sword_state.gd "		sword.altitude = LootDefs.SWAP_ALTITUDE
+" "		pass
+"
+mutate swap-flash-slow-decay                   scripts/sim/sword_state.gd "flash = maxf(0.0, flash - dt * 3.0)" "flash = maxf(0.0, flash - dt * 1.0)"
+mutate swap-flash-never-decays                 scripts/sim/sword_state.gd "	flash = maxf(0.0, flash - dt * 3.0)
+" ""
+mutate armed-health-lost                       scripts/sim/enemy_state.gd " * (LootDefs.ARMED_HP_FACTOR if armed_spec != null else 1.0)" ""
+mutate armed-sword-lost                        scripts/sim/enemy_state.gd "	enemy.armed = armed_spec
+" ""
+mutate placement-armed-method-lost             scripts/sim/enemy_placement.gd "func armed_with(spec: SwordSpec) -> EnemyPlacement:
+	armed = spec" "func armed_with(spec: SwordSpec) -> EnemyPlacement:
+	armed = null"
+mutate marker-armed-lost                       scripts/sim/spawn_marker.gd "	marker.armed = armed_spec
+" ""
+mutate wave-arming-always-off                  scripts/sim/wave_director.gd "queue_armed.append(LootDefs.roll_armed(run.rng, queue[index], wave, index) if _arm_waves else null)" "queue_armed.append(null)"
+mutate wave-arming-on-by-default               scripts/sim/wave_director.gd "wave, index) if _arm_waves else null)" "wave, index) if not _arm_waves else null)"
+mutate wave-arming-index-shifted               scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, queue[index], wave, index + 1)"
+mutate wave-arming-kind-lost                   scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, EnemyDefs.HUSK, wave, index)"
+mutate wave-queue-sword-dropped                scripts/sim/wave_director.gd "var carried: SwordSpec = queue_armed.pop_front()" "var carried: SwordSpec = null"
+mutate wave-marker-sword-dropped               scripts/sim/wave_director.gd "SpawnMarker.make(kind, _spawn_point(run), carried)" "SpawnMarker.make(kind, _spawn_point(run))"
+mutate wave-enemy-sword-dropped                scripts/sim/wave_director.gd "run.next_serial(), phase, cooldown, marker.armed)" "run.next_serial(), phase, cooldown)"
+mutate pickup-reach-inclusive                  scripts/sim/game_run.gd "if distance < LootDefs.PICKUP_REACH and distance < nearest_distance:" "if distance <= LootDefs.PICKUP_REACH and distance < nearest_distance:"
+mutate pickup-nearest-lost                     scripts/sim/game_run.gd "if distance < LootDefs.PICKUP_REACH and distance < nearest_distance:" "if distance < LootDefs.PICKUP_REACH:"
+mutate pickup-tie-takes-last                   scripts/sim/game_run.gd "if distance < LootDefs.PICKUP_REACH and distance < nearest_distance:" "if distance < LootDefs.PICKUP_REACH and distance <= nearest_distance:"
+mutate pickup-reach-from-camera                scripts/sim/game_run.gd "var distance: float = (pickup.position - position).length()" "var distance: float = (pickup.position - camera).length()"
+mutate swap-allowed-while-paused               scripts/sim/game_run.gd "	if paused or dead:
+		return SwapResult.UNAVAILABLE" "	if dead:
+		return SwapResult.UNAVAILABLE"
+mutate swap-allowed-while-dead                 scripts/sim/game_run.gd "	if paused or dead:
+		return SwapResult.UNAVAILABLE" "	if paused:
+		return SwapResult.UNAVAILABLE"
+mutate swap-refusal-silent                     scripts/sim/game_run.gd "		add_cue(SimCue.make(SimCue.Kind.SWAP_REFUSED, position))
+" ""
+mutate swap-negative-slot-allowed              scripts/sim/game_run.gd "	if slot < 0 or slot >= swords.size():
+		return SwapResult.NO_SWORD" "	if slot >= swords.size():
+		return SwapResult.NO_SWORD"
+mutate swap-always-slot-one                    scripts/sim/game_run.gd "swords[slot] = SwordState.swapped_in(" "swords[0] = SwordState.swapped_in("
+mutate swap-starts-at-player                   scripts/sim/game_run.gd "SwordState.swapped_in(claimed.spec, claimed.position, replaced)" "SwordState.swapped_in(claimed.spec, position, replaced)"
+mutate swap-pickup-kept                        scripts/sim/game_run.gd "	pickups.erase(claimed)
+" ""
+mutate swap-returns-the-claimed-sword          scripts/sim/game_run.gd "PickupState.make(replaced.spec, returned_at, _next_pickup_serial)" "PickupState.make(claimed.spec, returned_at, _next_pickup_serial)"
+mutate swap-return-in-place                    scripts/sim/game_run.gd "var returned_at: Vector2 = claimed.position + Vector2(rng.randf_range(-LootDefs.RETURN_SPREAD, LootDefs.RETURN_SPREAD), LootDefs.RETURN_DROP)" "var returned_at: Vector2 = claimed.position"
+mutate swap-return-no-spread                   scripts/sim/game_run.gd "Vector2(rng.randf_range(-LootDefs.RETURN_SPREAD, LootDefs.RETURN_SPREAD), LootDefs.RETURN_DROP)" "Vector2(0.0, LootDefs.RETURN_DROP)"
+mutate swap-return-no-drop                     scripts/sim/game_run.gd "Vector2(rng.randf_range(-LootDefs.RETURN_SPREAD, LootDefs.RETURN_SPREAD), LootDefs.RETURN_DROP)" "Vector2(rng.randf_range(-LootDefs.RETURN_SPREAD, LootDefs.RETURN_SPREAD), 0.0)"
+mutate swap-cue-lost                           scripts/sim/game_run.gd "	add_cue(cue)
+	return SwapResult.SWAPPED" "	return SwapResult.SWAPPED"
+mutate swap-cue-wrong-sword                    scripts/sim/game_run.gd "	cue.spec = claimed.spec
+" "	cue.spec = replaced.spec
+"
+mutate swap-cue-slot-lost                      scripts/sim/game_run.gd "SimCue.make(SimCue.Kind.SWORD_SWAPPED, claimed.position, Vector2.ZERO, slot)" "SimCue.make(SimCue.Kind.SWORD_SWAPPED, claimed.position, Vector2.ZERO, 0)"
+mutate swap-cue-origin-lost                    scripts/sim/game_run.gd "	cue.origin = returned_at
+" ""
+mutate swap-command-wrong-slot                 scripts/sim/game_run.gd "			try_swap(command.slot)" "			try_swap(0)"
+mutate drop-lost                               scripts/sim/game_run.gd "	if enemy.armed != null:
+		# The sword it carried" "	if false:
+		# The sword it carried"
+mutate drop-at-player                          scripts/sim/game_run.gd "PickupState.make(enemy.armed, enemy.position, _next_pickup_serial)" "PickupState.make(enemy.armed, position, _next_pickup_serial)"
+mutate drop-cue-lost                           scripts/sim/game_run.gd "		add_cue(drop)
+" ""
+mutate drop-cue-sword-lost                     scripts/sim/game_run.gd "		drop.spec = enemy.armed
+" ""
+mutate pickup-life-runs-double                 scripts/sim/game_run.gd "		pickup.life -= dt
+" "		pickup.life -= dt * 2.0
+"
+mutate pickup-life-frozen                      scripts/sim/game_run.gd "		pickup.life -= dt
+" ""
+mutate pickup-removed-late                     scripts/sim/game_run.gd "		if pickup.life > 0.0:
+			lying.append(pickup)" "		if pickup.life >= 0.0:
+			lying.append(pickup)"
+mutate pickup-update-lost                      scripts/sim/game_run.gd "	_update_pickups(dt)
+" ""
+mutate pickups-kept-on-restart                 scripts/sim/game_run.gd "	_next_pickup_serial = 0
+	pickups = []
+" "	_next_pickup_serial = 0
+"
+mutate drops-encounter-slot-lost               scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_DROPS else RunScenario.drops_encounter(),
+" "		RunScenario.new(),
+"
+mutate placement-armed-dropped                 scripts/sim/game_run.gd "placement.phase, maxf(cooldown, 0.0), placement.armed)" "placement.phase, maxf(cooldown, 0.0))"
+mutate snapshot-pickup-count-lost              scripts/sim/game_run.gd "\"pickup_count\": pickups.size()," "\"pickup_count\": 0,"
+mutate swap-command-slot-lost                  scripts/sim/game_command.gd "	var command: GameCommand = _of(Kind.SWAP)
+	command.slot = slot_value" "	var command: GameCommand = _of(Kind.SWAP)"
+mutate swap-keys-order                         scripts/input/input_translator.gd "const SWAP_KEYS: Array[Key] = [KEY_1, KEY_2, KEY_3]" "const SWAP_KEYS: Array[Key] = [KEY_1, KEY_3, KEY_2]"
+mutate swap-key-slot-lost                      scripts/input/input_translator.gd "commands.append(GameCommand.swap(SWAP_KEYS.find(code)))" "commands.append(GameCommand.swap(0))"
+mutate swap-keys-ignored                       scripts/input/input_translator.gd "			elif code in SWAP_KEYS:" "			elif false:"
+mutate drops-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]" "ENCOUNTER_COLOSSUS]"
+mutate drops-encounter-title                   scripts/sim/run_scenario.gd "		ENCOUNTER_DROPS:
+			return \"Drops\"" "		ENCOUNTER_DROPS:
+			return \"Drop\""
+mutate drops-encounter-wave-unarmed            scripts/sim/run_scenario.gd "	scenario.arm_waves = true
+" ""
+mutate arming-on-in-every-run                  scripts/sim/run_scenario.gd "var arm_waves: bool = false" "var arm_waves: bool = true"
+mutate drops-encounter-foes-unarmed            scripts/sim/run_scenario.gd ".armed_with(spec))" ")"
+mutate drops-encounter-all-common              scripts/sim/run_scenario.gd "int(float(i) / 4.0)" "0"
+mutate drops-encounter-one-element             scripts/sim/run_scenario.gd "SwordDefs.ELEMENT_ORDER[i % SwordDefs.ELEMENT_ORDER.size()]" "SwordDefs.ELEMENT_ORDER[0]"
+mutate drops-encounter-no-spitters-or-brutes   scripts/sim/run_scenario.gd "	&\"husk\", &\"runner\", &\"spitter\", &\"brute\", &\"runner\", &\"husk\", &\"brute\", &\"spitter\", &\"spitter\", &\"brute\", &\"husk\", &\"runner\"," "	&\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"runner\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"husk\", &\"runner\","
+mutate drops-encounter-no-pikes                scripts/sim/run_scenario.gd "SwordDefs.PIKE, SwordDefs.COLOSSUS, SwordDefs.WARDEN, SwordDefs.FANG, SwordDefs.COLOSSUS, SwordDefs.PIKE,
+	SwordDefs.PIKE, SwordDefs.COLOSSUS" "SwordDefs.FANG, SwordDefs.COLOSSUS, SwordDefs.WARDEN, SwordDefs.FANG, SwordDefs.COLOSSUS, SwordDefs.FANG,
+	SwordDefs.FANG, SwordDefs.COLOSSUS"
+mutate drops-encounter-wave-lost               scripts/sim/run_scenario.gd "scenario.wave_kinds = DROPS_WAVE.duplicate()" "scenario.wave_kinds = []"
+mutate drops-fixture-no-colossus               scripts/sim/run_scenario.gd "var types: Array[StringName] = [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS]" "var types: Array[StringName] = [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE]"
+mutate drops-fixture-wrong-elements            scripts/sim/run_scenario.gd "var elements: Array[StringName] = [&\"poison\", &\"ice\", &\"fire\"]" "var elements: Array[StringName] = [&\"fire\", &\"ice\", &\"poison\"]"
+mutate drops-launch-option-lost                scripts/launch_options.gd "		\"drops\":
+			return RunScenario.drops_encounter()" "		\"drops\":
+			return RunScenario.colossus_encounter()"
+mutate drops-legend-lost                       scripts/hud.gd "	elif run.scenario.encounter == RunScenario.ENCOUNTER_DROPS:" "	elif false:"
+mutate drops-legend-ignores-standing           scripts/hud.gd "			armed_left += 1 if enemy.armed != null else 0" "			armed_left += 0"
+mutate drops-legend-ignores-queue              scripts/hud.gd "			armed_left += 1 if carried != null else 0" "			armed_left += 0"
+mutate drops-legend-ignores-markers            scripts/hud.gd "			armed_left += 1 if marker.armed != null else 0" "			armed_left += 0"
+mutate drops-legend-lying-lost                 scripts/hud.gd "			armed_left, run.pickups.size(), run.cue_count(SimCue.Kind.SWORD_DROPPED)" "			armed_left, 0, run.cue_count(SimCue.Kind.SWORD_DROPPED)"
+mutate drops-legend-dropped-lost               scripts/hud.gd "run.cue_count(SimCue.Kind.SWORD_DROPPED), run.cue_count(SimCue.Kind.SWORD_SWAPPED)" "0, run.cue_count(SimCue.Kind.SWORD_SWAPPED)"
+mutate drops-legend-swapped-lost               scripts/hud.gd "run.cue_count(SimCue.Kind.SWORD_SWAPPED), int(LootDefs.PICKUP_REACH)" "0, int(LootDefs.PICKUP_REACH)"
+mutate pickup-card-always-shown                scripts/hud.gd "	_pickup_card.visible = near != null
+" "	_pickup_card.visible = true
+"
+mutate pickup-card-offered-when-dead           scripts/hud.gd "var near: PickupState = null if run.dead else run.nearest_pickup()" "var near: PickupState = run.nearest_pickup()"
+mutate pickup-card-x-unclamped                 scripts/hud.gd "	var ideal: Vector2 = Vector2(drop.x + 40.0, drop.y - card.y - 40.0).clamp(low, high)" "	var ideal: Vector2 = Vector2(drop.x + 40.0, clampf(drop.y - card.y - 40.0, low.y, high.y))"
+mutate pickup-card-y-unclamped                 scripts/hud.gd "	var ideal: Vector2 = Vector2(drop.x + 40.0, drop.y - card.y - 40.0).clamp(low, high)" "	var ideal: Vector2 = Vector2(clampf(drop.x + 40.0, low.x, high.x), drop.y - card.y - 40.0)"
+mutate pickup-card-over-the-slot-cards         scripts/hud.gd "	controls.append_array(_ult_cards)" "	controls.append_array([])"
+mutate pickup-card-over-the-text-lines             scripts/hud.gd "	controls.append_array([_build_label, _hint_label])" "	controls.append_array([])"
+mutate pickup-card-over-the-health                 scripts/hud.gd "	controls.append_array([_hp_back, _hp_label])" "	controls.append_array([])"
+mutate pickup-card-over-the-health-value           scripts/hud.gd "	controls.append_array([_hp_back, _hp_label])" "	controls.append_array([_hp_back])"
+mutate pickup-card-over-the-cooldowns              scripts/hud.gd "	controls.append_array([_dash_label, _converge_label, _converge_track])" "	controls.append_array([])"
+mutate pickup-card-over-the-converge-bar           scripts/hud.gd "	controls.append_array([_dash_label, _converge_label, _converge_track])" "	controls.append_array([_dash_label, _converge_label])"
+mutate pickup-card-over-the-buttons                scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([])"
+mutate pickup-card-over-the-dev-button             scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([_pause_button, _restart_button, _shove_button, _dash_button])"
+mutate pickup-card-over-the-shove-button           scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([_pause_button, _restart_button, _encounter_button, _dash_button])"
+mutate pickup-card-over-the-dash-button            scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button])"
+mutate pickup-card-over-the-legend                 scripts/hud.gd "	controls.append(_encounter_label)" "	controls.append_array([])"
+mutate pickup-card-over-the-audio-prompt           scripts/hud.gd "	controls.append(_audio_prompt)" "	controls.append_array([])"
+mutate pickup-card-over-the-drop                   scripts/hud.gd "	with_halo.append(drop_halo)" "	with_halo.append(Rect2())"
+mutate pickup-card-ignores-the-hud-search          scripts/hud.gd "	if _covers_nothing(ideal, with_halo):" "	if true:"
+mutate pickup-card-label-box-not-text              scripts/hud.gd "		return Rect2(box.position + spare * shift, need)" "		return box"
+mutate pickup-card-label-alignment-lost            scripts/hud.gd "		return Rect2(box.position + spare * shift, need)" "		return Rect2(box.position, need)"
+mutate pickup-card-fallback-ignores-overlap        scripts/hud.gd "		if area < least_area - 0.01 or (absf(area - least_area) <= 0.01 and distance < least_distance):" "		if distance < least_distance:"
+mutate pickup-card-too-narrow-for-its-text         scripts/hud.gd "const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)" "const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)"
+mutate pickup-card-comparison-font-grows          scripts/hud.gd "		compare.add_theme_font_size_override(\"font_size\", 14)" "		compare.add_theme_font_size_override(\"font_size\", 17)"
+mutate controls-hint-runs-into-the-buttons          scripts/hud.gd "1 / 2 / 3: swap a drop\\nTab / G: ranges   P / Esc: pause" "1 / 2 / 3: swap a drop   Tab / G: ranges   P / Esc: pause   R after death\\nTab / G: ranges   P / Esc: pause"
+mutate pickup-card-comparison-lost             scripts/hud.gd "			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
+" ""
+mutate pickup-card-name-colour-lost            scripts/hud.gd "	_pickup_lines[0].modulate = tint
+" ""
+mutate pickup-card-border-colour-lost          scripts/hud.gd "	_pickup_style.border_color = tint
+" ""
+mutate pickup-card-element-colour-lost         scripts/hud.gd "	_pickup_lines[3].modulate = PlaceholderSwordVisual.ELEMENT_COLORS.get(spec.element, Color.WHITE)
+" ""
+mutate slot-card-rarity-tag-on-common          scripts/hud.gd "SwordDefs.RARITY_NAMES[sword.spec.rarity].to_upper() if sword.spec.rarity > 0 else \"\"" "SwordDefs.RARITY_NAMES[sword.spec.rarity].to_upper()"
+mutate slot-card-rarity-tag-lost               scripts/hud.gd "SwordDefs.RARITY_NAMES[sword.spec.rarity].to_upper() if sword.spec.rarity > 0 else \"\"" "\"\""
+mutate slot-card-key-line-off-by-one           scripts/hud.gd "\"key %d swaps this sword\" % (slot + 1)" "\"key %d swaps this sword\" % slot"
+mutate slot-card-border-colour                 scripts/hud.gd "border_color = rarity_tint.darkened(0.3) if sword.spec.rarity == 0 else rarity_tint" "border_color = rarity_tint"
+mutate slot-card-flash-lost                    scripts/hud.gd "Color(tint, 0.72), 0.12 + 0.35 * sword.flash)" "Color(tint, 0.72), 0.12)"
+mutate card-hint-text                          scripts/pickup_card.gd "const HINT: String = \"press 1 / 2 / 3 to swap\"" "const HINT: String = \"press 1 / 2 / 3\""
+mutate card-speed-not-inverted                 scripts/pickup_card.gd "1.0 / SwordDefs.cooldown_of(spec), SwordDefs.range_of(spec)]" "SwordDefs.cooldown_of(spec), SwordDefs.range_of(spec)]"
+mutate card-skill-shot-note-lost               scripts/pickup_card.gd "\"  (skill shot)\" if SwordDefs.ultimate_is_shot(spec.type_id) else \"\"" "\"\""
+mutate card-recharge-ignores-rarity            scripts/pickup_card.gd "SwordDefs.ultimate_recharge_of(spec)]" "SwordDefs.ultimate_cooldown(spec.type_id)]"
+mutate card-element-line-lost                  scripts/pickup_card.gd "found.append(SwordDefs.ELEMENT_TAGS.get(spec.element, String(spec.element).to_upper()))" "found.append(String(spec.element).to_upper())"
+mutate card-compare-reversed                   scripts/pickup_card.gd "SwordDefs.damage_of(spec) - SwordDefs.damage_of(equipped)," "SwordDefs.damage_of(equipped) - SwordDefs.damage_of(spec),"
+mutate card-compare-slot-number                scripts/pickup_card.gd "		slot + 1,
+" "		slot,
+"
+mutate card-compare-names-the-pickup           scripts/pickup_card.gd "		SwordDefs.full_name(equipped),
+" "		SwordDefs.full_name(spec),
+"
+mutate card-compare-range-reversed             scripts/pickup_card.gd "SwordDefs.range_of(spec) - SwordDefs.range_of(equipped)," "SwordDefs.range_of(equipped) - SwordDefs.range_of(spec),"
+mutate card-compare-speed-reversed             scripts/pickup_card.gd "1.0 / SwordDefs.cooldown_of(spec) - 1.0 / SwordDefs.cooldown_of(equipped)," "1.0 / SwordDefs.cooldown_of(equipped) - 1.0 / SwordDefs.cooldown_of(spec),"
+mutate presenter-pickups-not-synced            scripts/presentation/run_presenter.gd "	_sync_pickups(run)
+" ""
+mutate presenter-pickup-hover-lost             scripts/presentation/run_presenter.gd "		visual.apply_hover(SwordDefs.length_of(pickup.spec) * 0.6 + sin(phase * 3.0) * 3.0)
+" ""
+mutate presenter-pickup-never-blinks           scripts/presentation/run_presenter.gd "		visual.visible = not pickup.blink_hidden()
+" ""
+mutate presenter-pickup-upright                scripts/presentation/run_presenter.gd "PI / 2.0 + sin(phase * 1.3) * 0.08" "-PI / 2.0"
+mutate presenter-pickup-visuals-leak           scripts/presentation/run_presenter.gd "	_drop_missing(_pickup_visuals, live)" "	pass"
+mutate presenter-reset-leaks-pickup-visuals    scripts/presentation/run_presenter.gd "	for visual: Node in _pickup_visuals.values():
+		visual.queue_free()
+" ""
+mutate presenter-flash-lost                    scripts/presentation/run_presenter.gd "		visual.apply_flash(sword.flash)
+" ""
+mutate presenter-armed-sword-lost              scripts/presentation/run_presenter.gd "			visual.apply_armed(enemy.armed)
+" ""
+mutate sword-visual-contract-drops-flash       scripts/presentation/sword_visual.gd "	_on_flash(amount)" "	pass"
+mutate sword-visual-contract-drops-hover       scripts/presentation/sword_visual.gd "	_on_hover(height)" "	pass"
+mutate enemy-visual-contract-drops-armed       scripts/presentation/enemy_visual.gd "	_on_armed(spec)" "	pass"
+mutate sword-visual-rarity-size-lost           scripts/presentation/placeholder_sword_visual.gd "	_scale = SwordDefs.RARITY_SIZE[spec.rarity]
+" ""
+mutate sword-visual-glow-always-rarity         scripts/presentation/placeholder_sword_visual.gd "SwordDefs.RARITY_COLORS[spec.rarity] if spec.rarity > 0 else _color" "SwordDefs.RARITY_COLORS[spec.rarity]"
+mutate sword-visual-glow-never-rarity          scripts/presentation/placeholder_sword_visual.gd "SwordDefs.RARITY_COLORS[spec.rarity] if spec.rarity > 0 else _color" "_color"
+mutate sword-visual-flash-ignored              scripts/presentation/placeholder_sword_visual.gd "func _on_flash(amount: float) -> void:
+	_flash = amount" "func _on_flash(amount: float) -> void:
+	pass"
+mutate sword-visual-hover-not-resting          scripts/presentation/placeholder_sword_visual.gd "	_resting = true
+" ""
+mutate sword-visual-hover-ignored              scripts/presentation/placeholder_sword_visual.gd "	_hover = height
+" ""
+mutate enemy-visual-sword-not-drawn            scripts/presentation/placeholder_enemy_visual.gd "	if _armed != null:
+		_draw_carried_sword(radius)
+" ""
+mutate enemy-visual-armed-ignored              scripts/presentation/placeholder_enemy_visual.gd "func _on_armed(spec: SwordSpec) -> void:
+	_armed = spec" "func _on_armed(spec: SwordSpec) -> void:
+	_armed = null"
+mutate pickup-ground-not-drawn                 scripts/presentation/effects_layer.gd "		_draw_pickup_ground(pickup)
+" "		pass
+"
+mutate pickup-blink-ignored-by-layer           scripts/presentation/effects_layer.gd "	if pickup.blink_hidden():
+		return
+" ""
+mutate pickup-ring-not-drawn                   scripts/presentation/effects_layer.gd "	_rim(&\"pickup_ring\", Vector2.ZERO, 22.0, Color(tint, 0.5), 2.0, 24)
+" ""
+mutate pickup-beam-on-common                   scripts/presentation/effects_layer.gd "	if rarity > 0:
+		var height: float = 120.0" "	if true:
+		var height: float = 120.0"
+mutate pickup-beam-short                       scripts/presentation/effects_layer.gd "for strip: int in 6:" "for strip: int in 3:"
+mutate pickup-rarity-glow-not-drawn            scripts/presentation/effects_layer.gd "	_disc(&\"pickup_glow_rarity\", pickup.position, 34.0 + 8.0 * float(rarity), Color(tint, 0.2))
+" ""
+mutate pickup-element-glow-not-drawn           scripts/presentation/effects_layer.gd "	_disc(&\"pickup_glow_element\", pickup.position, 26.0, Color(element_color(pickup.spec.element), 0.3))
+" ""
+mutate drop-ring-lost                          scripts/presentation/effects_layer.gd "				_add_ring(cue.position, 10.0, 90.0, 0.5, drop_tint, 2.0)
+" ""
+mutate drop-name-lost                          scripts/presentation/effects_layer.gd "				_add_text(cue.position + Vector2(0.0, -30.0), cue.spec.display_name(), drop_tint, 1.3, 26, 40.0)
+" ""
+mutate swap-ring-lost                          scripts/presentation/effects_layer.gd "				_add_ring(cue.position, 8.0, 110.0, 0.45, swap_tint, 3.0)
+" ""
+mutate swap-sparks-lost                        scripts/presentation/effects_layer.gd "				for i: int in 24:
+					_add_spark(cue.position, SimMath.polar(-PI / 2.0 + _rng.randf_range(-PI, PI), _rng.randf_range(150.0, 500.0)), _rng.randf_range(0.2, 0.5), swap_tint)
+" ""
+mutate swap-name-lost                          scripts/presentation/effects_layer.gd "				_add_text(_run.position + Vector2(0.0, -50.0), cue.spec.display_name(), swap_tint, 1.2, 32, 50.0)
+" ""
+mutate swap-refusal-text-lost                  scripts/presentation/effects_layer.gd "			_add_text(cue.position + Vector2(0.0, -46.0), \"no sword within reach\", Color(0.62, 0.6, 0.78), 0.5, 22)" "			pass"
+mutate swap-sound-lost                         scripts/audio/sfx_bank.gd "		SimCue.Kind.SWORD_SWAPPED:
+			play(\"chime\")" "		SimCue.Kind.SWORD_SWAPPED:
+			play(\"hit\")"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

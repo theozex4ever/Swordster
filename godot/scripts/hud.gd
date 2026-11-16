@@ -6,7 +6,9 @@ extends CanvasLayer
 ## dev-encounter button, the crowd fixture's Shove button and the encounter
 ## legend, audio-unlock prompt, pause overlay and the touch joystick indicator. It
 ## reports button presses by signal and owns no gameplay state: everything it
-## shows is read from the run each tick.
+## shows is read from the run each tick. Each sword card also names its slot's swap key and the sword's rarity;
+## when a dropped sword lies within reach a card beside it describes it (`PickupCard`) and compares it with the three
+## equipped swords, and says which keys claim it.
 
 signal pause_pressed
 signal restart_pressed
@@ -55,11 +57,28 @@ var _ult_badges: Array[ColorRect] = []
 var _ult_elements: Array[Label] = []
 ## Each card's sword type line ("Fang", "Warden", "Pike", "Colossus"), under the recharge bar.
 var _ult_types: Array[Label] = []
+## Each card's rarity tag (blank for a Common sword, as in the prototype) and its swap-key line, and the colour of its border.
+var _ult_rarities: Array[Label] = []
+var _ult_slots: Array[Label] = []
+var _ult_borders: Array[Panel] = []
+var _ult_backs: Array[ColorRect] = []
+## The card of the dropped sword within reach (the one a swap key would claim): a panel, its lines, and the three comparisons.
+var _pickup_card: Panel
+var _pickup_lines: Array[Label] = []
+var _pickup_compare: Array[Label] = []
+var _pickup_style: StyleBoxFlat
 
 ## Where the Converge cooldown sits (right of the dash one) and how wide its bar is.
 const CONVERGE_LABEL_X: float = 150.0
 const CONVERGE_BAR_WIDTH: float = 150.0
-const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 78.0)
+const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 98.0)
+## Wide enough for the longest comparison line ("1  Common Venom Colossus   DMG -26   SPD +0.3/s   RNG +100" needs 430 px at the
+## card's 14 px font from the 12 px margin: `DropsSwapsChecks._check_card_text_bounds` measures all 36 swords, so a longer name fails it).
+const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)
+const PICKUP_CARD_MARGIN: float = 10.0
+## The clear space the card keeps around every other HUD element, and around the dropped sword it describes.
+const PICKUP_CARD_GAP: float = 6.0
+const PICKUP_DROP_HALO: float = 30.0
 const ULT_KEYS: Array[String] = ["Q", "E", "R"]
 
 
@@ -72,7 +91,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: ultimates at the cursor   Tab / G: ranges   P / Esc: pause\nR after death: restart   C: next dev encounter   Touch: drag on the left half to move, Dash button to evade")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: ultimates at the cursor   1 / 2 / 3: swap a drop\nTab / G: ranges   P / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag to move, Dash button")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -167,6 +186,7 @@ func _ready() -> void:
 
 	for slot: int in ULT_KEYS.size():
 		_make_ultimate_card(root, slot)
+	_make_pickup_card(root)
 
 	_stick = Control.new()
 	_stick.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -187,6 +207,17 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	parent.add_child(card)
 	var back: ColorRect = _make_rect(card, Color(0.07, 0.06, 0.1, 0.72))
 	back.size = ULT_CARD_SIZE
+	# The border takes its sword's rarity colour (a Common one is greyer): the slot's rarity at a glance.
+	var border: Panel = Panel.new()
+	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	border.size = ULT_CARD_SIZE
+	var border_style: StyleBoxFlat = StyleBoxFlat.new()
+	border_style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+	border_style.set_border_width_all(2)
+	border_style.set_corner_radius_all(6)
+	border_style.border_color = Color(0.3, 0.3, 0.36)
+	border.add_theme_stylebox_override("panel", border_style)
+	card.add_child(border)
 	var badge: ColorRect = _make_rect(card, Color(0.13, 0.12, 0.18))
 	badge.position = Vector2(8.0, 8.0)
 	badge.size = Vector2(34.0, 34.0)
@@ -214,6 +245,19 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	type_label.position = Vector2(8.0, 56.0)
 	type_label.size = Vector2(ULT_CARD_SIZE.x - 16.0, 20.0)
 	type_label.add_theme_font_size_override("font_size", 14)
+	var rarity_label: Label = _make_label(card, "")
+	rarity_label.position = Vector2(104.0, 56.0)
+	rarity_label.size = Vector2(ULT_CARD_SIZE.x - 112.0, 20.0)
+	rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	rarity_label.add_theme_font_size_override("font_size", 14)
+	var slot_label: Label = _make_label(card, "")
+	slot_label.position = Vector2(8.0, 76.0)
+	slot_label.size = Vector2(ULT_CARD_SIZE.x - 16.0, 18.0)
+	slot_label.add_theme_font_size_override("font_size", 13)
+	_ult_rarities.append(rarity_label)
+	_ult_slots.append(slot_label)
+	_ult_borders.append(border)
+	_ult_backs.append(back)
 	_ult_cards.append(card)
 	_ult_names.append(name_label)
 	_ult_status.append(status_label)
@@ -221,6 +265,198 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	_ult_badges.append(badge)
 	_ult_elements.append(element_label)
 	_ult_types.append(type_label)
+
+
+## The card of a dropped sword: its six prototype lines, then how it compares with each equipped sword. Placed beside
+## the sword each tick (`_show_pickup`), above the sword cards.
+func _make_pickup_card(parent: Control) -> void:
+	_pickup_card = Panel.new()
+	_pickup_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pickup_card.size = PICKUP_CARD_SIZE
+	_pickup_style = StyleBoxFlat.new()
+	_pickup_style.bg_color = Color(0.06, 0.055, 0.095, 0.92)
+	_pickup_style.set_border_width_all(2)
+	_pickup_style.set_corner_radius_all(8)
+	_pickup_card.add_theme_stylebox_override("panel", _pickup_style)
+	_pickup_card.visible = false
+	parent.add_child(_pickup_card)
+	var rows: Array[Vector2] = [Vector2(12.0, 8.0), Vector2(12.0, 34.0), Vector2(12.0, 54.0), Vector2(12.0, 76.0), Vector2(12.0, 96.0), Vector2(12.0, 184.0)]
+	var sizes: Array[int] = [22, 14, 16, 14, 15, 18]
+	for i: int in rows.size():
+		var line: Label = _make_label(_pickup_card, "")
+		line.position = rows[i]
+		line.add_theme_font_size_override("font_size", sizes[i])
+		_pickup_lines.append(line)
+	for slot: int in ULT_KEYS.size():
+		var compare: Label = _make_label(_pickup_card, "")
+		compare.position = Vector2(12.0, 122.0 + float(slot) * 20.0)
+		compare.add_theme_font_size_override("font_size", 14)
+		_pickup_compare.append(compare)
+
+
+## The lines the pickup card shows, top to bottom (empty while it is hidden). Checks read it.
+func pickup_card_lines() -> Array[String]:
+	var shown: Array[String] = []
+	if _pickup_card.visible:
+		for line: Label in _pickup_lines:
+			shown.append(line.text)
+	return shown
+
+
+func pickup_card_comparisons() -> Array[String]:
+	var shown: Array[String] = []
+	if _pickup_card.visible:
+		for compare: Label in _pickup_compare:
+			shown.append(compare.text)
+	return shown
+
+
+func pickup_card_visible() -> bool:
+	return _pickup_card.visible
+
+
+func pickup_card_rect() -> Rect2:
+	return _pickup_card.get_global_rect()
+
+
+## Shows the card of the dropped sword a swap key would claim, beside it, or hides it: nothing within reach, or the player
+## is dead. Where it goes is `_pickup_card_spot`.
+func _show_pickup(run: GameRun) -> void:
+	var near: PickupState = null if run.dead else run.nearest_pickup()
+	_pickup_card.visible = near != null
+	if near == null:
+		return
+	var spec: SwordSpec = near.spec
+	var tint: Color = SwordDefs.RARITY_COLORS[spec.rarity]
+	_pickup_style.border_color = tint
+	var view: Vector2 = get_viewport().get_visible_rect().size
+	_pickup_card.position = _pickup_card_spot(near.position - run.camera + view * 0.5, view)
+	var texts: Array[String] = PickupCard.lines(spec)
+	for i: int in texts.size():
+		_pickup_lines[i].text = texts[i]
+	_pickup_lines[0].modulate = tint
+	_pickup_lines[1].modulate = Color(0.63, 0.63, 0.71)
+	_pickup_lines[2].modulate = Color(0.86, 0.86, 0.92)
+	_pickup_lines[3].modulate = PlaceholderSwordVisual.ELEMENT_COLORS.get(spec.element, Color.WHITE)
+	_pickup_lines[4].modulate = Color(0.86, 0.84, 0.94)
+	_pickup_lines[5].modulate = Color.WHITE
+	for slot: int in _pickup_compare.size():
+		_pickup_compare[slot].visible = slot < run.swords.size()
+		if slot < run.swords.size():
+			var equipped: SwordSpec = run.swords[slot].spec
+			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
+			_pickup_compare[slot].modulate = SwordDefs.RARITY_COLORS[equipped.rarity].lerp(Color.WHITE, 0.35)
+
+
+## The screen rectangle a HUD control really draws on: a label only where its text is (a full-screen label with a centred
+## line occupies that line, not the screen), anything else its own rectangle at least as large as its minimum size (a button
+## or label grows to it a frame after its text changes). Empty for a label with no text.
+static func occupied_rect(control: Control) -> Rect2:
+	var box: Rect2 = control.get_global_rect()
+	if control is Label:
+		var label: Label = control
+		if label.text.is_empty():
+			return Rect2()
+		var need: Vector2 = label.get_minimum_size()
+		var spare: Vector2 = (box.size - need).max(Vector2.ZERO)
+		var shift: Vector2 = Vector2(
+			0.0 if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT else (0.5 if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER else 1.0),
+			0.0 if label.vertical_alignment == VERTICAL_ALIGNMENT_TOP else (0.5 if label.vertical_alignment == VERTICAL_ALIGNMENT_CENTER else 1.0))
+		return Rect2(box.position + spare * shift, need)
+	return Rect2(box.position, box.size.max(control.get_combined_minimum_size()))
+
+
+## Every live HUD element the pickup card must stay clear of, each as the rectangle it draws on, widened by
+## `PICKUP_CARD_GAP`: the build and hint lines, the health bar and its value, the dash and Converge readouts (text and bar), the
+## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the sword cards.
+## What is not here has no fixed place or lasts a moment: the wave banner, the outcome and pause overlays (full-screen text
+## shown over everything by design), the touch joystick indicator, and the world-space effects (range rings, floating texts).
+## Controls that are hidden at the moment (the legend outside an encounter, the Shove button, a missing slot) reserve nothing.
+func pickup_card_avoid() -> Array[Rect2]:
+	var controls: Array[Control] = []
+	controls.append_array([_build_label, _hint_label])
+	controls.append_array([_hp_back, _hp_label])
+	controls.append_array([_dash_label, _converge_label, _converge_track])
+	controls.append(_wave_label)
+	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])
+	controls.append(_encounter_label)
+	controls.append(_audio_prompt)
+	controls.append_array(_ult_cards)
+	var rects: Array[Rect2] = []
+	for control: Control in controls:
+		var rect: Rect2 = occupied_rect(control)
+		if control.visible and rect.has_area():
+			rects.append(rect.grow(PICKUP_CARD_GAP))
+	return rects
+
+
+## Where the pickup card's top left goes for a drop at `drop` on a view of `view`: the free spot nearest the one beside the
+## drop (right of it, above it), a spot being free when the card there lies inside the view and covers no HUD element
+## (`pickup_card_avoid`) and, if one exists, not the drop itself. Candidates are that ideal spot and, in each axis, the
+## places that touch an obstacle or the view's edge. If no spot clears the HUD (a view too small for the card and the HUD
+## together; the 1280 x 720 minimum never is) the card goes where it covers the least HUD area.
+func _pickup_card_spot(drop: Vector2, view: Vector2) -> Vector2:
+	var card: Vector2 = PICKUP_CARD_SIZE
+	var low: Vector2 = Vector2(PICKUP_CARD_MARGIN, PICKUP_CARD_MARGIN)
+	var high: Vector2 = (view - card - low).max(low)
+	var ideal: Vector2 = Vector2(drop.x + 40.0, drop.y - card.y - 40.0).clamp(low, high)
+	var avoid: Array[Rect2] = pickup_card_avoid()
+	var drop_halo: Rect2 = Rect2(drop - Vector2(PICKUP_DROP_HALO, PICKUP_DROP_HALO), Vector2(PICKUP_DROP_HALO, PICKUP_DROP_HALO) * 2.0)
+	var with_halo: Array[Rect2] = avoid.duplicate()
+	with_halo.append(drop_halo)
+	if _covers_nothing(ideal, with_halo):
+		return ideal
+	var xs: Array[float] = [low.x, high.x, ideal.x]
+	var ys: Array[float] = [low.y, high.y, ideal.y]
+	for rect: Rect2 in with_halo:
+		xs.append_array([rect.end.x, rect.position.x - card.x, rect.position.x, rect.end.x - card.x])
+		ys.append_array([rect.end.y, rect.position.y - card.y, rect.position.y, rect.end.y - card.y])
+	var spots: Array[Vector2] = []
+	var seen_x: Dictionary[float, bool] = {}
+	for x: float in xs:
+		var at_x: float = clampf(x, low.x, high.x)
+		if seen_x.has(at_x):
+			continue
+		seen_x[at_x] = true
+		var seen_y: Dictionary[float, bool] = {}
+		for y: float in ys:
+			var at_y: float = clampf(y, low.y, high.y)
+			if not seen_y.has(at_y):
+				seen_y[at_y] = true
+				spots.append(Vector2(at_x, at_y))
+	# the nearest spot that clears the HUD and the drop, else the nearest that clears the HUD
+	for obstacles: Array[Rect2] in [with_halo, avoid]:
+		var best: Vector2 = ideal
+		var best_distance: float = INF
+		for spot: Vector2 in spots:
+			var distance: float = spot.distance_squared_to(ideal)
+			if distance < best_distance and _covers_nothing(spot, obstacles):
+				best = spot
+				best_distance = distance
+		if best_distance < INF:
+			return best
+	# no free spot: the one that hides the least HUD (the nearest to the ideal among equals)
+	var least: Vector2 = ideal
+	var least_area: float = INF
+	var least_distance: float = INF
+	for spot: Vector2 in spots:
+		var area: float = 0.0
+		for rect: Rect2 in avoid:
+			area += Rect2(spot, card).intersection(rect).get_area()
+		var distance: float = spot.distance_squared_to(ideal)
+		if area < least_area - 0.01 or (absf(area - least_area) <= 0.01 and distance < least_distance):
+			least = spot
+			least_area = area
+			least_distance = distance
+	return least
+
+
+func _covers_nothing(spot: Vector2, obstacles: Array[Rect2]) -> bool:
+	var card: Rect2 = Rect2(spot, PICKUP_CARD_SIZE)
+	for rect: Rect2 in obstacles:
+		if card.intersects(rect):
+			return false
+	return true
 
 
 ## Converge's shared cooldown (prototype `draw_hud`): the label dims and counts the seconds down, and the
@@ -280,6 +516,14 @@ func _show_ultimates(run: GameRun) -> void:
 		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
 		_ult_bars[slot].color = tint
 		_ult_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 if active else sword.ultimate_charge())
+		var rarity_tint: Color = SwordDefs.RARITY_COLORS[sword.spec.rarity]
+		_ult_rarities[slot].text = SwordDefs.RARITY_NAMES[sword.spec.rarity].to_upper() if sword.spec.rarity > 0 else ""
+		_ult_rarities[slot].modulate = rarity_tint
+		_ult_slots[slot].text = "key %d swaps this sword" % (slot + 1)
+		_ult_slots[slot].modulate = Color(0.55, 0.53, 0.64)
+		(_ult_borders[slot].get_theme_stylebox("panel") as StyleBoxFlat).border_color = rarity_tint.darkened(0.3) if sword.spec.rarity == 0 else rarity_tint
+		# A freshly swapped-in sword's card flashes in its element's colour, easing out as the sword's own flash does.
+		_ult_backs[slot].color = Color(0.07, 0.06, 0.1, 0.72).lerp(Color(tint, 0.72), 0.12 + 0.35 * sword.flash)
 
 
 func bind_joystick(joystick: TouchJoystick) -> void:
@@ -315,7 +559,9 @@ func show_run(run: GameRun) -> void:
 		_dash_label.text = "dash ready"
 	_show_converge(run)
 	_show_ultimates(run)
+	# the encounter's legend and buttons first: the pickup card is placed clear of them as they now are
 	_show_encounter(run)
+	_show_pickup(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
 
@@ -370,6 +616,16 @@ func _show_encounter(run: GameRun) -> void:
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_PIKE:
 		_encounter_label.text = "PIKE ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d brute   skewers launched %d, wall slams %d\nPikes thrust through whole lines. Q / E / R: Skewer fires toward the cursor, carries what it spears and slams it into a wall (aim north).   %s" % [
 			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), run.cue_count(SimCue.Kind.WALL_SLAM), switch_hint]
+	elif run.scenario.encounter == RunScenario.ENCOUNTER_DROPS:
+		var armed_left: int = 0
+		for enemy: EnemyState in run.enemies:
+			armed_left += 1 if enemy.armed != null else 0
+		for carried: SwordSpec in run.director.queue_armed:
+			armed_left += 1 if carried != null else 0
+		for marker: SpawnMarker in run.director.markers:
+			armed_left += 1 if marker.armed != null else 0
+		_encounter_label.text = "DROPS ENCOUNTER (dev fixture)   armed foes left: %d   swords lying: %d   dropped %d, swapped %d\nKill an armed foe, stand within %d px of its sword and press 1 / 2 / 3 to swap it into that slot.\nThe old sword drops and the slot keeps its ultimate recharge.   %s" % [
+			armed_left, run.pickups.size(), run.cue_count(SimCue.Kind.SWORD_DROPPED), run.cue_count(SimCue.Kind.SWORD_SWAPPED), int(LootDefs.PICKUP_REACH), switch_hint]
 	elif run.scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS:
 		_encounter_label.text = "COLOSSUS ENCOUNTER (dev fixture)   foes left: %d husk, %d runner, %d spitter, %d brute\nslams %d, Cataclysm fields %d (live %d)   Q / E / R: Cataclysm at the cursor, up to 480 px\nColossi crush the biggest cluster and clear orbs.   %s" % [
 			left[EnemyDefs.HUSK], left[EnemyDefs.RUNNER], left[EnemyDefs.SPITTER], left[EnemyDefs.BRUTE], run.cue_count(SimCue.Kind.COLOSSUS_SLAM), run.cue_count(SimCue.Kind.FIELD_CREATED), run.fields.size(), switch_hint]

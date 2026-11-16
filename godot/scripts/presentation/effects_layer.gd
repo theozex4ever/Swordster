@@ -19,7 +19,10 @@ extends Node2D
 ## crush while it winds up and falls, a slam and a Cataclysm end in rings, sparks and smoke, and the
 ## elemental ground Cataclysm leaves is drawn as a pulsing ellipse of its element until it fades, shedding
 ## the element's particles. Tab or G rings the player with each sword's attack range (`range_ring`), and a Converge
-## shows a ring closing on the point it was aimed at. Purely visual: it reads the
+## shows a ring closing on the point it was aimed at. A sword lying in the arena stands in a ring of its rarity's colour, glows in the rarity's and the
+## element's, and a Rare or Mythic one throws a pillar of light (taller for a Mythic); an armed enemy's death rings and names
+## the drop in its rarity's colour, a swap rings, sparks and names the sword now equipped, and a swap with nothing in reach
+## says so. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
@@ -262,6 +265,20 @@ func apply_cue(cue: SimCue) -> void:
 				_add_ring(cue.position, cue.radius * 0.9, cue.radius, 0.25, Color(element_color(cue.element), 0.45), 2.0)
 		SimCue.Kind.CONVERGE:
 			_add_ring(cue.position, 60.0, 8.0, 0.35, Color(0.71, 0.86, 1.0, 0.9), 2.0)
+		SimCue.Kind.SWORD_DROPPED:
+			if cue.spec != null:
+				var drop_tint: Color = SwordDefs.RARITY_COLORS[cue.spec.rarity]
+				_add_ring(cue.position, 10.0, 90.0, 0.5, drop_tint, 2.0)
+				_add_text(cue.position + Vector2(0.0, -30.0), cue.spec.display_name(), drop_tint, 1.3, 26, 40.0)
+		SimCue.Kind.SWORD_SWAPPED:
+			if cue.spec != null and _run != null:
+				var swap_tint: Color = SwordDefs.RARITY_COLORS[cue.spec.rarity]
+				_add_ring(cue.position, 8.0, 110.0, 0.45, swap_tint, 3.0)
+				for i: int in 24:
+					_add_spark(cue.position, SimMath.polar(-PI / 2.0 + _rng.randf_range(-PI, PI), _rng.randf_range(150.0, 500.0)), _rng.randf_range(0.2, 0.5), swap_tint)
+				_add_text(_run.position + Vector2(0.0, -50.0), cue.spec.display_name(), swap_tint, 1.2, 32, 50.0)
+		SimCue.Kind.SWAP_REFUSED:
+			_add_text(cue.position + Vector2(0.0, -46.0), "no sword within reach", Color(0.62, 0.6, 0.78), 0.5, 22)
 		SimCue.Kind.ULTIMATE_REFUSED:
 			if _run != null:
 				_add_text(cue.position + Vector2(0.0, -46.0), "recharging %ds" % cue.amount, Color(0.62, 0.6, 0.78), 0.5, 22)
@@ -292,9 +309,9 @@ func _add_spark(at: Vector2, velocity: Vector2, life: float, color: Color = Colo
 		_sparks.append({"pos": at, "vel": velocity, "life": life, "max": life, "color": color})
 
 
-func _add_text(at: Vector2, text: String, color: Color, life: float, size: int) -> void:
+func _add_text(at: Vector2, text: String, color: Color, life: float, size: int, rise: float = 80.0) -> void:
 	if _texts.size() < MAX_EFFECTS:
-		_texts.append({"pos": at, "vel": Vector2(0.0, -80.0), "life": life, "max": life, "text": text, "color": color, "size": size})
+		_texts.append({"pos": at, "vel": Vector2(0.0, -rise), "life": life, "max": life, "text": text, "color": color, "size": size})
 
 
 func _draw() -> void:
@@ -323,6 +340,8 @@ func _draw() -> void:
 	if _run.show_ranges and not _run.dead:
 		for sword: SwordState in _run.swords:
 			_rim(&"range_ring", _run.position, sword.attack_range, Color(_sword_color(sword.spec), 0.6), 1.0, 96)
+	for pickup: PickupState in _run.pickups:
+		_draw_pickup_ground(pickup)
 	for sword: SwordState in _run.swords:
 		if sword.spec.type_id == SwordDefs.COLOSSUS and (sword.phase == SwordState.Phase.WINDUP or sword.phase == SwordState.Phase.STRIKE):
 			_draw_slam_telegraph(sword)
@@ -398,6 +417,28 @@ func _draw_impact_ring(kind: StringName, at: Vector2, radius: float, progress: f
 
 ## A Cataclysm's elemental ground: a flattened ellipse (the arena is seen from an angle) of the field's
 ## element, faint fill and a pulsing rim, fading out over its last third of life (prototype `draw`).
+## What lies under a dropped sword (the sword itself is a `SwordVisual`): a flat ring of its rarity's colour on the ground, a
+## pillar of light for a Rare (120 + 60 px) or Mythic one, and a glow in the rarity's and one in the element's colour.
+## Hidden on the off beats of the blink a drop shows in its last six seconds. Counted under `pickup_ring`, `pickup_beam`,
+## `pickup_glow_rarity` and `pickup_glow_element`.
+func _draw_pickup_ground(pickup: PickupState) -> void:
+	if pickup.blink_hidden():
+		return
+	var rarity: int = pickup.spec.rarity
+	var tint: Color = SwordDefs.RARITY_COLORS[rarity]
+	draw_set_transform(pickup.position, 0.0, Vector2(1.0, 0.41))
+	_rim(&"pickup_ring", Vector2.ZERO, 22.0, Color(tint, 0.5), 2.0, 24)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if rarity > 0:
+		var height: float = 120.0 + 60.0 * float(rarity)
+		for strip: int in 6:
+			var width: float = 22.0 - float(strip) * 3.0
+			draw_counts[&"pickup_beam"] = draw_counts.get(&"pickup_beam", 0) + 1
+			draw_rect(Rect2(pickup.position.x - width * 0.5, pickup.position.y - height, width, height), Color(tint, 0.03 + 0.02 * float(strip)))
+	_disc(&"pickup_glow_rarity", pickup.position, 34.0 + 8.0 * float(rarity), Color(tint, 0.2))
+	_disc(&"pickup_glow_element", pickup.position, 26.0, Color(element_color(pickup.spec.element), 0.3))
+
+
 func _draw_field(field: FieldState) -> void:
 	var fade: float = field.fade()
 	var tint: Color = element_color(field.element)

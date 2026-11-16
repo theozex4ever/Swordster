@@ -8,7 +8,8 @@ extends RefCounted
 ## `conditions` (husks, runners and two brutes, for fire, poison and ice), `warden`
 ## (a mixed crowd against Fang / Warden / Warden: sweeping arcs and Maelstrom) or `pike`
 ## (a column of foes against three Pikes near the north wall: thrusts and Skewer) or `colossus`
-## (a cluster and a wave against three Colossus swords: slams, Cataclysm and its three elemental fields).
+## (a cluster and a wave against three Colossus swords: slams, Cataclysm and its three elemental fields) or `drops`
+## (armed foes carrying swords of every type, rarity and element: kill one, stand on its drop, press 1 / 2 / 3).
 ## Anything else, or nothing, starts the normal run. The C key and the dev
 ## encounter button cycle the encounters at any time, so launch options are a
 ## convenience, not the only way in.
@@ -38,6 +39,8 @@ static func scenario_for(encounter: String) -> RunScenario:
 			return RunScenario.pike_encounter()
 		"colossus":
 			return RunScenario.colossus_encounter()
+		"drops":
+			return RunScenario.drops_encounter()
 		_:
 			return null
 

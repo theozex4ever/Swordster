@@ -45,6 +45,9 @@ func run_all() -> void:
 	_ref = JSON.parse_string(file.get_as_text())
 	_ok("converge reference file parses", not _ref.is_empty())
 	_check_reference_scope()
+	if not _check_identity():
+		print("converge: a sword type's identity is wrong; the remaining checks build fixtures from the prototype's keys and are skipped")
+		return
 	_check_definitions()
 	_check_default_start()
 	_check_default_wave()
@@ -176,6 +179,22 @@ func _check_reference_scope() -> void:
 	_ok("all four sword types and the keys Q, E and R are used", (scope["swords_used"] as Array).size() == 4 and (scope["keys_used"] as Array).size() == 3)
 
 
+## Returns false when a sword type's internal key is not the prototype's (or the type is not equippable); every later check
+## builds its fixtures from the prototype's keys, so they must not run (a renamed key would only crash them).
+func _check_identity() -> bool:
+	print("converge: the sword types' identity")
+	var types: Dictionary = (_ref["table"] as Dictionary)["types"]
+	var wrong: Array[String] = []
+	for type_id: StringName in [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS]:
+		if not (types.has(String(type_id)) and SwordDefs.is_supported(type_id)):
+			wrong.append(String(type_id))
+	for key: String in ["fang", "blade", "lance", "colossus"]:
+		if not types.has(key) or not SwordDefs.is_supported(StringName(key)):
+			wrong.append(key)
+	_ok("the four sword types keep the prototype's internal keys (fang, blade, lance, colossus) and are all equippable", wrong.is_empty(), str(wrong))
+	return wrong.is_empty()
+
+
 func _check_definitions() -> void:
 	print("converge: constants")
 	var table: Dictionary = _ref["table"]
@@ -239,17 +258,24 @@ func _check_default_start() -> void:
 		encounters.append(cycle.scenario.encounter)
 		cycle.apply(GameCommand.toggle_encounter())
 	var loadouts: Array[String] = []
+	var unreachable: Array[String] = []
 	for encounter: StringName in RunScenario.ENCOUNTER_CYCLE:
 		var probe: GameRun = GameRun.new()
-		while probe.scenario.encounter != encounter:
+		# At most one lap of the cycle: a broken cycle must fail the check, never hang it.
+		var presses: int = 0
+		while probe.scenario.encounter != encounter and presses < RunScenario.ENCOUNTER_CYCLE.size():
 			probe.apply(GameCommand.toggle_encounter())
+			presses += 1
+		if probe.scenario.encounter != encounter:
+			unreachable.append(String(encounter))
 		var names: Array[String] = []
 		for sword: SwordState in probe.swords:
 			names.append(String(sword.spec.type_id))
 		loadouts.append("%s: %s" % [encounter, ",".join(names)])
 	_ok("the dev encounter cycle still visits every encounter and returns to the normal start (%s)" % [encounters], encounters == RunScenario.ENCOUNTER_CYCLE and cycle.scenario.encounter == RunScenario.ENCOUNTER_NORMAL)
-	_ok("each dev fixture keeps its own loadout (crowd, spitters and conditions the Fang fixture; warden, pike and colossus theirs); only the normal start equips the default (%s)" % [loadouts],
-		loadouts == [": fang,blade,colossus", "crowd: fang,fang,fang", "spitters: fang,fang,fang", "conditions: fang,fang,fang", "warden: fang,blade,blade", "pike: lance,lance,lance", "colossus: colossus,colossus,colossus"])
+	_ok("every encounter in the cycle is reached within one lap of the dev button (%s not)" % [unreachable], unreachable.is_empty())
+	_ok("each dev fixture keeps its own loadout (crowd, spitters and conditions the Fang fixture; warden, pike, colossus and drops theirs); only the normal start equips the default (the drops fixture happens to equal it) (%s)" % [loadouts],
+		loadouts == [": fang,blade,colossus", "crowd: fang,fang,fang", "spitters: fang,fang,fang", "conditions: fang,fang,fang", "warden: fang,blade,blade", "pike: lance,lance,lance", "colossus: colossus,colossus,colossus", "drops: fang,blade,colossus"])
 	_ok("the wall encounter, a variant of the crowd, also keeps the Fang fixture", RunScenario.wall_encounter().loadout[1].type_id == SwordDefs.FANG)
 
 
@@ -998,6 +1024,9 @@ func _check_hud_and_effects() -> void:
 	_ok("a dead player's rings are not drawn", main.run.dead and main.run.show_ranges and effects.draw_counts.get(&"range_ring", 0) == before_dead)
 	var hint: String = main._hud._hint_label.text
 	_ok("the controls hint names the click and Tab / G and fits the view (%s)" % [main._hud._hint_label.get_global_rect()], hint.contains("Click: Converge") and hint.contains("Tab / G") and main.get_viewport().get_visible_rect().grow(0.5).encloses(main._hud._hint_label.get_global_rect()))
+	var hint_text: Rect2 = Rect2(main._hud._hint_label.get_global_rect().position, main._hud._hint_label.get_minimum_size())
+	var buttons: Array[Control] = [main._hud._pause_button, main._hud._restart_button, main._hud._encounter_button]
+	_ok("the hint's text (%s) leaves the pause, restart and dev-encounter buttons alone (%s)" % [hint_text, buttons.map(func(button: Control) -> Rect2: return button.get_global_rect())], buttons.all(func(button: Control) -> bool: return not hint_text.intersects(button.get_global_rect())) and hint.contains("swap a drop") and hint.contains("P / Esc: pause"))
 	main.queue_free()
 	await _tree.process_frame
 	var window: Window = Window.new()

@@ -12,7 +12,8 @@ extends EnemyVisual
 ## Conditions (read from a `ConditionView`): poison greens the body more with each
 ## stack, burning pulses the rim orange inside a warm glow, a chilled enemy's rim turns
 ## icy blue, a frozen one goes pale inside a hexagonal ice shell; small pips above the
-## health bar count fire (one), poison stacks and ice stacks.
+## health bar count fire (one), poison stacks and ice stacks. An armed enemy carries its sword beside it, bobbing,
+## in the sword's element colour and size, with a glow in the sword's rarity colour (a miniature of the drop it will leave).
 
 const HUSK_COLOR: Color = Color(0.84, 0.28, 0.34)
 const RUNNER_COLOR: Color = Color(1.0, 0.55, 0.27)
@@ -36,6 +37,10 @@ var _hp_fraction: float = 1.0
 var _stunned: bool = false
 var _telegraph: float = 0.0
 var _conditions: ConditionView = ConditionView.new()
+## The sword this enemy carries (null when unarmed): drawn beside it. Cosmetic: the drop is the simulation's.
+var _armed: SwordSpec = null
+## How many times the carried sword has been drawn (checks read it to prove an armed enemy really shows its sword).
+var carried_draws: int = 0
 ## Cosmetic clock for spinning parts; advances once per fixed tick.
 var _clock: float = 0.0
 
@@ -77,6 +82,11 @@ func _on_conditions(view: ConditionView) -> void:
 	queue_redraw()
 
 
+func _on_armed(spec: SwordSpec) -> void:
+	_armed = spec
+	queue_redraw()
+
+
 func _on_pose(facing: Vector2, flash: float, squash: float, hp_fraction: float, stunned: bool, telegraph: float) -> void:
 	_telegraph = telegraph
 	_facing = facing
@@ -108,6 +118,8 @@ func _draw() -> void:
 			draw_circle(Vector2.ZERO, radius, rim)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_draw_eyes(radius)
+	if _armed != null:
+		_draw_carried_sword(radius)
 	if _kind == EnemyDefs.SPITTER and _telegraph > 0.0:
 		_draw_spit_telegraph(radius)
 	if _conditions.frozen:
@@ -212,6 +224,33 @@ func _draw_spit_telegraph(radius: float) -> void:
 			draw_line(_facing * at, _facing * minf(at + dash, radius * 1.9 + reach), Color(SPIT_GLOW.r, SPIT_GLOW.g, SPIT_GLOW.b, 0.2 + 0.5 * _telegraph), 2.0)
 		on = not on
 		at += dash
+
+
+## The sword an armed enemy carries (prototype: the sword drawn at 0.6 of its size beside the body, bobbing, in its element's
+## colour inside a glow in its rarity's colour), so the choice a kill offers can be read before it is made.
+func _draw_carried_sword(radius: float) -> void:
+	carried_draws += 1
+	var side: Vector2 = Vector2(-_facing.y, _facing.x)
+	var at: Vector2 = side * (radius + 12.0) - Vector2(0.0, 10.0 + sin(_clock * 3.0) * 3.0)
+	var rarity: int = _armed.rarity
+	var tint: Color = PlaceholderSwordVisual.ELEMENT_COLORS.get(_armed.element, Color.WHITE)
+	draw_circle(at, 22.0 + 6.0 * float(rarity), Color(SwordDefs.RARITY_COLORS[rarity], 0.3))
+	var scale: float = 0.6 * SwordDefs.RARITY_SIZE[rarity]
+	var length: float = SwordDefs.base_length(_armed.type_id) * scale
+	var width: float = (14.0 if _armed.type_id == SwordDefs.COLOSSUS else 9.0 if _armed.type_id == SwordDefs.WARDEN else 6.0) * scale
+	var heading: Vector2 = SimMath.polar(atan2(_facing.y, _facing.x) - 0.6)
+	var across: Vector2 = Vector2(-heading.y, heading.x)
+	var base: Vector2 = at - heading * length * 0.35
+	var blade: PackedVector2Array = PackedVector2Array([
+		base + across * width * 0.5,
+		base + heading * length * 0.8 + across * width * 0.5,
+		base + heading * length,
+		base + heading * length * 0.8 - across * width * 0.5,
+		base - across * width * 0.5,
+	])
+	draw_colored_polygon(blade, tint.lerp(Color.WHITE, 0.55))
+	draw_line(base + across * width * 1.4, base - across * width * 1.4, tint, 2.0)
+	draw_line(base, base - heading * length * 0.25, tint.darkened(0.55), 2.0)
 
 
 func _draw_eyes(radius: float) -> void:

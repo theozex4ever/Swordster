@@ -12,9 +12,10 @@ extends RefCounted
 ## (damage over time, expiry), contacts, removal of
 ## the dead, projectiles, motes, counters and the wave director. Elemental fields (issue #15) tick right
 ## after the conditions (the prototype's `update_fields` follows `update_conditions`) and call the same `afflict`;
-## a Colossus slam is `slam`. See docs/reference/fang-survival-loop.md,
+## a Colossus slam is `slam`. An armed enemy's death leaves its sword lying as a `PickupState` (issue #17); the pickups
+## age after the motes, and `try_swap` (keys 1 / 2 / 3) claims the nearest one within reach. See docs/reference/fang-survival-loop.md,
 ## docs/reference/runners-brutes-crowd.md, docs/reference/spitters-projectiles-parries.md,
-## docs/reference/viper-flurry.md and docs/reference/elemental-conditions.md
+## docs/reference/viper-flurry.md, docs/reference/elemental-conditions.md and docs/reference/drops-swaps.md
 ## for the captured reference values and tolerances. Crowd and wall rules (separation, bowling, wall slams) are
 ## explicit circle geometry on the enemies' own positions and velocities, never
 ## rigid bodies. Enemy projectiles are run-owned `ProjectileState`s moved by
@@ -105,6 +106,17 @@ enum ConvergeResult {
 	COOLING_DOWN,
 }
 
+## What became of a swap command (`try_swap`).
+enum SwapResult {
+	SWAPPED,
+	## Paused or dead: nothing may be swapped.
+	UNAVAILABLE,
+	## No pickup is within reach (also produces a visible refusal cue).
+	NO_PICKUP,
+	## The slot holds no sword.
+	NO_SWORD,
+}
+
 ## What became of an ultimate command (`try_ultimate`).
 enum UltimateResult {
 	STARTED,
@@ -168,6 +180,9 @@ var projectiles: Array[ProjectileState] = []
 var motes: Array[Mote] = []
 ## The elemental ground Cataclysm leaves (run-owned: cleared on restart, frozen by pause and hitstop).
 var fields: Array[FieldState] = []
+## The spirit swords lying in the arena (run-owned: dropped by armed enemies, or put back by a swap; cleared on restart,
+## frozen by pause and hitstop, slowed by slow motion like everything on gameplay time).
+var pickups: Array[PickupState] = []
 var director: WaveDirector
 
 # --- counters
@@ -189,8 +204,10 @@ var _cues: Array[SimCue] = []
 ## drained them. Lets checks count events (kills, slams, bowls) exactly.
 var _cue_counts: Dictionary[int, int] = {}
 var _next_serial: int = 0
+## Pickups number themselves apart from enemies, so a drop never shifts the serial an enemy spawns with.
+var _next_pickup_serial: int = 0
 ## The scenarios `TOGGLE_ENCOUNTER` cycles through, in `RunScenario.ENCOUNTER_CYCLE`
-## order (normal, crowd, spitters, conditions, warden, pike, colossus): the one the run was made with keeps its own
+## order (normal, crowd, spitters, conditions, warden, pike, colossus, drops): the one the run was made with keeps its own
 ## slot (a custom scenario is the "normal" slot, the wall encounter the crowd's).
 var _encounter_scenarios: Array[RunScenario] = []
 
@@ -205,6 +222,7 @@ func _init(scenario_value: RunScenario = null) -> void:
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_WARDEN else RunScenario.warden_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_PIKE else RunScenario.pike_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_COLOSSUS else RunScenario.colossus_encounter(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_DROPS else RunScenario.drops_encounter(),
 	]
 	if scenario.seed < 0:
 		rng.randomize()
@@ -235,6 +253,8 @@ func apply(command: GameCommand) -> void:
 			if dead and death_time > RESTART_DELAY:
 				restarts += 1
 				_reset_state()
+		GameCommand.Kind.SWAP:
+			try_swap(command.slot)
 		GameCommand.Kind.DEV_SHOVE:
 			_dev_shove()
 		GameCommand.Kind.CONVERGE:
@@ -283,6 +303,47 @@ func try_ultimate(slot: int, point: Vector2) -> UltimateResult:
 	cue.origin = origin
 	add_cue(cue)
 	return UltimateResult.STARTED
+
+
+## Swaps the nearest pickup within LootDefs.PICKUP_REACH of the player (strictly closer; the first in the arena's
+## order wins a tie) into sword slot `slot` (prototype `Game.swap`). The slot gets a new sword of exactly the pickup's type,
+## element and rarity, which starts where the pickup lay and keeps the slot's ultimate recharge by FRACTION (see
+## `SwordState.swapped_in`); the pickup is gone and the sword it replaces comes back as a pickup just below it, a
+## uniform draw up to RETURN_SPREAD to either side. Refused while paused or dead and when the slot holds no
+## sword; refused with a visible cue when no pickup is within reach. A refusal changes nothing.
+func try_swap(slot: int) -> SwapResult:
+	if paused or dead:
+		return SwapResult.UNAVAILABLE
+	var claimed: PickupState = nearest_pickup()
+	if claimed == null:
+		add_cue(SimCue.make(SimCue.Kind.SWAP_REFUSED, position))
+		return SwapResult.NO_PICKUP
+	if slot < 0 or slot >= swords.size():
+		return SwapResult.NO_SWORD
+	var replaced: SwordState = swords[slot]
+	swords[slot] = SwordState.swapped_in(claimed.spec, claimed.position, replaced)
+	pickups.erase(claimed)
+	var returned_at: Vector2 = claimed.position + Vector2(rng.randf_range(-LootDefs.RETURN_SPREAD, LootDefs.RETURN_SPREAD), LootDefs.RETURN_DROP)
+	pickups.append(PickupState.make(replaced.spec, returned_at, _next_pickup_serial))
+	_next_pickup_serial += 1
+	var cue: SimCue = SimCue.make(SimCue.Kind.SWORD_SWAPPED, claimed.position, Vector2.ZERO, slot)
+	cue.spec = claimed.spec
+	cue.origin = returned_at
+	add_cue(cue)
+	return SwapResult.SWAPPED
+
+
+## The pickup the swap key would claim: the nearest one strictly within reach of the player (the first in the arena's
+## order among equals), or null. The HUD uses it to show the card of what is up for grabs.
+func nearest_pickup() -> PickupState:
+	var nearest: PickupState = null
+	var nearest_distance: float = INF
+	for pickup: PickupState in pickups:
+		var distance: float = (pickup.position - position).length()
+		if distance < LootDefs.PICKUP_REACH and distance < nearest_distance:
+			nearest = pickup
+			nearest_distance = distance
+	return nearest
 
 
 ## Converge (prototype `Game.converge`): every equipped sword is commanded to strike `point`. Refused
@@ -386,6 +447,7 @@ func step() -> void:
 	enemies = alive
 	_update_projectiles(dt)
 	_update_motes(dt)
+	_update_pickups(dt)
 
 	combo_left -= dt
 	if combo_left <= 0.0:
@@ -582,6 +644,18 @@ func _update_motes(dt: float) -> void:
 	motes = remaining
 
 
+## Every pickup ages and counts down its life; the expired are removed (prototype update: `t += dt`, `life -= dt`, then
+## only `life > 0` stays), on gameplay time, so hitstop and pause freeze them and slow motion slows them.
+func _update_pickups(dt: float) -> void:
+	var lying: Array[PickupState] = []
+	for pickup: PickupState in pickups:
+		pickup.age += dt
+		pickup.life -= dt
+		if pickup.life > 0.0:
+			lying.append(pickup)
+	pickups = lying
+
+
 ## Pairwise enemy push-apart (heavier = r*r moves less) with the prototype's
 ## "bowling" transfer from launched enemies.
 func _separate() -> void:
@@ -714,6 +788,13 @@ func kill(enemy: EnemyState, direction: Vector2) -> void:
 		_spread_fire(enemy)
 	if enemy.conditions.is_frozen():
 		add_cue(SimCue.make(SimCue.Kind.ENEMY_SHATTERED, enemy.position))
+	if enemy.armed != null:
+		# The sword it carried lies where it fell. `kill` runs once per enemy, so it drops exactly once.
+		pickups.append(PickupState.make(enemy.armed, enemy.position, _next_pickup_serial))
+		_next_pickup_serial += 1
+		var drop: SimCue = SimCue.make(SimCue.Kind.SWORD_DROPPED, enemy.position)
+		drop.spec = enemy.armed
+		add_cue(drop)
 
 
 ## A burning enemy's death ignites the living enemies beside it (prototype `kill`). It
@@ -855,6 +936,7 @@ func snapshot() -> Dictionary:
 		"enemy_hp": enemy_hp,
 		"projectile_positions": projectile_positions,
 		"mote_count": motes.size(),
+		"pickup_count": pickups.size(),
 		"field_count": fields.size(),
 		"field_lives": fields.map(func(field: FieldState) -> float: return field.life),
 		"sword_positions": sword_positions,
@@ -898,6 +980,8 @@ func _reset_state() -> void:
 	_cues = []
 	_cue_counts = {}
 	_next_serial = 0
+	_next_pickup_serial = 0
+	pickups = []
 	swords = []
 	for i: int in scenario.loadout.size():
 		var start_cd: float = scenario.sword_start_cooldowns[i] if i < scenario.sword_start_cooldowns.size() else rng.randf_range(0.2, 0.6)
@@ -910,7 +994,7 @@ func _reset_state() -> void:
 		var cooldown: float = placement.shoot_cooldown
 		if cooldown < 0.0 and placement.kind == EnemyDefs.SPITTER:
 			cooldown = rng.randf_range(EnemyDefs.SPITTER_FIRST_COOLDOWN_MIN, EnemyDefs.SPITTER_FIRST_COOLDOWN_MAX)
-		var enemy: EnemyState = EnemyState.make(placement.kind, placement.position, placement.wave, placement.speed_scale * scenario.enemy_speed_scale, next_serial(), placement.phase, maxf(cooldown, 0.0))
+		var enemy: EnemyState = EnemyState.make(placement.kind, placement.position, placement.wave, placement.speed_scale * scenario.enemy_speed_scale, next_serial(), placement.phase, maxf(cooldown, 0.0), placement.armed)
 		enemy.charge = placement.charge
 		enemy.velocity = placement.velocity
 		enemy.stun = placement.stun

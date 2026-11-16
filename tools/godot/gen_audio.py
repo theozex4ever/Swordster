@@ -67,7 +67,8 @@ COMBAT = {
     # falling blip with a breath of noise) and "parry" (a bright, high ring).
     "sfx_shot": blend(tone([(500, 200, 0.14, 0.35)]), noise(0.12, 0.3, 0.2, 25, 7)),
     "sfx_parry": blend(tone([(3200, 2400, 0.16, 0.3)]), noise(0.03, 0.5, 0.9, 80, 8)),
-    # Converge (slice #16): a stand-in for the prototype's "chime" (a bright falling ring, 1320 -> 880 Hz).
+    # Converge (slice #16) and swapping a dropped sword (slice #17): a stand-in for the prototype's "chime" (a bright falling ring,
+    # 1320 -> 880 Hz), which the prototype plays for both.
     "sfx_chime": blend(tone([(1320, 880, 0.55, 0.4)]), noise(0.55, 0.2, 0.8, 40, 9)),
 }
 

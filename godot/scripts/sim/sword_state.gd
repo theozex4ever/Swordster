@@ -98,6 +98,9 @@ var knock: float = 0.0
 var windup: float = 0.0
 var hit_stop: float = 0.0
 var hit_shake: float = 0.0
+## A cosmetic flash the HUD card of a freshly swapped-in sword shows, easing to zero (prototype `flash`, which
+## `Sword.update` takes 3 per second off). Nothing in the simulation reads it.
+var flash: float = 0.0
 
 
 static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> SwordState:
@@ -106,21 +109,35 @@ static func equip(spec_value: SwordSpec, at: Vector2, start_cooldown: float) -> 
 	sword.spec = spec_value
 	var rarity: int = spec_value.rarity
 	var type_id: StringName = spec_value.type_id
-	sword.damage = SwordDefs.base_damage(type_id) * SwordDefs.RARITY_DAMAGE[rarity]
-	sword.cooldown = SwordDefs.base_cooldown(type_id) * SwordDefs.RARITY_COOLDOWN[rarity]
-	sword.attack_range = SwordDefs.base_range(type_id) * SwordDefs.RARITY_RANGE[rarity]
-	sword.length = SwordDefs.base_length(type_id) * SwordDefs.RARITY_SIZE[rarity]
+	sword.damage = SwordDefs.damage_of(spec_value)
+	sword.cooldown = SwordDefs.cooldown_of(spec_value)
+	sword.attack_range = SwordDefs.range_of(spec_value)
+	sword.length = SwordDefs.length_of(spec_value)
 	sword.size_scale = SwordDefs.RARITY_SIZE[rarity]
 	sword.knock = SwordDefs.base_knock(type_id)
 	sword.windup = SwordDefs.base_windup(type_id)
 	sword.windup_span = sword.windup
 	sword.hit_stop = SwordDefs.base_hitstop(type_id)
 	sword.hit_shake = SwordDefs.base_shake(type_id)
-	sword.ultimate_cooldown = SwordDefs.ultimate_cooldown(spec_value.type_id) * SwordDefs.RARITY_COOLDOWN[rarity]
+	sword.ultimate_cooldown = SwordDefs.ultimate_recharge_of(spec_value)
 	sword.position = at
 	sword.cooldown_left = start_cooldown
 	if type_id == SwordDefs.COLOSSUS:
 		sword.altitude = SwordDefs.COLOSSUS_START_ALTITUDE
+	return sword
+
+
+## The sword a swap puts into a slot (prototype `Game.swap`): equipped at the pickup's position, rising at
+## SWAP_START_VELOCITY, a Colossus at SWAP_ALTITUDE, waiting SWAP_START_COOLDOWN before its first attack, and keeping
+## the slot's ultimate recharge: it has the same FRACTION of its own (possibly longer or shorter) recharge left as
+## the sword it replaces, so swapping can neither reset a recharge nor skip one.
+static func swapped_in(spec_value: SwordSpec, at: Vector2, replaced: SwordState) -> SwordState:
+	var sword: SwordState = equip(spec_value, at, LootDefs.SWAP_START_COOLDOWN)
+	sword.ultimate_cooldown_left = sword.ultimate_cooldown * replaced.ultimate_cooldown_left / replaced.ultimate_cooldown
+	sword.velocity = LootDefs.SWAP_START_VELOCITY
+	sword.flash = LootDefs.SWAP_FLASH
+	if spec_value.type_id == SwordDefs.COLOSSUS:
+		sword.altitude = LootDefs.SWAP_ALTITUDE
 	return sword
 
 
@@ -337,6 +354,7 @@ func command(run: GameRun, point: Vector2) -> bool:
 ## One fixed step of this sword's state machine (prototype `Sword.update`).
 ## `index`/`count` place the sword on its orbit around the player.
 func update(run: GameRun, dt: float, index: int, count: int) -> void:
+	flash = maxf(0.0, flash - dt * 3.0)
 	cooldown_left -= dt
 	ultimate_cooldown_left = maxf(0.0, ultimate_cooldown_left - dt)
 	if target != null:

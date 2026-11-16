@@ -66,6 +66,14 @@ enum Kind {
 	## A Converge went out (`position` = the point it was aimed at, after the range clamp, `amount` = how
 	## many swords took the command; a sword that was striking, buried or in its ultimate did not).
 	CONVERGE,
+	## An armed enemy died and its sword now lies where it fell (`position` = where, `spec` = the sword).
+	SWORD_DROPPED,
+	## A pickup was swapped into a sword slot (`position` = where the pickup lay, `amount` = the slot index, `spec` =
+	## the sword now equipped, `origin` = where the replaced sword came back down as a drop).
+	SWORD_SWAPPED,
+	## A swap was refused because no pickup is within reach (`position` = the player). Refusals for any other reason
+	## (paused, dead) are silent.
+	SWAP_REFUSED,
 }
 
 var kind: Kind = Kind.DASH
@@ -81,6 +89,8 @@ var origin: Vector2 = Vector2.ZERO
 var element: StringName = &""
 ## The reach of an area effect (a Maelstrom beat or burst), in pixels.
 var radius: float = 0.0
+## The spirit sword a drop or swap cue speaks of.
+var spec: SwordSpec = null
 
 
 static func make(kind_value: Kind, at: Vector2, direction_value: Vector2 = Vector2.ZERO, amount_value: int = 0, critical_value: bool = false) -> SimCue:

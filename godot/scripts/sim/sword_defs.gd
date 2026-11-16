@@ -25,6 +25,26 @@ const RARITY_COOLDOWN: Array[float] = [1.0, 0.87, 0.74]
 const RARITY_RANGE: Array[float] = [1.0, 1.06, 1.12]
 const RARITY_SIZE: Array[float] = [1.0, 1.08, 1.18]
 const RARITY_NAMES: Array[String] = ["Common", "Rare", "Mythic"]
+## Rarity colours (prototype `RARITIES[..]["color"]`): the HUD card border, the pickup's glow and beam, a drop's ring and text.
+const RARITY_COLORS: Array[Color] = [
+	Color(205.0 / 255.0, 205.0 / 255.0, 215.0 / 255.0),
+	Color(90.0 / 255.0, 175.0 / 255.0, 255.0 / 255.0),
+	Color(255.0 / 255.0, 196.0 / 255.0, 60.0 / 255.0),
+]
+## The three elements in the prototype's `ELEMENTS` order (the order `random.choice(list(ELEMENTS))` draws from), with
+## the adjective that names a sword ("Ember Fang") and the line a pickup card shows.
+const ELEMENT_ORDER: Array[StringName] = [&"fire", &"ice", &"poison"]
+const ELEMENT_ADJECTIVES: Dictionary[StringName, String] = {&"fire": "Ember", &"ice": "Frost", &"poison": "Venom"}
+const ELEMENT_TAGS: Dictionary[StringName, String] = {
+	&"fire": "FIRE  burns, spreads",
+	&"ice": "ICE  chills, freezes",
+	&"poison": "POISON  stacking toxin",
+}
+## One line per sword type under its name on a pickup card (prototype `SWORD_TYPES[..]["blurb"]`).
+const FANG_BLURB: String = "close / rapid"
+const WARDEN_BLURB: String = "mid / sweeping arc"
+const PIKE_BLURB: String = "long / piercing thrust"
+const COLOSSUS_BLURB: String = "far / slow / crushing slam"
 
 ## Converge (prototype `CONVERGE_CD`, `Game.converge`, `Sword.command`, `Sword.begin`): the player's coordinated
 ## command. One command makes every equipped sword that is not striking, buried or in its ultimate begin an
@@ -484,3 +504,44 @@ static func display_name(type_id: StringName) -> String:
 			return "Fang"
 		_:
 			return String(type_id)
+
+
+## The one line a pickup card shows under the sword's name.
+static func blurb(type_id: StringName) -> String:
+	match type_id:
+		WARDEN:
+			return WARDEN_BLURB
+		PIKE:
+			return PIKE_BLURB
+		COLOSSUS:
+			return COLOSSUS_BLURB
+		_:
+			return FANG_BLURB
+
+
+## The values a spirit sword of a type and rarity is equipped with: the type's base number times the rarity's factor
+## (prototype `Sword.__init__`). A sword reads these from the immutable tables and never writes to them, so a Rare
+## Fang cannot leave a changed Fang behind.
+static func damage_of(spec: SwordSpec) -> float:
+	return base_damage(spec.type_id) * RARITY_DAMAGE[spec.rarity]
+
+
+static func cooldown_of(spec: SwordSpec) -> float:
+	return base_cooldown(spec.type_id) * RARITY_COOLDOWN[spec.rarity]
+
+
+static func range_of(spec: SwordSpec) -> float:
+	return base_range(spec.type_id) * RARITY_RANGE[spec.rarity]
+
+
+static func length_of(spec: SwordSpec) -> float:
+	return base_length(spec.type_id) * RARITY_SIZE[spec.rarity]
+
+
+static func ultimate_recharge_of(spec: SwordSpec) -> float:
+	return ultimate_cooldown(spec.type_id) * RARITY_COOLDOWN[spec.rarity]
+
+
+## "Rare Ember Fang" (prototype `Sword.name`): rarity, the element's adjective and the type.
+static func full_name(spec: SwordSpec) -> String:
+	return "%s %s %s" % [RARITY_NAMES[spec.rarity], ELEMENT_ADJECTIVES.get(spec.element, String(spec.element)), display_name(spec.type_id)]

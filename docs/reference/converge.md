@@ -99,9 +99,9 @@ a replaced sword visual leaving the fight unchanged, and the default-loadout fig
 
 ## Evidence (screenshots in `docs/reference/converge/`)
 
-Both come from build `20261115-173838-e09996581` (commit `e099965`, a clean tree), whose Web folder and Windows ZIP verified
-against its `SHA256SUMS`. Game code changed since that build: none (only this file, the screenshots and two sleep lengths in
-the capture script).
+All Web screenshots and Wine frames come from build `20261116-003527-17165e49a` (head `17165e4`: #17's drops and swaps merged with this
+slice; a clean tree; its `SHA256SUMS` verified). The Wine frames were refreshed in the round-2 review of #17 (they show the controls hint
+regrouped so it clears the Pause / Restart buttons, and the HUD as it is now).
 
 - **Web, headless Chromium with software WebGL, browser-level mouse and key events** (`SCENARIO=converge node
   tools/godot/web-encounter-capture.mjs`; the page is paused with P to take each screenshot): the normal start with the default

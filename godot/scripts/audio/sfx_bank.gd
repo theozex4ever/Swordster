@@ -76,6 +76,8 @@ func play_cue(cue: SimCue) -> void:
 			play("dash")
 		SimCue.Kind.WAVE_STARTED:
 			play("wave")
+		SimCue.Kind.SWORD_SWAPPED:
+			play("chime")
 		SimCue.Kind.PROJECTILE_FIRED:
 			play("shot")
 		SimCue.Kind.PROJECTILE_PARRIED:

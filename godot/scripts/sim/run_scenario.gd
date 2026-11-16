@@ -72,6 +72,22 @@ const COLOSSUS_CLUSTER_POINTS: Array[Vector2] = [
 	Vector2(1700.0, 905.0), Vector2(1625.0, 995.0), Vector2(1690.0, 975.0),
 ]
 
+## The drops encounter's standing armed foes (issue #17): twelve enemies ringed around the player, every enemy type
+## carrying every sword type, with the three rarities in turn (the first four Common, then four Rare, then four Mythic) and
+## the elements in rotation, so each type, rarity and element is on a foe a few seconds into the fight.
+const DROPS_RING_KINDS: Array[StringName] = [
+	&"husk", &"runner", &"spitter", &"brute", &"runner", &"husk", &"brute", &"spitter", &"spitter", &"brute", &"husk", &"runner",
+]
+const DROPS_RING_TYPES: Array[StringName] = [
+	SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS, SwordDefs.WARDEN, SwordDefs.FANG, SwordDefs.COLOSSUS, SwordDefs.PIKE,
+	SwordDefs.PIKE, SwordDefs.COLOSSUS, SwordDefs.FANG, SwordDefs.WARDEN,
+]
+const DROPS_RING_RADIUS: float = 520.0
+## The wave that follows them (rolled by the prototype's arming rule: the first two are armed for sure, the first with a Pike).
+const DROPS_WAVE: Array[StringName] = [
+	&"husk", &"husk", &"runner", &"husk", &"spitter", &"husk", &"brute", &"husk", &"runner", &"husk",
+]
+
 ## The dev encounters the C key / dev button cycles through, in order. The empty
 ## name is the normal run (or whatever custom scenario the run was made with).
 const ENCOUNTER_NORMAL: StringName = &""
@@ -81,7 +97,8 @@ const ENCOUNTER_CONDITIONS: StringName = &"conditions"
 const ENCOUNTER_WARDEN: StringName = &"warden"
 const ENCOUNTER_PIKE: StringName = &"pike"
 const ENCOUNTER_COLOSSUS: StringName = &"colossus"
-const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS]
+const ENCOUNTER_DROPS: StringName = &"drops"
+const ENCOUNTER_CYCLE: Array[StringName] = [ENCOUNTER_NORMAL, ENCOUNTER_CROWD, ENCOUNTER_SPITTERS, ENCOUNTER_CONDITIONS, ENCOUNTER_WARDEN, ENCOUNTER_PIKE, ENCOUNTER_COLOSSUS, ENCOUNTER_DROPS]
 
 ## Gameplay randomness seed. Negative: seed randomly. Cosmetic randomness is
 ## separate and never uses this stream.
@@ -132,6 +149,10 @@ var crit_chance: float = 0.12
 ## `afflict` switched off, and their checks compare against them in this mode. The
 ## game itself always plays with conditions on.
 var conditions_enabled: bool = true
+## True: every enemy of a wave is rolled for a sword to carry (`LootDefs.roll_armed`), drawing from the gameplay stream
+## when the wave starts. False: waves are unarmed and draw nothing for it (every earlier slice's fixture, and the normal
+## run until the full wave generation, issue #18, arms its waves).
+var arm_waves: bool = false
 
 
 ## Turns this scenario into a condition-free fixture (see `conditions_enabled`).
@@ -311,6 +332,40 @@ static func colossus_encounter() -> RunScenario:
 	return scenario
 
 
+## DEVELOPMENT FIXTURE for issue #17: Fang, Warden and Colossus (poison / ice / fire, the prototype's own default,
+## named here so the fixture does not move with `default_loadout`) so drops of every type can be swapped into any slot and the ultimate recharge each slot keeps can be watched.
+static func drops_fixture_loadout() -> Array[SwordSpec]:
+	var types: Array[StringName] = [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.COLOSSUS]
+	var elements: Array[StringName] = [&"poison", &"ice", &"fire"]
+	var specs: Array[SwordSpec] = []
+	for slot: int in types.size():
+		specs.append(SwordSpec.make(types[slot], 0, elements[slot]))
+	return specs
+
+
+## The drops encounter: DEVELOPMENT FIXTURE for issue #17. Twelve armed foes (every enemy type, every sword type,
+## Common, Rare and Mythic, all three elements) walk in from a ring around the player, followed by a wave whose enemies roll
+## their own arming by the prototype's rule (the first two armed for sure, the first with a Pike). Kill one and its exact
+## sword lies where it fell for 45 seconds: stand within 80 px of it and press 1 / 2 / 3 to put it into that slot; the
+## old sword comes back as a drop and the slot keeps its ultimate recharge. The composition is a fixture, not the wave
+## generation (issue #18); the normal run is unchanged.
+static func drops_encounter() -> RunScenario:
+	var scenario: RunScenario = RunScenario.new()
+	scenario.encounter = ENCOUNTER_DROPS
+	scenario.loadout = drops_fixture_loadout()
+	scenario.arm_waves = true
+	var placements: Array[EnemyPlacement] = []
+	for i: int in DROPS_RING_KINDS.size():
+		var angle: float = TAU * (float(i) + 0.5) / float(DROPS_RING_KINDS.size())
+		var spec: SwordSpec = SwordSpec.make(DROPS_RING_TYPES[i], int(float(i) / 4.0), SwordDefs.ELEMENT_ORDER[i % SwordDefs.ELEMENT_ORDER.size()])
+		var at: Vector2 = scenario.start_position + SimMath.polar(angle, DROPS_RING_RADIUS)
+		placements.append(EnemyPlacement.make(DROPS_RING_KINDS[i], at).armed_with(spec))
+	scenario.initial_enemies = placements
+	scenario.wave_kinds = DROPS_WAVE.duplicate()
+	scenario.first_wave_delay = 1.0
+	return scenario
+
+
 ## Display name of an encounter for the dev button and legend.
 static func encounter_title(name: StringName) -> String:
 	match name:
@@ -326,6 +381,8 @@ static func encounter_title(name: StringName) -> String:
 			return "Pike"
 		ENCOUNTER_COLOSSUS:
 			return "Colossus"
+		ENCOUNTER_DROPS:
+			return "Drops"
 		_:
 			return "Normal"
 

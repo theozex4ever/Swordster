@@ -22,6 +22,8 @@ var hp: float = -1.0
 ## how far into a shot it already is.
 var shoot_cooldown: float = -1.0
 var charge: float = 0.0
+## The spirit sword the enemy carries (null: unarmed, as every earlier slice's fixtures).
+var armed: SwordSpec = null
 
 
 static func make(kind_value: StringName, at: Vector2) -> EnemyPlacement:
@@ -29,6 +31,12 @@ static func make(kind_value: StringName, at: Vector2) -> EnemyPlacement:
 	placement.kind = kind_value
 	placement.position = at
 	return placement
+
+
+## Builder-style setter: the enemy carries this sword and drops it where it dies.
+func armed_with(spec: SwordSpec) -> EnemyPlacement:
+	armed = spec
+	return self
 
 
 ## Builder-style setter for the common "launched" fixture.

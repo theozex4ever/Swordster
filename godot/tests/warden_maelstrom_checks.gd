@@ -988,8 +988,10 @@ func _check_removed_and_corpses() -> void:
 	var run8: GameRun = _lone_scenario(warden, [{"kind": "husk", "x": CENTER.x + 310.0, "y": CENTER.y, "hp": 900.0, "speed_scale": 0.0}])
 	run8.apply(GameCommand.ultimate(1, CENTER + Vector2(250.0, 0.0)))
 	var corpse8: EnemyState = run8.enemies[0]
-	while run8.swords[1].ultimate_time_left > GameRun.TICK_DT * 0.5:
+	var whirl_ticks: int = 0
+	while run8.swords[1].ultimate_time_left > GameRun.TICK_DT * 0.5 and whirl_ticks < 600:
 		run8.step()
+		whirl_ticks += 1
 	run8.kill(corpse8, Vector2.UP)
 	var hp_dead8: float = corpse8.hp
 	run8.take_cues()
