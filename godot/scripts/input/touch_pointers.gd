@@ -11,8 +11,10 @@ extends RefCounted
 ##
 ## A finger that steers but only taps (lifts within `TAP_SECONDS` having moved at most `TAP_TRAVEL`) also
 ## commands Converge at where it landed, so the whole arena can be tapped, not just the right of the screen.
-## A cancelled contact never taps. `release_all` (focus loss, suspension, restart) forgets every contact, so a
-## later drag or lift of a forgotten finger changes nothing.
+## A cancelled contact (`InputEventScreenTouch.canceled`: the OS or the browser took the finger) never taps and ends that one
+## contact only. Native platforms report it themselves; in a browser `TouchPlatform`'s hook feeds it, because the Web engine
+## reports a cancel as a plain lift. `release_all` (focus loss, suspension, restart) forgets every contact, so a later drag
+## or lift of a forgotten finger changes nothing.
 
 enum Owner { UI, JOYSTICK, ARENA }
 

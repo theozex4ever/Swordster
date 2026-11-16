@@ -76,6 +76,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_update_touch_zone)
 	_hud.show_state(run.paused, _sfx.unlocked)
 	_platform.install_suspend_hook(release_input_and_pause)
+	_platform.install_cancel_hook()
 	set_touch_mode(TouchPlatform.touchscreen_present())
 	_update_touch_zone.call_deferred()
 
@@ -85,12 +86,9 @@ func _input(event: InputEvent) -> void:
 		_unlock_audio()
 	if event is InputEventScreenTouch and not touch_mode:
 		set_touch_mode(true)
-	if event is InputEventScreenTouch and (event as InputEventScreenTouch).canceled:
-		# the browser or the OS took a finger: the engine's buttons ignore a cancel, so a button it was on would stay pressed
-		var taken: int = (event as InputEventScreenTouch).index
-		if input.touch.owner_of(taken) == TouchPointers.Owner.UI:
-			_lift_on_buttons([taken])
-		_touch.release_all()
+	# (A cancelled touch, a finger the browser or the OS took, needs nothing of its own here: `TouchPointers` ends that one
+	# contact without a tap, and the engine gives the cancel to the button the finger was on, which lets go without acting.
+	# Every other finger, and the button it holds, stays as it is. In a browser the cancel comes from `TouchPlatform`'s hook.)
 	# A mouse click is only a Converge when nothing in the HUD took it (the Pause, Restart and Dev
 	# buttons), so it is translated in `_unhandled_input`; here it only keeps the pointer current.
 	if event is InputEventMouseButton:
@@ -131,38 +129,37 @@ func release_input_and_pause() -> void:
 		_hud.refresh_stick()
 
 
-## Forgets everything a finger or key was holding: the translator's keys, fingers and stick, and the buttons the engine believes
-## are pressed, whose fingers will never report their lift.
+## Forgets everything a finger or key was holding: the translator's keys, fingers and stick, and the buttons fingers were on,
+## whose fingers will never report their lift.
 func _release_touch_state() -> void:
 	if input.touch.count() > 0:
-		_lift_on_buttons(input.touch.ui_indices())
+		_cancel_on_buttons(input.touch.ui_indices())
 	input.release_all()
 	if _touch != null:
 		_touch.release_all()
 
 
-func _lift_then_release_buttons(indices: Array[int]) -> void:
-	_lift_on_buttons(indices)
+func _cancel_then_release_buttons(indices: Array[int]) -> void:
+	_cancel_on_buttons(indices)
 	if _touch != null:
 		_touch.release_all()
 
 
-## Gives the engine the lift of fingers that were on buttons. A button ignores a cancelled touch, and without its finger's lift it
-## believes itself pressed and ignores its next press (the run would stay paused with Resume doing nothing). The lift lands far
-## off the screen, so no button treats it as a tap.
-func _lift_on_buttons(indices: Array[int]) -> void:
+## Takes fingers off the buttons they are on, as the cancelled touches they are: the page was suspended or the run restarted, and
+## these fingers will never report a lift. A button given its finger's cancel lets go (`button_up`) without acting, so nothing
+## is pressed by it (the Full button acts on a lift, never on a cancel). It has to be told before the touch layer hides it:
+## a button hidden while the engine holds it pressed stays "down" inside the engine and gives no `button_down` on its next
+## press (the run would stay paused with Resume doing nothing).
+func _cancel_on_buttons(indices: Array[int]) -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport == null:
 		return
-	# (a button the engine thinks was pressed counts any lift as its tap, wherever it lands: the touch layer must not act on these)
-	_touch.quiet = true
 	for index: int in indices:
-		var lift: InputEventScreenTouch = InputEventScreenTouch.new()
-		lift.index = index
-		lift.pressed = false
-		lift.position = Vector2(-10000.0, -10000.0)
-		viewport.push_input(lift, true)
-	_touch.quiet = false
+		var taken: InputEventScreenTouch = InputEventScreenTouch.new()
+		taken.index = index
+		taken.pressed = false
+		taken.canceled = true
+		viewport.push_input(taken, true)
 
 
 func _submit(command: GameCommand) -> void:
@@ -173,7 +170,7 @@ func _submit(command: GameCommand) -> void:
 		# (the finger that pressed Restart is inside the engine's own press handling right now: its release waits a moment)
 		var held: Array[int] = input.touch.ui_indices()
 		input.release_all()
-		_lift_then_release_buttons.call_deferred(held)
+		_cancel_then_release_buttons.call_deferred(held)
 		_presenter.reset()
 		_feedback.reset()
 		_present()

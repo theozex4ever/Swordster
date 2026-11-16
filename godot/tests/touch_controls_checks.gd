@@ -38,6 +38,7 @@ func run_all() -> void:
 	await _check_simultaneous()
 	await _check_ui_consumes_touches()
 	await _check_emulated_mouse_path()
+	# WIP (round 2, paused): `_check_browser_cancel` goes here, the bridge-fed cancel through `TouchPlatform.feed_cancelled_touch`
 	await _check_release_and_suspension()
 	await _check_stuck_buttons()
 	await _check_paused_and_dead()
@@ -350,6 +351,23 @@ func _check_platform_values() -> void:
 	_ok("a 915 px wide page shown 1599 logical px wide: browser insets 24,48,20,48 (top, right, bottom, left) and the same numbers given as `?safe=` both come out as (left %.2f, top %.2f, right %.2f, bottom %.2f)" % [48.0 * scale, 24.0 * scale, 48.0 * scale, 20.0 * scale],
 		from_browser.is_equal_approx(from_override) and from_browser.is_equal_approx(Vector4(48.0 * scale, 24.0 * scale, 48.0 * scale, 20.0 * scale)) and absf(from_browser.x - 83.88) < 0.01 and absf(from_browser.y - 41.94) < 0.01 and absf(from_browser.w - 34.95) < 0.01)
 	_ok("a page width of zero (unknown) leaves the numbers as they are", TouchPlatform.insets_from_css_values(Vector4(1.0, 2.0, 3.0, 4.0), 0.0, 1599.0) == Vector4(4.0, 1.0, 2.0, 3.0))
+	_ok("the browser's insets come from the probe, and an override of four numbers stands in for them through the same conversion",
+		TouchPlatform.insets_from_probe(probe, PackedFloat32Array(), view_width).is_equal_approx(from_browser) and TouchPlatform.insets_from_probe(probe, PackedFloat32Array([10.0, 0.0, 0.0, 20.0]), view_width).is_equal_approx(Vector4(20.0 * scale, 10.0 * scale, 0.0, 0.0)))
+	var no_probe: PackedFloat32Array = TouchPlatform.parse_probe("")
+	_ok("a probe that failed gives no insets of its own, but `?safe=` still applies (the page's width is unknown, so its numbers as they are: left 48, top 24, right 48, bottom 20)",
+		TouchPlatform.insets_from_probe(no_probe, PackedFloat32Array(), view_width) == Vector4.ZERO and TouchPlatform.insets_from_probe(no_probe, override, view_width) == Vector4(48.0, 24.0, 48.0, 20.0))
+	# a finger the browser took: the page hands over (identifier, x, y)
+	var taken: InputEventScreenTouch = TouchPlatform.cancelled_touch([3, 100, 50.5])
+	_ok("the page's (identifier, x, y) for a finger the browser took is a cancelled touch of that index at that place: not pressed, cancelled, so neither a press nor a release",
+		taken != null and taken.index == 3 and taken.position == Vector2(100.0, 50.5) and not taken.pressed and taken.canceled and not taken.is_pressed() and not taken.is_released())
+	var whole_float: InputEventScreenTouch = TouchPlatform.cancelled_touch([7.0, 1.0, 2.0])
+	_ok("whole numbers may arrive as floats (the bridge decides), and an identifier above 0 keeps its value", whole_float != null and whole_float.index == 7 and whole_float.position == Vector2(1.0, 2.0))
+	var not_fingers: Array = [[], [1, 2], [1, 2, 3, 4], ["a", 1, 2, 3], ["1", 2, 3], [1.5, 2, 3], [null, 2, 3], [true, 2, 3], [1, NAN, 3], [1, 2, INF], [[1], 2, 3]]
+	var accepted: Array = []
+	for arguments: Variant in not_fingers:
+		if TouchPlatform.cancelled_touch(arguments as Array) != null:
+			accepted.append(var_to_str(arguments))
+	_ok("anything else is no finger: too few or too many values, text, half an identifier, null, a bool, not-a-number, infinity, a list (wrongly accepted: %s)" % [accepted], accepted.is_empty())
 	var launch: PackedStringArray = PackedStringArray(["--touch", "--visuals=textured", "--safe=1,2,3,4"])
 	_ok("the touch launch options sit beside the visuals one without clashing: `--visuals=textured` is still read from the same arguments, and `--touch` is not mistaken for a value", LaunchOptions.visuals_from(launch) == "textured" and LaunchOptions.visuals_from(PackedStringArray(["--touch=0"])) == "")
 	_ok("with no touchscreen reported (headless) and no request there are no touch controls", not TouchPlatform.touchscreen_present() or LaunchOptions.requested_touch() == "1")
@@ -363,6 +381,9 @@ func _check_activation_and_desktop() -> void:
 	var hud: Hud = main._hud
 	_ok("a desktop start shows no touch control at all", not main.touch_mode and not main._touch.is_active() and main._touch.blocked_rects().is_empty() and not main._touch.button_visible(TouchLayout.CONVERGE) and hud.extra_avoid_rects.is_empty())
 	_ok("the keyboard hint stays and the HUD's own rectangles are the only ones a touch cannot land through (Pause, Restart, Dash, Dev; the hidden Shove button blocks nothing)", hud._hint_label.visible and hud.button_rects().size() == 4 and main._blocked_rects().size() == 4)
+	main.run.banner_left = 0.0
+	main._present()
+	_ok("and the keyboard help overlay shows at the start of a desktop run (%.1f s of it left)" % main.run.help_left, main.run.help_left > 10.0 and hud.help_visible())
 	_ok("the joystick zone is the left 55 % below the top 15 % of the view", main.input.joystick.zone == Rect2(0.0, 108.0, 704.0, 612.0))
 	main._sfx.unlock()
 	main.input.pointer = Vector2(900.0, 300.0)
@@ -378,11 +399,20 @@ func _check_activation_and_desktop() -> void:
 	_send(window, _touch(0, Vector2(900.0, 300.0), true))
 	await _tree.process_frame
 	_ok("the first finger on the screen brings the controls up (and the keyboard hint goes)", main.touch_mode and main._touch.is_active() and main._touch.button_visible(TouchLayout.CONVERGE) and not hud._hint_label.visible)
+	_ok("the keyboard help overlay goes with it at once, though its time is not up (%.1f s left): seven lines of keys are no use to a finger" % main.run.help_left, main.run.help_left > 10.0 and not hud.help_visible() and hud._help_lines.all(func(line: Label) -> bool: return not line.visible))
+	main.run.banner_left = 0.0
+	main._present()
+	main.run.apply(GameCommand.toggle_help())
+	main.run.apply(GameCommand.toggle_help())
+	main._present()
+	_ok("and it stays away while the controls are up, tick after tick and when asked for (H)", main.run.help_left > 0.0 and not hud.help_visible())
 	_ok("that same finger already counted as an arena tap: one Converge, at the right world point", _converges(main) == 1 and _near(main.run.swords[1].aim, _clamped(main, main.run.camera + Vector2(900.0, 300.0) - window.get_visible_rect().size * 0.5)))
 	_send(window, _touch(0, Vector2(900.0, 300.0), false))
 	main.set_touch_mode(false)
 	await _tree.process_frame
 	_ok("turning the controls off again restores the desktop screen (hint back, no touch rectangles)", not main._touch.is_active() and hud._hint_label.visible and hud.extra_avoid_rects.is_empty() and main._touch.blocked_rects().is_empty())
+	main._present()
+	_ok("and the help overlay comes back with the keys", hud.help_visible())
 	# the shove button (a dev fixture) blocks only while it exists
 	main.queue_free()
 	window.queue_free()

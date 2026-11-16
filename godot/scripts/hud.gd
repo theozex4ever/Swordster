@@ -84,6 +84,8 @@ var _pickup_compare: Array[Label] = []
 var _pickup_style: StyleBoxFlat
 ## Screen rectangles the pickup card must also stay clear of: the touch controls (issue #20), set by the scene each tick.
 var extra_avoid_rects: Array[Rect2] = []
+## Touch play (issue #20): whatever only speaks of keys and the mouse (the hint line, the help overlay) is not shown.
+var _touch_mode: bool = false
 
 ## Where the Converge cooldown sits (right of the dash one) and how wide its bar is.
 const CONVERGE_LABEL_X: float = 150.0
@@ -563,10 +565,11 @@ func chain_window_fraction() -> float:
 
 
 ## The help overlay (prototype: while `help_t > 0` and the player lives), fading out over its last second. It gives way while the
-## wave banner is up and while a dropped sword's card is (each would sit on top of it), and comes back after them.
+## wave banner is up and while a dropped sword's card is (each would sit on top of it), and comes back after them. Every line of
+## it names a key or the mouse, so touch play (issue #20) never shows it: the touch buttons are labelled where they are.
 func _show_help(run: GameRun) -> void:
 	var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != "") or run.nearest_pickup() != null
-	var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way
+	var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way and not _touch_mode
 	var alpha: float = clampf(run.help_left, 0.0, 1.0) * 0.86
 	for line: Label in _help_lines:
 		line.visible = shown
@@ -675,9 +678,14 @@ func dash_rect() -> Rect2:
 	return _dash_button.get_global_rect()
 
 
-## Touch play (issue #20): the keyboard hint line says nothing a touch player can use, so it goes.
+## Touch play (issue #20): the keyboard hint line and the help overlay say nothing a touch player can use, so they go (the
+## help at once, not at the next tick).
 func set_touch_mode(on: bool) -> void:
+	_touch_mode = on
 	_hint_label.visible = not on
+	if on:
+		for line: Label in _help_lines:
+			line.visible = false
 
 
 ## Reads everything shown for the run (called every tick): health bar, counters,

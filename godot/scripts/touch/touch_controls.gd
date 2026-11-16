@@ -16,9 +16,6 @@ signal fullscreen_pressed
 const DIM: Color = Color(1.0, 1.0, 1.0, 0.6)
 const LIT: Color = Color(1.0, 1.0, 1.0, 0.92)
 
-## Set while the scene hands the engine the lift of a finger that never reported one: no button may act on it.
-var quiet: bool = false
-
 var _root: Control
 var _buttons: Dictionary[StringName, Button] = {}
 var _rotate_hint: Label
@@ -28,8 +25,9 @@ var _dash: Rect2 = Rect2()
 var _fullscreen_supported: bool = false
 ## Slot buttons only exist for slots the run holds a sword in; remembered so a hidden slot blocks nothing.
 var _active: bool = false
-## The big Resume / Restart buttons are hidden by the very press that uses them; the engine then loses that finger's release and
-## ignores the button's next press. So a held button stays up until its finger lifts: whether each is wanted, and whether held.
+## The big Resume / Restart buttons are no longer wanted after the very press that uses them, but a button hidden while a
+## finger is on it stays "down" inside the engine and gives no `button_down` the next time it is pressed. So a held button
+## stays up until its finger lifts or is cancelled (`button_up`): whether each is wanted, and whether held.
 var _wanted: Dictionary[StringName, bool] = {}
 var _held: Dictionary[StringName, bool] = {}
 
@@ -46,7 +44,7 @@ func _ready() -> void:
 		_add(TouchLayout.swap_id(slot), "Swap %d" % (slot + 1), func() -> void: command_requested.emit(GameCommand.swap(slot)))
 	_add(TouchLayout.RANGES, "Ranges", func() -> void: command_requested.emit(GameCommand.toggle_ranges()))
 	# the browser grants a fullscreen request only inside a user activation, and a touch gives one when the finger lifts
-	# (`pressed`: a lift on the button; one the engine is given to drop a hold, off the button, never asks)
+	# (`pressed`: the engine emits it for a lift, never for a cancelled touch, so a finger that is taken asks for nothing)
 	_add(TouchLayout.FULLSCREEN, "Full", func() -> void: fullscreen_pressed.emit(), true)
 	_add(TouchLayout.RESUME, "Resume", func() -> void: command_requested.emit(GameCommand.resume()))
 	_add(TouchLayout.RESTART, "Restart", func() -> void: command_requested.emit(GameCommand.restart()))
@@ -172,9 +170,10 @@ func _want(id: StringName, wanted: bool) -> void:
 	_buttons[id].visible = wanted or _held.get(id, false)
 
 
-## Forgets every held button (focus loss, suspension, a cancelled touch, a restart): the finger that was on one will never
-## report its lift. Hidden-while-held buttons come back to what the run wants. (The engine's own hold on a pressed button is
-## dropped by `Main`, which gives it the missing lift.)
+## Forgets every held button (focus loss, suspension, a restart): no finger that was on one will report its lift.
+## Hidden-while-held buttons come back to what the run wants. (`Main` first gives each such button its finger's cancel, so the
+## engine no longer holds it either. One cancelled finger is not a reason to call this: its own button's `button_up` is enough,
+## and the buttons other fingers hold must stay.)
 func release_all() -> void:
 	_held.clear()
 	for id: StringName in _buttons:
@@ -204,8 +203,6 @@ func _add(id: StringName, text: String, on_action: Callable, on_release: bool = 
 		if _wanted.has(id):
 			button.visible = _wanted[id])
 	if on_release:
-		button.pressed.connect(func() -> void:
-			if not quiet:
-				on_action.call())
+		button.pressed.connect(func() -> void: on_action.call())
 	_root.add_child(button)
 	_buttons[id] = button
