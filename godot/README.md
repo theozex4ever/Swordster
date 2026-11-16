@@ -369,7 +369,15 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   `GameRun.step()` calls and through the real Main scene in child Godot processes at 5, 20, 60 and 240 fps (started
   together, at most four at a time, each batch under a deadline), and the end states must be identical. It also checks the
   `--encounter=` launch options, which are only read at engine start. It replaced nine per-slice probes that
-  each replayed their own slice's fight at four rates and made up about 70% of a suite run.
+  each replayed their own slice's fight at four rates and made up about 70% of a suite run (about 64 s of a 90 s suite
+  on an idle machine, now 6 to 7 s of 32 s: about 20%).
+  **Adding frame-rate coverage for a new mechanic never means a new probe.** `combined_fight.gd` has one place for
+  it: put the new foes in `scenario()`, the new commands in the `script()` list (one `_step(tick, kind, slot, aim)` each),
+  and a minimum count of the new cue (or digest key) in `REQUIRED_CUES`, so the fight fails if it ever stops
+  exercising the mechanic. The digest already covers the whole run state and the probe compares it at every rate, so
+  nothing else changes; keep `TOTAL_TICKS` past the last step and the player alive (the check says what is missing).
+  Tune the step ticks with the fight's own recharges in mind (a press at a tick the sword is still recharging is
+  refused, which counts as an ultimate not started).
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one: a genuine failing check is the only evidence that counts, and a crash or timeout
@@ -459,8 +467,9 @@ A new section needs no registration: append its `mutate` lines under a
 Procedure for a slice (what an implementer does, and what CI does):
 
 1. While developing, run **only your own sections** plus `core`, locally: `SECTIONS=pike`
-   (core is implied; `SECTIONS=list` shows the names). A single section takes about `@SECTION@`
-   in one process; split a big one over the cores you have with `SHARD=$i SHARDS=4`. It needs the
+   (core is implied; `SECTIONS=list` shows the names). A section of about 220 mutations takes
+   about 18 minutes in one process on a busy machine (4 to 5 s a mutation: nearly all of it is starting the engine and
+   the section's own checks), so split a big one over the cores you have with `SHARD=$i SHARDS=4` (about 5 minutes). It needs the
    pinned Godot: `./build-godot.sh --bootstrap-only` first.
 2. After fixing a check or the code a survivor pointed at, rerun only those
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
@@ -473,7 +482,7 @@ Procedure for a slice (what an implementer does, and what CI does):
    a missing, duplicate, extra, filtered or short shard fails it, and so does a shard that ran in the wrong mode), and every
    mutation was caught (no survivor, none inconclusive, none not applied). A new push to the pull request cancels the
    superseded run. A local full pass is optional (`tools/godot/mutation-check.sh` with `SHARD=i SHARDS=4` in four
-   terminals, about `@LOCAL@`), useful before a large refactor of the checks themselves.
+   terminals, about 20 minutes), useful before a large refactor of the checks themselves.
 4. The strict **classic** pass (`mutation.yml`, `FAST=0`, 24 shards) runs weekly (Monday 03:17 UTC) and on manual dispatch
    (Actions → *Mutation checks (classic, weekly)* → *Run workflow*, on any branch). It reports the hygiene warnings
    (`caught-with-warning`) without failing on them; it fails on a survivor, an inconclusive mutation or a stale one. A
