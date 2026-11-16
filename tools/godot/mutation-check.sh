@@ -2202,6 +2202,120 @@ mutate waves-chain-text-position                scripts/presentation/effects_lay
 mutate waves-gong-silent                        scripts/audio/sfx_bank.gd "		SimCue.Kind.WAVE_STARTED:
 			play(\"wave\")" "		SimCue.Kind.WAVE_STARTED:
 			play(\"hit\")"
+# --- Visual replacement (slice #21)
+mutate art-pivot-sign-flipped                       scripts/presentation/sprite_art.gd "	sprite.offset = -pivot" "	sprite.offset = pivot"
+mutate art-pivot-centred-instead                    scripts/presentation/sprite_art.gd "	sprite.centered = false" "	sprite.centered = true"
+mutate art-sheet-frames-lost                        scripts/presentation/sprite_art.gd "	sprite.hframes = maxi(frame_count, 1)" "	sprite.hframes = 1"
+mutate art-scale-ignores-the-extra-factor           scripts/presentation/sprite_art.gd "	sprite.scale = visual_scale * extra_scale" "	sprite.scale = visual_scale"
+mutate art-scale-ignores-its-own-factor             scripts/presentation/sprite_art.gd "	sprite.scale = visual_scale * extra_scale" "	sprite.scale = Vector2.ONE * extra_scale"
+mutate art-orientation-lost                         scripts/presentation/sprite_art.gd "	return heading + deg_to_rad(orientation_degrees)" "	return heading"
+mutate art-orientation-subtracted                   scripts/presentation/sprite_art.gd "	return heading + deg_to_rad(orientation_degrees)" "	return heading - deg_to_rad(orientation_degrees)"
+mutate art-frame-width-not-divided                  scripts/presentation/sprite_art.gd "Vector2(float(texture.get_width()) / float(maxi(frame_count, 1)), float(texture.get_height()))" "Vector2(float(texture.get_width()), float(texture.get_height()))"
+mutate art-texture-not-assigned                     scripts/presentation/sprite_art.gd "	sprite.texture = texture
+" ""
+mutate clip-does-not-loop                           scripts/presentation/sprite_clip.gd "		return frames[index % frames.size()]" "		return frames[mini(index, frames.size() - 1)]"
+mutate clip-ignores-its-rate                        scripts/presentation/sprite_clip.gd "	var index: int = int(floorf(maxf(seconds, 0.0) * fps))" "	var index: int = int(floorf(maxf(seconds, 0.0) * 8.0))"
+mutate clip-duration-ignores-its-length             scripts/presentation/sprite_clip.gd "	return float(maxi(frames.size(), 1)) / maxf(fps, 0.001)" "	return 1.0 / maxf(fps, 0.001)"
+mutate clip-looping-clip-finishes                   scripts/presentation/sprite_clip.gd "	return not loop and seconds >= duration()" "	return seconds >= duration()"
+mutate clip-never-finishes                          scripts/presentation/sprite_clip.gd "	return not loop and seconds >= duration()" "	return false"
+mutate clip-holds-its-first-frame                   scripts/presentation/sprite_clip.gd "	return frames[mini(index, frames.size() - 1)]" "	return frames[0]"
+mutate player-restarts-the-same-clip                scripts/presentation/sprite_clip_player.gd "	if next == clip:
+		return
+" ""
+mutate player-announces-every-tick                  scripts/presentation/sprite_clip_player.gd "		_announced = true
+" "		pass
+"
+mutate player-clock-stands-still                    scripts/presentation/sprite_clip_player.gd "	seconds += delta
+" "	pass
+"
+mutate sword-warden-wears-fang-art                  scripts/presentation/textured_sword_visual.gd "			return settings.warden" "			return settings.fang"
+mutate sword-pike-wears-fang-art                    scripts/presentation/textured_sword_visual.gd "			return settings.pike" "			return settings.fang"
+mutate sword-colossus-wears-fang-art                scripts/presentation/textured_sword_visual.gd "			return settings.colossus" "			return settings.fang"
+mutate sword-fire-tint-is-ice                       scripts/presentation/textured_sword_visual.gd "			return settings.fire_tint" "			return settings.ice_tint"
+mutate sword-poison-tint-is-ice                     scripts/presentation/textured_sword_visual.gd "			return settings.poison_tint" "			return settings.ice_tint"
+mutate sword-rarity-size-lost                       scripts/presentation/textured_sword_visual.gd "	_rarity_size = SwordDefs.RARITY_SIZE[spec.rarity]" "	_rarity_size = 1.0"
+mutate sword-glow-always-rarity-colour              scripts/presentation/textured_sword_visual.gd "	_glow_tint = SwordDefs.RARITY_COLORS[spec.rarity] if spec.rarity > 0 else _tint" "	_glow_tint = SwordDefs.RARITY_COLORS[spec.rarity]"
+mutate sword-glow-always-element-colour             scripts/presentation/textured_sword_visual.gd "	_glow_tint = SwordDefs.RARITY_COLORS[spec.rarity] if spec.rarity > 0 else _tint" "	_glow_tint = _tint"
+mutate sword-glow-size                              scripts/presentation/textured_sword_visual.gd "(length * 1.5 / glow_across)" "(length * 0.5 / glow_across)"
+mutate sword-heading-ignored                        scripts/presentation/textured_sword_visual.gd "	_blade.rotation = _art.rotation_for(_angle)" "	_blade.rotation = deg_to_rad(_art.orientation_degrees)"
+mutate sword-lift-lost                              scripts/presentation/textured_sword_visual.gd "	_blade.position = Vector2(0.0, -_lift)" "	_blade.position = Vector2.ZERO"
+mutate sword-glow-not-lifted                        scripts/presentation/textured_sword_visual.gd "	_glow.position = Vector2(0.0, -_lift)" "	_glow.position = Vector2.ZERO"
+mutate sword-hover-ignored                          scripts/presentation/textured_sword_visual.gd "	_lift = _hover if _resting else _altitude if _colossus else lerpf(" "	_lift = _altitude if _colossus else lerpf("
+mutate sword-altitude-ignored                       scripts/presentation/textured_sword_visual.gd "else _altitude if _colossus else lerpf(" "else lerpf("
+mutate sword-attack-does-not-dip                    scripts/presentation/textured_sword_visual.gd "settings.lift_attack if attacking else settings.lift_idle" "settings.lift_idle"
+mutate sword-windup-plays-idle                      scripts/presentation/textured_sword_visual.gd "			return settings.windup_clip" "			return settings.idle_clip"
+mutate sword-strike-plays-idle                      scripts/presentation/textured_sword_visual.gd "		SwordState.Phase.STRIKE, SwordState.Phase.STUCK:
+			return settings.strike_clip" "		SwordState.Phase.STUCK:
+			return settings.strike_clip"
+mutate sword-stuck-plays-idle                       scripts/presentation/textured_sword_visual.gd "		SwordState.Phase.STRIKE, SwordState.Phase.STUCK:" "		SwordState.Phase.STRIKE:"
+mutate sword-recover-plays-idle                     scripts/presentation/textured_sword_visual.gd "			return settings.recover_clip" "			return settings.idle_clip"
+mutate sword-ultimate-plays-idle                    scripts/presentation/textured_sword_visual.gd "			return settings.ultimate_clip" "			return settings.idle_clip"
+mutate sword-strike-brightness-lost                 scripts/presentation/textured_sword_visual.gd "	_blade.modulate = _tint.lerp(Color.WHITE, 0.3 if striking else 0.0)" "	_blade.modulate = _tint"
+mutate sword-swap-flash-lost                        scripts/presentation/textured_sword_visual.gd "GLOW_FLASH_ALPHA * _flash" "GLOW_FLASH_ALPHA * 0.0"
+mutate sword-shadow-stays-big                       scripts/presentation/textured_sword_visual.gd "lerpf(1.6, 0.8, high)" "1.6"
+mutate sword-shadow-leaves-the-ground               scripts/presentation/textured_sword_visual.gd "	_shadow.position = Vector2(0.0, 6.0)" "	_shadow.position = Vector2(0.0, -20.0)"
+mutate sword-frame-stuck-on-first                   scripts/presentation/textured_sword_visual.gd "	_blade.frame = _player.frame()" "	_blade.frame = 0"
+mutate sword-clip-end-not-announced                 scripts/presentation/textured_sword_visual.gd "		clip_finished.emit(_player.clip)" "		pass"
+mutate sword-clip-end-not-counted                   scripts/presentation/textured_sword_visual.gd "		clips_finished += 1
+" "		pass
+"
+mutate sword-flash-ignored                          scripts/presentation/textured_sword_visual.gd "	_flash = amount" "	_flash = 0.0"
+mutate sword-animation-refunds-the-cooldown         scripts/presentation/textured_sword_visual.gd "		clip_finished.emit(_player.clip)
+	_layout()" "		clip_finished.emit(_player.clip)
+		if get_parent() is RunPresenter:
+			(get_parent().get_parent() as Main).run.swords[0].cooldown_left = 0.0
+	_layout()"
+mutate actor-orientation-lost                       scripts/presentation/textured_actor_visual.gd "		_body.rotation = settings.body.rotation_for(_facing.angle())" "		_body.rotation = _facing.angle()"
+mutate actor-facing-ignored                         scripts/presentation/textured_actor_visual.gd "		_body.rotation = settings.body.rotation_for(_facing.angle())" "		_body.rotation = settings.body.rotation_for(0.0)"
+mutate actor-moving-plays-idle                      scripts/presentation/textured_actor_visual.gd "settings.moving_clip if _moving else settings.idle_clip" "settings.idle_clip"
+mutate actor-dead-plays-idle                        scripts/presentation/textured_actor_visual.gd "settings.dead_clip if _dead else settings.moving_clip" "settings.moving_clip"
+mutate actor-never-blinks                           scripts/presentation/textured_actor_visual.gd "settings.invulnerable_alpha if _invulnerable and _blink % 6 < 3 else 1.0" "1.0"
+mutate actor-blink-stuck-faded                      scripts/presentation/textured_actor_visual.gd "_invulnerable and _blink % 6 < 3" "_invulnerable"
+mutate actor-shadow-offset-lost                     scripts/presentation/textured_actor_visual.gd "	_shadow.position = settings.shadow_offset" "	_shadow.position = Vector2.ZERO"
+mutate actor-clip-end-not-announced                 scripts/presentation/textured_actor_visual.gd "		clip_finished.emit(_player.clip)" "		pass"
+mutate actor-frame-stuck-on-first                   scripts/presentation/textured_actor_visual.gd "	_body.frame = _player.frame()" "	_body.frame = 0"
+mutate actor-visual-heals-the-run                   scripts/presentation/textured_actor_visual.gd "	_blink += 1
+" "	_blink += 1
+	if get_parent() is Main and _blink == 100:
+		(get_parent() as Main).run.hp += 5.0
+"
+mutate actor-visual-moves-the-run                   scripts/presentation/textured_actor_visual.gd "func _on_pose(facing: Vector2, moving: bool) -> void:
+	_facing = facing" "func _on_pose(facing: Vector2, moving: bool) -> void:
+	if get_parent() is Main and moving and (get_parent() as Main).run.tick == 200:
+		(get_parent() as Main).run.position.x += 1.0
+	_facing = facing"
+mutate sets-default-is-textured                     scripts/presentation/visual_sets.gd "const DEFAULT: String = PLACEHOLDER" "const DEFAULT: String = TEXTURED"
+mutate sets-name-case-sensitive                     scripts/presentation/visual_sets.gd "	var id: String = requested.strip_edges().to_lower()" "	var id: String = requested"
+mutate sets-unknown-set-kept                        scripts/presentation/visual_sets.gd "	return id if _SCENES.has(id) else DEFAULT" "	return id if _SCENES.has(id) or not requested.is_empty() else DEFAULT"
+mutate sets-actor-not-swapped                       scripts/presentation/visual_sets.gd "	main.actor_visual = load(scene_path(id, \"actor\")) as PackedScene" "	pass"
+mutate sets-sword-not-swapped                       scripts/presentation/visual_sets.gd "	main.sword_visual = load(scene_path(id, \"sword\")) as PackedScene" "	pass"
+mutate sets-textured-enemy-replaced                 scripts/presentation/visual_sets.gd "		\"enemy\": \"res://scenes/placeholder_enemy.tscn\",
+	},
+}" "		\"enemy\": \"res://tests/alt_enemy.tscn\",
+	},
+}"
+mutate sets-textured-actor-is-drawn                 scripts/presentation/visual_sets.gd "		\"actor\": \"res://scenes/textured_actor.tscn\"," "		\"actor\": \"res://scenes/placeholder_actor.tscn\","
+mutate sets-default-overrides-what-is-set           scripts/presentation/visual_sets.gd "	if id == DEFAULT:
+		return
+" ""
+mutate launch-visuals-option-renamed                scripts/launch_options.gd "const VISUALS_ARGUMENT_PREFIX: String = \"--visuals=\"" "const VISUALS_ARGUMENT_PREFIX: String = \"--visual=\""
+mutate launch-visuals-query-renamed                 scripts/launch_options.gd "const VISUALS_QUERY: String = \"visuals\"" "const VISUALS_QUERY: String = \"visual\""
+mutate main-visuals-setting-ignored                 scripts/main.gd "VisualSets.apply(visuals if not visuals.is_empty() else LaunchOptions.requested_visuals(), self)" "VisualSets.apply(LaunchOptions.requested_visuals(), self)"
+mutate art-fang-pivot-on-its-centre                 art/placeholder/sword_settings.tres "pivot = Vector2(12, 68)" "pivot = Vector2(12, 48)"
+mutate art-fang-orientation-lost                    art/placeholder/sword_settings.tres "frame_count = 4
+pivot = Vector2(12, 68)
+visual_scale = Vector2(0.5, 0.5)
+orientation_degrees = 90" "frame_count = 4
+pivot = Vector2(12, 68)
+visual_scale = Vector2(0.5, 0.5)
+orientation_degrees = 0"
+mutate art-windup-shows-an-idle-frame               art/placeholder/sword_settings.tres "frames = PackedInt32Array(2)" "frames = PackedInt32Array(0)"
+mutate art-sword-sheets-same-size                   art/placeholder/sword_settings.tres "[ext_resource type=\"Texture2D\" path=\"res://art/placeholder/sword_warden.png\" id=\"warden_png\"]" "[ext_resource type=\"Texture2D\" path=\"res://art/placeholder/sword_fang.png\" id=\"warden_png\"]"
+mutate art-ice-tint-is-fire                         scripts/presentation/sword_sprite_settings.gd "@export var ice_tint: Color = Color(0.47, 0.80, 1.0)" "@export var ice_tint: Color = Color(1.0, 0.46, 0.17)"
+mutate art-attack-lift-equals-idle                  scripts/presentation/sword_sprite_settings.gd "@export var lift_attack: float = 14.0" "@export var lift_attack: float = 34.0"
+mutate art-actor-orientation-lost                   art/placeholder/actor_settings.tres "orientation_degrees = -90" "orientation_degrees = 0"
+mutate art-actor-pivot-on-its-centre                art/placeholder/actor_settings.tres "pivot = Vector2(32, 44)" "pivot = Vector2(32, 40)"
+mutate art-actor-never-fades                        scripts/presentation/actor_sprite_settings.gd "@export_range(0.0, 1.0) var invulnerable_alpha: float = 0.45" "@export_range(0.0, 1.0) var invulnerable_alpha: float = 1.0"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

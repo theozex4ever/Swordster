@@ -1,0 +1,106 @@
+[gd_resource type="Resource" script_class="SwordSpriteSettings" load_steps=21 format=3]
+
+; PLACEHOLDER art settings for the `textured` visual set. Edit these numbers (or point them at new PNGs) to
+; replace the swords; see docs/art/replacing-visuals.md.
+
+[ext_resource type="Script" path="res://scripts/presentation/sword_sprite_settings.gd" id="settings"]
+[ext_resource type="Script" path="res://scripts/presentation/sprite_art.gd" id="art"]
+[ext_resource type="Script" path="res://scripts/presentation/sprite_clip.gd" id="clip"]
+[ext_resource type="Texture2D" path="res://art/placeholder/sword_fang.png" id="fang_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/sword_warden.png" id="warden_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/sword_pike.png" id="pike_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/sword_colossus.png" id="colossus_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/glow.png" id="glow_png"]
+[ext_resource type="Texture2D" path="res://art/placeholder/shadow.png" id="shadow_png"]
+
+[sub_resource type="Resource" id="fang"]
+script = ExtResource("art")
+texture = ExtResource("fang_png")
+frame_count = 4
+pivot = Vector2(12, 68)
+visual_scale = Vector2(0.5, 0.5)
+orientation_degrees = 90
+
+[sub_resource type="Resource" id="warden"]
+script = ExtResource("art")
+texture = ExtResource("warden_png")
+frame_count = 4
+pivot = Vector2(20, 93)
+visual_scale = Vector2(0.6, 0.6)
+orientation_degrees = 90
+
+[sub_resource type="Resource" id="pike"]
+script = ExtResource("art")
+texture = ExtResource("pike_png")
+frame_count = 4
+pivot = Vector2(14, 60)
+visual_scale = Vector2(0.5, 0.5)
+orientation_degrees = 90
+
+[sub_resource type="Resource" id="colossus"]
+script = ExtResource("art")
+texture = ExtResource("colossus_png")
+frame_count = 4
+pivot = Vector2(32, 156)
+visual_scale = Vector2(0.6, 0.6)
+orientation_degrees = 90
+
+[sub_resource type="Resource" id="glow"]
+script = ExtResource("art")
+texture = ExtResource("glow_png")
+frame_count = 1
+pivot = Vector2(64, 64)
+visual_scale = Vector2(1.0, 1.0)
+orientation_degrees = 0
+
+[sub_resource type="Resource" id="shadow"]
+script = ExtResource("art")
+texture = ExtResource("shadow_png")
+frame_count = 1
+pivot = Vector2(24, 12)
+visual_scale = Vector2(0.5, 0.5)
+orientation_degrees = 0
+
+[sub_resource type="Resource" id="idle"]
+script = ExtResource("clip")
+frames = PackedInt32Array(0, 1)
+fps = 2.0
+loop = true
+
+[sub_resource type="Resource" id="windup"]
+script = ExtResource("clip")
+frames = PackedInt32Array(2)
+fps = 8.0
+loop = false
+
+[sub_resource type="Resource" id="strike"]
+script = ExtResource("clip")
+frames = PackedInt32Array(3)
+fps = 8.0
+loop = false
+
+[sub_resource type="Resource" id="recover"]
+script = ExtResource("clip")
+frames = PackedInt32Array(0)
+fps = 8.0
+loop = false
+
+[sub_resource type="Resource" id="ultimate"]
+script = ExtResource("clip")
+frames = PackedInt32Array(3, 2)
+fps = 20.0
+loop = true
+
+[resource]
+script = ExtResource("settings")
+fang = SubResource("fang")
+warden = SubResource("warden")
+pike = SubResource("pike")
+colossus = SubResource("colossus")
+glow = SubResource("glow")
+shadow = SubResource("shadow")
+idle_clip = SubResource("idle")
+windup_clip = SubResource("windup")
+strike_clip = SubResource("strike")
+recover_clip = SubResource("recover")
+ultimate_clip = SubResource("ultimate")

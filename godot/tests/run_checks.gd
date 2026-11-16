@@ -65,6 +65,8 @@ func _run_all() -> void:
 	await converge.run_all()
 	var drops: DropsSwapsChecks = DropsSwapsChecks.new(_check, self)
 	await drops.run_all()
+	var replacement: VisualReplacementChecks = VisualReplacementChecks.new(_check, self)
+	await replacement.run_all()
 	var waves: WavesChecks = WavesChecks.new(_check, self)
 	await waves.run_all()
 	if _failed == 0 and _total > 0:
