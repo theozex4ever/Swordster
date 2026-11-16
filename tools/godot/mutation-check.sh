@@ -2488,6 +2488,130 @@ mutate art-attack-lift-equals-idle                  scripts/presentation/sword_s
 mutate art-actor-orientation-lost                   art/placeholder/actor_settings.tres "orientation_degrees = -90" "orientation_degrees = 0"
 mutate art-actor-pivot-on-its-centre                art/placeholder/actor_settings.tres "pivot = Vector2(32, 44)" "pivot = Vector2(32, 40)"
 mutate art-actor-never-fades                        scripts/presentation/actor_sprite_settings.gd "@export_range(0.0, 1.0) var invulnerable_alpha: float = 0.45" "@export_range(0.0, 1.0) var invulnerable_alpha: float = 1.0"
+# Visibility: the textured actor and swords must be shown, not just built (issue #45)
+mutate sword-visual-hidden                          scripts/presentation/textured_sword_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	visible = false
+	_shadow = Sprite2D.new()"
+mutate sword-visual-hidden-while-striking           scripts/presentation/textured_sword_visual.gd "	_phase = phase
+	var attacking" "	_phase = phase
+	visible = phase != SwordState.Phase.STRIKE
+	var attacking"
+mutate sword-blade-hidden                           scripts/presentation/textured_sword_visual.gd "	_blade.modulate = _tint
+	settings.glow.configure(_glow)" "	_blade.modulate = _tint
+	_blade.visible = false
+	settings.glow.configure(_glow)"
+mutate sword-glow-hidden                            scripts/presentation/textured_sword_visual.gd "	settings.glow.configure(_glow)
+	_layout()" "	settings.glow.configure(_glow)
+	_glow.visible = false
+	_layout()"
+mutate sword-shadow-hidden                          scripts/presentation/textured_sword_visual.gd "	settings.shadow.configure(_shadow)
+	_shadow.position = Vector2(0.0, 6.0)" "	settings.shadow.configure(_shadow)
+	_shadow.visible = false
+	_shadow.position = Vector2(0.0, 6.0)"
+mutate sword-blade-texture-empty                    scripts/presentation/textured_sword_visual.gd "	_art.configure(_blade, _rarity_size)
+	_blade.modulate = _tint" "	_art.configure(_blade, _rarity_size)
+	_blade.texture = ImageTexture.new()
+	_blade.modulate = _tint"
+mutate sword-glow-texture-empty                     scripts/presentation/textured_sword_visual.gd "	settings.glow.configure(_glow)
+	_layout()" "	settings.glow.configure(_glow)
+	_glow.texture = ImageTexture.new()
+	_layout()"
+mutate sword-blade-scaled-to-nothing                scripts/presentation/textured_sword_visual.gd "	_art.configure(_blade, _rarity_size)
+	_blade.modulate = _tint" "	_art.configure(_blade, _rarity_size)
+	_blade.scale = Vector2.ZERO
+	_blade.modulate = _tint"
+mutate actor-visual-hidden                          scripts/presentation/textured_actor_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	visible = false
+	_shadow = Sprite2D.new()"
+mutate actor-body-hidden                            scripts/presentation/textured_actor_visual.gd "	settings.body.configure(_body)
+	_turn()" "	settings.body.configure(_body)
+	_body.visible = false
+	_turn()"
+mutate actor-shadow-hidden                          scripts/presentation/textured_actor_visual.gd "	settings.shadow.configure(_shadow)
+	_shadow.position = settings.shadow_offset" "	settings.shadow.configure(_shadow)
+	_shadow.visible = false
+	_shadow.position = settings.shadow_offset"
+mutate actor-body-texture-empty                     scripts/presentation/textured_actor_visual.gd "	settings.body.configure(_body)
+	_turn()" "	settings.body.configure(_body)
+	_body.texture = ImageTexture.new()
+	_turn()"
+mutate presenter-pickups-never-shown                scripts/presentation/run_presenter.gd "		visual.visible = not pickup.blink_hidden()" "		visual.visible = false"
+# Raw hit geometry: a replacement that nudges the reach, the blade, the sweep or an enemy's size must change the hash (issue #45)
+mutate sword-animation-lengthens-the-blade          scripts/presentation/textured_sword_visual.gd "		clip_finished.emit(_player.clip)
+	_layout()" "		clip_finished.emit(_player.clip)
+		if get_parent() is RunPresenter:
+			(get_parent().get_parent() as Main).run.swords[0].length += 0.01
+	_layout()"
+mutate sword-animation-extends-the-reach            scripts/presentation/textured_sword_visual.gd "		clip_finished.emit(_player.clip)
+	_layout()" "		clip_finished.emit(_player.clip)
+		if get_parent() is RunPresenter:
+			(get_parent().get_parent() as Main).run.swords[0].attack_range += 0.01
+	_layout()"
+mutate sword-animation-resizes-an-enemy             scripts/presentation/textured_sword_visual.gd "		clip_finished.emit(_player.clip)
+	_layout()" "		clip_finished.emit(_player.clip)
+		if get_parent() is RunPresenter and not (get_parent().get_parent() as Main).run.enemies.is_empty():
+			(get_parent().get_parent() as Main).run.enemies[0].radius += 0.01
+	_layout()"
+mutate actor-animation-resizes-an-enemy             scripts/presentation/textured_actor_visual.gd "		clip_finished.emit(_player.clip)
+	_body.frame" "		clip_finished.emit(_player.clip)
+		if get_parent() is Main and not (get_parent() as Main).run.enemies.is_empty():
+			(get_parent() as Main).run.enemies[0].radius += 0.01
+	_body.frame"
+# Drawn, not just present: alpha along the ancestors, scale, draw order, and where the pixels land (review of PR #48)
+mutate sword-visual-transparent                     scripts/presentation/textured_sword_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	modulate.a = 0.0
+	_shadow = Sprite2D.new()"
+mutate sword-visual-scaled-to-nothing               scripts/presentation/textured_sword_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	scale = Vector2.ZERO
+	_shadow = Sprite2D.new()"
+mutate sword-blade-self-transparent                 scripts/presentation/textured_sword_visual.gd "	_blade.modulate = _tint
+	settings.glow.configure(_glow)" "	_blade.modulate = _tint
+	_blade.self_modulate.a = 0.0
+	settings.glow.configure(_glow)"
+mutate sword-visual-under-the-floor                 scripts/presentation/textured_sword_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	z_index = -10
+	_shadow = Sprite2D.new()"
+mutate sword-blade-off-camera                       scripts/presentation/textured_sword_visual.gd "	_blade.position = Vector2(0.0, -_lift)" "	_blade.position = Vector2(4000.0 if _phase == SwordState.Phase.STRIKE else 0.0, -_lift)"
+mutate sword-glow-off-camera                        scripts/presentation/textured_sword_visual.gd "	_glow.position = Vector2(0.0, -_lift)" "	_glow.position = Vector2(0.0, -_lift - (4000.0 if _phase == SwordState.Phase.STRIKE else 0.0))"
+mutate actor-visual-transparent                     scripts/presentation/textured_actor_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	modulate.a = 0.0
+	_shadow = Sprite2D.new()"
+mutate actor-visual-scaled-to-nothing               scripts/presentation/textured_actor_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	scale = Vector2.ZERO
+	_shadow = Sprite2D.new()"
+mutate actor-body-self-transparent                  scripts/presentation/textured_actor_visual.gd "	settings.body.configure(_body)
+	_turn()" "	settings.body.configure(_body)
+	_body.self_modulate.a = 0.0
+	_turn()"
+mutate actor-visual-under-the-floor                 scripts/presentation/textured_actor_visual.gd "func _ready() -> void:
+	_shadow = Sprite2D.new()" "func _ready() -> void:
+	z_index = -10
+	_shadow = Sprite2D.new()"
+mutate actor-body-off-camera                        scripts/presentation/textured_actor_visual.gd "	settings.body.configure(_body)
+	_turn()" "	settings.body.configure(_body)
+	_body.position = Vector2(4000.0, 0.0)
+	_turn()"
+mutate presenter-pickups-odd-serials-hidden         scripts/presentation/run_presenter.gd "		visual.visible = not pickup.blink_hidden()" "		visual.visible = not pickup.blink_hidden() and pickup.serial % 2 == 0"
+mutate presenter-pickups-shown-only-briefly         scripts/presentation/run_presenter.gd "		visual.visible = not pickup.blink_hidden()" "		visual.visible = not pickup.blink_hidden() and pickup.age < 0.1"
+mutate sword-pickups-hidden-by-slow-art             scripts/presentation/textured_sword_visual.gd "	_resting = true
+	_hover = height" "	_resting = true
+	_hover = height
+	if settings.idle_clip.fps < 1.0:
+		_blade.visible = false"
+mutate warden-sweep-bent-by-the-animation           scripts/presentation/textured_sword_visual.gd "	_phase = phase
+	var attacking" "	_phase = phase
+	if get_parent() is RunPresenter:
+		for sword: SwordState in (get_parent().get_parent() as Main).run.swords:
+			if sword.spec.type_id == SwordDefs.WARDEN and sword.phase == SwordState.Phase.STRIKE:
+				sword.sweep_to += 0.0002
+	var attacking"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

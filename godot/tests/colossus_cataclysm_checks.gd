@@ -1311,13 +1311,22 @@ func _check_field_particles() -> void:
 		run.fields.append(FieldState.make(CENTER + Vector2(200.0, 0.0), 233.0, element, 50.0, 5.0))
 		var effects: EffectsLayer = EffectsLayer.new()
 		_tree.root.add_child(effects)
+		# The layer's particles are cosmetic and use a random stream of their own, which starts unseeded: seed it so every run of
+		# this check sees the same embers, and bound them by what the layer can do at all instead of by a number that
+		# the unluckiest ember of an unseeded stream can break.
+		effects._rng.seed = 20260116
+		# An ember starts inside the field's ellipse (never farther than its radius from the centre) plus a spawn spread of 4 px,
+		# and then flies for at most its life at most its speed (`EffectsLayer._add_field_particles`).
+		var flight: Dictionary = {&"fire": Vector2(25.0, 150.0).length() * 0.55, &"ice": 50.0 * 0.7, &"poison": Vector2(10.0, 45.0).length() * 0.9}
+		var bound: float = 233.0 + 4.0 + float(flight[element]) + 0.5
 		var most: int = 0
-		var inside: bool = true
+		var farthest: float = 0.0
 		for i: int in 120:
 			effects.sync(run)
 			most = maxi(most, effects._embers.size())
-			inside = inside and effects._embers.all(func(ember: Dictionary) -> bool: return (Vector2(ember["pos"]) - Vector2(CENTER.x + 200.0, CENTER.y)).length() < 260.0)
-		_ok("a %s field keeps up to %d particles alive around it over 2 s (it emits about 28 a second; they last under a second)" % [element, most], most >= 4 and inside)
+			for ember: Dictionary in effects._embers:
+				farthest = maxf(farthest, (Vector2(ember["pos"]) - Vector2(CENTER.x + 200.0, CENTER.y)).length())
+		_ok("a %s field keeps up to %d particles alive around it over 2 s (it emits about 28 a second; they last under a second) and none strays past %.0f px of its centre (the farthest was %.0f)" % [element, most, bound, farthest], most >= 4 and farthest < bound)
 		effects.queue_free()
 	await _tree.process_frame
 
