@@ -182,6 +182,13 @@ func _check_actor_cues() -> void:
 	actor.apply_pose(Vector2(300.0, 200.0), Vector2.RIGHT, true)
 	actor.apply_state(false, true)
 	_ok("dead stays fallen whatever the movement", sprite.frame == settings.dead_clip.frames[0])
+	var heard: Array[SpriteClip] = []
+	actor.clip_finished.connect(func(clip: SpriteClip) -> void: heard.append(clip))
+	var before: int = actor.clips_finished
+	for tick: int in 60:
+		actor.apply_pose(Vector2(300.0, 200.0), Vector2.RIGHT, false)
+		actor.apply_state(false, true)
+	_ok("a fallen actor's clip that has played through announces it once", heard.size() == 1 and heard[0] == settings.dead_clip and actor.clips_finished == before + 1)
 	actor.free()
 
 
