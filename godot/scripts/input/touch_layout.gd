@@ -9,7 +9,7 @@ extends RefCounted
 ## Landscape (the view the game is laid out for):
 ##
 ##   top right:        [Fullscreen] [Ranges]            (under the HUD's Pause / Restart / Dev buttons)
-##   centre:           [Resume] while paused, [Restart] once the run is over
+##   left of centre:   [Resume] while paused, [Restart] once the run is over
 ##   bottom right:                [Swap 1][Swap 2][Swap 3]
 ##                      [Q][E][R]   [Converge]
 ##                                  [Dash]   (the HUD's)
@@ -18,8 +18,10 @@ extends RefCounted
 
 const BUTTON: float = 96.0
 const CONVERGE_SIZE: float = 104.0
-const SWAP_SIZE: Vector2 = Vector2(96.0, 60.0)
-const SMALL_SIZE: Vector2 = Vector2(80.0, 52.0)
+## No touch button is smaller than this on either side: 44 CSS px on a phone held sideways (the view is then scaled by 0.57 or more).
+const MIN_SIDE: float = 76.0
+const SWAP_SIZE: Vector2 = Vector2(96.0, 78.0)
+const SMALL_SIZE: Vector2 = Vector2(96.0, 78.0)
 const BIG_SIZE: Vector2 = Vector2(260.0, 96.0)
 const GAP: float = 10.0
 const MARGIN: float = 24.0
@@ -75,7 +77,7 @@ static func button_rects(view: Vector2, insets: Vector4, dash: Rect2) -> Diction
 	var top_y: float = maxf(116.0, insets.y + GAP)
 	rects[RANGES] = Rect2(right - MARGIN - SMALL_SIZE.x, top_y, SMALL_SIZE.x, SMALL_SIZE.y)
 	rects[FULLSCREEN] = Rect2(right - MARGIN - SMALL_SIZE.x * 2.0 - GAP, top_y, SMALL_SIZE.x, SMALL_SIZE.y)
-	var centre: Vector2 = Vector2((insets.x + right) * 0.5, view.y * 0.5 + 130.0)
+	var centre: Vector2 = Vector2(insets.x + (right - insets.x) * 0.4, view.y * 0.5 + 130.0)
 	rects[RESUME] = Rect2(centre - BIG_SIZE * 0.5, BIG_SIZE)
 	rects[RESTART] = rects[RESUME]
 	return rects

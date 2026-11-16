@@ -25,6 +25,10 @@ var _dash: Rect2 = Rect2()
 var _fullscreen_supported: bool = false
 ## Slot buttons only exist for slots the run holds a sword in; remembered so a hidden slot blocks nothing.
 var _active: bool = false
+## The big Resume / Restart buttons are hidden by the very press that uses them; the engine then loses that finger's release and
+## ignores the button's next press. So a held button stays up until its finger lifts: whether each is wanted, and whether held.
+var _wanted: Dictionary[StringName, bool] = {}
+var _held: Dictionary[StringName, bool] = {}
 
 
 func _ready() -> void:
@@ -124,8 +128,8 @@ func show_run(run: GameRun) -> void:
 		return
 	var over: bool = run.outcome() != GameRun.Outcome.RUNNING
 	var restartable: bool = (run.dead and run.death_time > GameRun.RESTART_DELAY) or run.outcome() == GameRun.Outcome.SURVIVED
-	_buttons[TouchLayout.RESUME].visible = run.paused and not over
-	_buttons[TouchLayout.RESTART].visible = restartable
+	_want(TouchLayout.RESUME, run.paused and not over)
+	_want(TouchLayout.RESTART, restartable)
 	var live: bool = not run.paused and not run.dead
 	var converge: Button = _buttons[TouchLayout.CONVERGE]
 	converge.text = "Converge\nready" if run.converge_cooldown_left <= 0.0 else "Converge\n%.1fs" % run.converge_cooldown_left
@@ -155,7 +159,12 @@ func _apply_visibility() -> void:
 		return
 	_root.visible = _active
 	for id: StringName in [TouchLayout.RESUME, TouchLayout.RESTART]:
-		_buttons[id].visible = false
+		_want(id, false)
+
+
+func _want(id: StringName, wanted: bool) -> void:
+	_wanted[id] = wanted
+	_buttons[id].visible = wanted or _held.get(id, false)
 
 
 func _add(id: StringName, text: String, on_down: Callable) -> void:
@@ -163,6 +172,12 @@ func _add(id: StringName, text: String, on_down: Callable) -> void:
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_font_size_override("font_size", 20)
-	button.button_down.connect(on_down)
+	button.button_down.connect(func() -> void:
+		_held[id] = true
+		on_down.call())
+	button.button_up.connect(func() -> void:
+		_held.erase(id)
+		if _wanted.has(id):
+			button.visible = _wanted[id])
 	_root.add_child(button)
 	_buttons[id] = button
