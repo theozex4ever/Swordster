@@ -2286,7 +2286,7 @@ mutate actor-visual-moves-the-run                   scripts/presentation/texture
 	_facing = facing"
 mutate sets-default-is-textured                     scripts/presentation/visual_sets.gd "const DEFAULT: String = PLACEHOLDER" "const DEFAULT: String = TEXTURED"
 mutate sets-name-case-sensitive                     scripts/presentation/visual_sets.gd "	var id: String = requested.strip_edges().to_lower()" "	var id: String = requested"
-mutate sets-unknown-set-kept                        scripts/presentation/visual_sets.gd "	return id if _SCENES.has(id) else DEFAULT" "	return id"
+mutate sets-unknown-set-kept                        scripts/presentation/visual_sets.gd "	return id if _SCENES.has(id) else DEFAULT" "	return id if _SCENES.has(id) or not requested.is_empty() else DEFAULT"
 mutate sets-actor-not-swapped                       scripts/presentation/visual_sets.gd "	main.actor_visual = load(scene_path(id, \"actor\")) as PackedScene" "	pass"
 mutate sets-sword-not-swapped                       scripts/presentation/visual_sets.gd "	main.sword_visual = load(scene_path(id, \"sword\")) as PackedScene" "	pass"
 mutate sets-textured-enemy-replaced                 scripts/presentation/visual_sets.gd "		\"enemy\": \"res://scenes/placeholder_enemy.tscn\",

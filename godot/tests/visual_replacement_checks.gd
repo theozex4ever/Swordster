@@ -126,6 +126,12 @@ func _check_art_contract() -> void:
 	_ok("a looping clip wraps and never finishes", clip.frame_at(0.31) == 5 and clip.frame_at(0.45) == 6 and not clip.is_finished_at(100.0))
 
 
+## The sheet each sword type must be drawn from, read straight off the settings.
+func _expected_art(settings: SwordSpriteSettings, type_id: StringName) -> SpriteArt:
+	var by_type: Dictionary = {SwordDefs.FANG: settings.fang, SwordDefs.WARDEN: settings.warden, SwordDefs.PIKE: settings.pike, SwordDefs.COLOSSUS: settings.colossus}
+	return by_type[type_id] as SpriteArt
+
+
 func _shares(a: SpriteClip, b: SpriteClip) -> bool:
 	for frame: int in a.frames:
 		if b.frames.has(frame):
@@ -215,7 +221,7 @@ func _check_sword_cues() -> void:
 				sword.setup(spec)
 				sword.apply_pose(Vector2(120.0, 80.0), 0.7, SwordState.Phase.IDLE)
 				var blade: Sprite2D = sword.blade_sprite()
-				var art: SpriteArt = sword.art_of(type_id)
+				var art: SpriteArt = _expected_art(settings, type_id)
 				var tint: Color = sword.tint_of(element)
 				var glow_tint: Color = SwordDefs.RARITY_COLORS[rarity] if rarity > 0 else tint
 				var label: String = "%s/%s/%d" % [type_id, element, rarity]
@@ -288,7 +294,7 @@ func _check_sword_phases(settings: SwordSpriteSettings, scene: PackedScene) -> v
 	pickup.setup(SwordSpec.make(SwordDefs.PIKE, 2, &"fire"))
 	pickup.apply_hover(41.0)
 	pickup.apply_pose(Vector2(10.0, 20.0), PI / 2.0, SwordState.Phase.IDLE)
-	_ok("a dropped sword hovers at the height it is given, point-down", is_equal_approx(pickup.blade_sprite().position.y, -41.0) and is_equal_approx(pickup.blade_sprite().rotation, PI / 2.0 + deg_to_rad(pickup.art_of(SwordDefs.PIKE).orientation_degrees)))
+	_ok("a dropped sword hovers at the height it is given, point-down", is_equal_approx(pickup.blade_sprite().position.y, -41.0) and is_equal_approx(pickup.blade_sprite().rotation, PI / 2.0 + deg_to_rad(settings.pike.orientation_degrees)))
 	pickup.free()
 	var colossus: TexturedSwordVisual = scene.instantiate() as TexturedSwordVisual
 	_tree.root.add_child(colossus)
