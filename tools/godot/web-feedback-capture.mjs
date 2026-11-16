@@ -5,8 +5,8 @@
 // HUD, the help overlay, the chain counter, banners, hits, the death screen and the restart.
 //
 // Audio: a script injected before the page loads wraps AudioContext and AudioBufferSourceNode so the page's own audio can be observed
-// from outside: the context's state before and after the first click (autoplay policy "user-gesture-required" is forced, so headless
-// Chromium behaves like a normal browser), its reported latency, and every sound started (time on the context's clock). Written to
+// from outside: the context's state before and after the first click (autoplay policy "user-gesture-required" is requested, but headless
+// Chromium may still report the context as already running before the click, so the context state is not unlock evidence), its reported latency, and every sound started (time on the context's clock). Written to
 // <out-dir>/audio-report.json. What headless can prove: the first user gesture is recorded with its timestamp on the page clock, sounds start after it and
 // none before it (counted against that timestamp, not against the context state), the output latency the browser reports, and that starts are scheduled promptly after the game frame that caused them.
 // What it cannot: that the samples are audible (the sink is muted/fake) or how they sound on a real device (issue #6 / #22).

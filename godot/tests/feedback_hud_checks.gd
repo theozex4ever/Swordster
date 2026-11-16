@@ -962,13 +962,14 @@ func _check_dense_feedback_leaves_the_run_alone() -> void:
 		_tick_main(dense, 1)
 		worst_dense_bits = maxi(worst_dense_bits, dense_effects._bits.size())
 		if i % 50 == 0:
-			trace_off.append("%d/%d/%s/%.4f" % [off.tick, off.kills, off.position, off.hitstop])
-			trace_normal.append("%d/%d/%s/%.4f" % [normal.run.tick, normal.run.kills, normal.run.position, normal.run.hitstop])
-			trace_dense.append("%d/%d/%s/%.4f" % [dense.run.tick, dense.run.kills, dense.run.position, dense.run.hitstop])
+			trace_off.append("%d/%d/%s/%.4f/%d" % [off.tick, off.kills, off.position, off.hitstop, off.rng.state])
+			trace_normal.append("%d/%d/%s/%.4f/%d" % [normal.run.tick, normal.run.kills, normal.run.position, normal.run.hitstop, normal.run.rng.state])
+			trace_dense.append("%d/%d/%s/%.4f/%d" % [dense.run.tick, dense.run.kills, dense.run.position, dense.run.hitstop, dense.run.rng.state])
 	var digest_off: String = JSON.stringify(RenderRateScenario.digest(off))
 	var digest_normal: String = JSON.stringify(RenderRateScenario.digest(normal.run))
 	var digest_dense: String = JSON.stringify(RenderRateScenario.digest(dense.run))
-	_ok("the run's trace is the same with feedback off, normal and dense over %d ticks (%d kills, tick %d)" % [ticks, off.kills, off.tick], trace_off == trace_normal and trace_off == trace_dense and off.kills > 0)
+	var rng_same: bool = off.rng.state == normal.run.rng.state and off.rng.state == dense.run.rng.state
+	_ok("the run's trace, gameplay RNG state included, is the same with feedback off, normal and dense over %d ticks (%d kills, tick %d)" % [ticks, off.kills, off.tick], trace_off == trace_normal and trace_off == trace_dense and off.kills > 0 and rng_same)
 	_ok("and its final simulation digest is identical in all three (%d characters) while the dense layer held its ceiling (%d bits at most)" % [digest_off.length(), worst_dense_bits], digest_off == digest_normal and digest_off == digest_dense and worst_dense_bits == EffectsLayer.MAX_BITS)
 	normal.queue_free()
 	dense.queue_free()
