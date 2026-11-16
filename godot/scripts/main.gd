@@ -20,6 +20,11 @@ var scenario: RunScenario
 var run: GameRun
 var input: InputTranslator = InputTranslator.new()
 var visual: ActorVisual
+## Whether the touch controls are up (issue #20): the platform reports a touchscreen, `--touch` / `?touch=1` asked for them, or a
+## finger has touched the screen. Desktop play with mouse and keys never shows them.
+var touch_mode: bool = false
+## Stand-in safe-area insets (left, top, right, bottom, in viewport pixels) for checks; null reads the platform's.
+var safe_insets_override: Variant = null
 
 ## Shake offsets are cosmetic randomness: a stream of their own, never the run's.
 var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -30,6 +35,12 @@ var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 @onready var _presenter: RunPresenter = $Presenter
 ## Whole-screen feedback (vignette, the red flash of a hit); made here, between the world and the HUD, so the scene file stays as it was.
 var _feedback: ScreenFeedback = ScreenFeedback.new()
+
+@onready var _touch: TouchControls = $Touch
+
+var _platform: TouchPlatform = TouchPlatform.new()
+var _fullscreen_supported: bool = false
+var _insets_now: Vector4 = Vector4.ZERO
 
 
 func _ready() -> void:
@@ -52,20 +63,32 @@ func _ready() -> void:
 
 	input.pointer = get_viewport().get_mouse_position()
 	input.to_world = _world_at
+	input.touch.blocked_provider = _blocked_rects
 	_hud.bind_joystick(input.joystick)
 	_hud.pause_pressed.connect(func() -> void: _submit(GameCommand.toggle_pause()))
 	_hud.restart_pressed.connect(func() -> void: _submit(GameCommand.restart()))
 	_hud.dash_pressed.connect(func() -> void: _submit(GameCommand.dash()))
 	_hud.encounter_pressed.connect(func() -> void: _submit(GameCommand.toggle_encounter()))
 	_hud.shove_pressed.connect(func() -> void: _submit(GameCommand.dev_shove()))
+	_touch.command_requested.connect(_submit)
+	_touch.fullscreen_pressed.connect(TouchPlatform.toggle_fullscreen)
+	_fullscreen_supported = TouchPlatform.fullscreen_supported()
 	get_viewport().size_changed.connect(_update_touch_zone)
-	_update_touch_zone.call_deferred()
 	_hud.show_state(run.paused, _sfx.unlocked)
+	_platform.install_suspend_hook(release_input_and_pause)
+	_platform.install_cancel_hook()
+	set_touch_mode(TouchPlatform.touchscreen_present())
+	_update_touch_zone.call_deferred()
 
 
 func _input(event: InputEvent) -> void:
 	if _is_user_gesture(event):
 		_unlock_audio()
+	if event is InputEventScreenTouch and not touch_mode:
+		set_touch_mode(true)
+	# (A cancelled touch, a finger the browser or the OS took, needs nothing of its own here: `TouchPointers` ends that one
+	# contact without a tap, and the engine gives the cancel to the button the finger was on, which lets go without acting.
+	# Every other finger, and the button it holds, stays as it is. In a browser the cancel comes from `TouchPlatform`'s hook.)
 	# A mouse click is only a Converge when nothing in the HUD took it (the Pause, Restart and Dev
 	# buttons), so it is translated in `_unhandled_input`; here it only keeps the pointer current.
 	if event is InputEventMouseButton:
@@ -99,11 +122,44 @@ func _notification(what: int) -> void:
 
 
 func release_input_and_pause() -> void:
-	input.release_all()
+	_release_touch_state()
 	if run != null and not run.paused:
 		_submit(GameCommand.pause())
 	if _hud != null:
 		_hud.refresh_stick()
+
+
+## Forgets everything a finger or key was holding: the translator's keys, fingers and stick, and the buttons fingers were on,
+## whose fingers will never report their lift.
+func _release_touch_state() -> void:
+	if input.touch.count() > 0:
+		_cancel_on_buttons(input.touch.ui_indices())
+	input.release_all()
+	if _touch != null:
+		_touch.release_all()
+
+
+func _cancel_then_release_buttons(indices: Array[int]) -> void:
+	_cancel_on_buttons(indices)
+	if _touch != null:
+		_touch.release_all()
+
+
+## Takes fingers off the buttons they are on, as the cancelled touches they are: the page was suspended or the run restarted, and
+## these fingers will never report a lift. A button given its finger's cancel lets go (`button_up`) without acting, so nothing
+## is pressed by it (the Full button acts on a lift, never on a cancel). It has to be told before the touch layer hides it:
+## a button hidden while the engine holds it pressed stays "down" inside the engine and gives no `button_down` on its next
+## press (the run would stay paused with Resume doing nothing).
+func _cancel_on_buttons(indices: Array[int]) -> void:
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return
+	for index: int in indices:
+		var taken: InputEventScreenTouch = InputEventScreenTouch.new()
+		taken.index = index
+		taken.pressed = false
+		taken.canceled = true
+		viewport.push_input(taken, true)
 
 
 func _submit(command: GameCommand) -> void:
@@ -111,7 +167,10 @@ func _submit(command: GameCommand) -> void:
 	var restarts_before: int = run.restarts
 	run.apply(command)
 	if run.restarts != restarts_before:
+		# (the finger that pressed Restart is inside the engine's own press handling right now: its release waits a moment)
+		var held: Array[int] = input.touch.ui_indices()
 		input.release_all()
+		_cancel_then_release_buttons.call_deferred(held)
 		_presenter.reset()
 		_feedback.reset()
 		_present()
@@ -124,6 +183,7 @@ func _submit(command: GameCommand) -> void:
 	_dispatch_cues()
 	_hud.show_state(run.paused, _sfx.unlocked)
 	_hud.show_run(run)
+	_show_touch()
 
 
 func _present() -> void:
@@ -137,6 +197,7 @@ func _present() -> void:
 	var shake: Vector2 = Vector2(_fx_rng.randf_range(-1.0, 1.0), _fx_rng.randf_range(-1.0, 1.0)) * trauma_squared * 26.0
 	_camera.global_position = run.camera + shake + run.kick
 	_hud.show_run(run)
+	_show_touch()
 
 
 func _dispatch_cues() -> void:
@@ -160,12 +221,68 @@ func _unlock_audio() -> void:
 	_hud.show_state(run.paused, _sfx.unlocked)
 
 
+## Shows or hides the touch controls (issue #20) and lays the screen out for them.
+func set_touch_mode(on: bool) -> void:
+	if touch_mode == on and _touch.is_active() == on:
+		return
+	touch_mode = on
+	_touch.set_active(on)
+	_hud.set_touch_mode(on)
+	if not on:
+		_hud.extra_avoid_rects = []
+	_update_touch_zone()
+	_show_touch()
+
+
+## The viewport changed (or the controls came up): the joystick's zone, the orientation's base size and the buttons' places.
 func _update_touch_zone() -> void:
 	if not is_inside_tree():
 		return
+	_apply_orientation()
 	var size: Vector2 = get_viewport().get_visible_rect().size
-	input.joystick.zone = Rect2(0.0, size.y * 0.15, size.x * 0.55, size.y * 0.85)
-	input.joystick.blocked = _hud.button_rects()
+	_insets_now = _read_insets()
+	input.joystick.zone = TouchLayout.joystick_zone(size, _insets_now)
+	input.joystick.blocked = _blocked_rects()
+	_show_touch()
+
+
+## Touch play keeps the HUD at the size it was laid out for in either orientation: a window taller than wide uses the portrait
+## base, so the controls are as big on a phone held upright as sideways. Desktop windows keep the project's own base size.
+func _apply_orientation() -> void:
+	if not touch_mode:
+		return
+	var window: Window = get_window()
+	var base: Vector2i = TouchLayout.base_size_for(window.size)
+	if window.content_scale_size != base:
+		window.content_scale_size = base
+
+
+## The safe-area insets as of the last viewport change (reading them asks the browser, so not every tick).
+func _insets() -> Vector4:
+	return _insets_now
+
+
+func _read_insets() -> Vector4:
+	if not touch_mode:
+		return Vector4.ZERO
+	if safe_insets_override is Vector4:
+		return safe_insets_override as Vector4
+	return TouchPlatform.safe_insets(get_viewport().get_visible_rect().size)
+
+
+## Every screen rectangle a finger lands on a button in: the HUD's and the touch controls'.
+func _blocked_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = _hud.button_rects()
+	rects.append_array(_touch.blocked_rects())
+	return rects
+
+
+func _show_touch() -> void:
+	if _touch == null or not is_inside_tree() or not _touch.is_active():
+		return
+	_touch.layout(get_viewport().get_visible_rect().size, _insets(), _hud.dash_rect(), _fullscreen_supported)
+	_touch.show_run(run)
+	_hud.extra_avoid_rects = _touch.blocked_rects()
 
 
 func _is_user_gesture(event: InputEvent) -> bool:

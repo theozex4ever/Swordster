@@ -71,6 +71,8 @@ func _run_all() -> void:
 	await waves.run_all()
 	var feedback: FeedbackHudChecks = FeedbackHudChecks.new(_check, self)
 	await feedback.run_all()
+	var touch: TouchControlsChecks = TouchControlsChecks.new(_check, self)
+	await touch.run_all()
 	if _failed == 0 and _total > 0:
 		print(_passed_line())
 		quit(0)

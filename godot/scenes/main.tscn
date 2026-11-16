@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/placeholder_actor.tscn" id="2"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/placeholder_sword.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/placeholder_enemy.tscn" id="7"]
 [ext_resource type="Script" path="res://scripts/presentation/run_presenter.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/touch/touch_controls.gd" id="9"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
@@ -29,3 +30,6 @@ script = ExtResource("4")
 
 [node name="Hud" type="CanvasLayer" parent="."]
 script = ExtResource("5")
+
+[node name="Touch" type="CanvasLayer" parent="."]
+script = ExtResource("9")

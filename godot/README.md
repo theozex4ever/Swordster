@@ -104,8 +104,21 @@ stuck in the floor after a slam or in its ultimate drops what it is doing and at
 it (Fang dashes, Warden sweeps, Pike thrusts, Colossus slams), and the sword's automatic attacks carry on afterwards. The
 command is shared: after one the next waits 2.5 s (the **converge** line under the dash cooldown counts it down), and it
 is refused while paused or dead. **Tab** or **G** shows a ring around you for each sword's attack range. A click on the HUD's
-own buttons is not a Converge, and neither is a mouse click the engine makes up from a touch (the touch controls arrive with
-issue #20). The aim follows the camera, so it stays right when the window is resized.
+own buttons is not a Converge, and neither is a mouse click the engine makes up from a touch (touch has its own path, issue #20: see
+[Android touch controls](#android-touch-controls)). The aim follows the camera, so it stays right when the window is resized.
+
+### Android touch controls
+
+Slice #20 ([reference and the physical-device checklist](../docs/reference/android-touch.md)). On a device that reports a touchscreen
+(or after the first finger lands, or with `?touch=1` / `-- --touch`) a layer of buttons appears above the HUD: **Converge**, the three
+**ultimates** (Q / E / R, each showing READY, ACTIVE or the seconds left), the three **swaps**, **Ranges**, **Full** (fullscreen, only
+where the browser offers it), and a large **Resume** while paused or **Restart** once the run is over; Dash, Pause and Restart stay the
+HUD's. The left of the screen steers (a floating joystick); a tap on the arena commands Converge at the tapped world point; the Converge
+and ultimate buttons aim at the nearest living enemy, or 300 px ahead of the player. Every finger has one owner for its whole life
+(a button, the joystick or the arena), so a thumb can steer while others press, and a finger on a button never also aims at the arena.
+A cancelled touch, focus loss, the page being hidden or a restart releases everything; backgrounding pauses and only an explicit
+Resume continues. A window taller than wide uses a 740 x 1280 base, so the controls are as large upright as sideways. Desktop play
+(mouse and keys) shows none of this. Launch options: `?touch=1|0`, `?safe=top,right,bottom,left` (CSS px stand-in for safe-area insets).
 
 ### Drops and swaps (1 / 2 / 3)
 
@@ -518,7 +531,9 @@ logic against synthetic result sets); run it by hand when `mutation-check.sh`,
 godot/
 ├── scripts/sim/            GameRun (owns run state, 60 Hz step), GameCommand, RunScenario,
 │                           SwordState/SwordDefs, EnemyState, Mote, WaveDirector, SimCue
-├── scripts/input/          InputTranslator (keyboard), TouchJoystick (per-pointer)
+├── scripts/input/          InputTranslator (keyboard, mouse), TouchPointers (every finger, one owner each),
+│                           TouchJoystick, TouchLayout (pure geometry), TouchPlatform (browser touch / safe area)
+├── scripts/touch/          TouchControls (the touch buttons, a layer of their own above the HUD)
 ├── scripts/presentation/   ActorVisual / SwordVisual / EnemyVisual contracts + placeholder
 │                           drawn visuals, RunPresenter, EffectsLayer
 ├── scripts/main.gd         wiring: input -> commands -> run -> visual
@@ -539,8 +554,8 @@ Sound effects are baked WAVs; the recipe is `tools/godot/gen_audio.py`.
 W A S D or arrow keys move · Space or Shift dash · Q / E / R trigger the ultimate of
 sword slot one / two / three at the mouse (Viper Flurry for a Fang, Maelstrom for a Warden, Skewer for a Pike) · P or Esc pause/resume ·
 R also restarts once the death screen is up (while alive it is only the slot-three
-ultimate) · touch (no ultimate buttons yet, issue #20): drag in the left part of the screen to move, on-screen
-Dash, Pause and Restart buttons (Restart always works, also after surviving the
+ultimate) · touch ([details](#android-touch-controls)): drag in the left part of the screen to move, tap the arena for Converge, on-screen
+Dash, Converge, Q / E / R, Swap 1-3, Ranges, Pause and Restart buttons (Restart always works, also after surviving the
 wave). The three spirit swords attack on their own. The first
 click/tap/key unlocks sound (browsers require a gesture). Losing focus or
 backgrounding pauses the run and releases all input; resume is explicit.

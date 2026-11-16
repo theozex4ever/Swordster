@@ -200,6 +200,10 @@ Record the run with Mobile Friendly off first, then again after enabling it.
 | Signed-out access, no login/payment prompt | UNVERIFIED | UNVERIFIED |
 | Notes | | |
 
+The touch controls added by issue #20 (buttons, arena-tap Converge, large Resume / Restart, safe areas, fullscreen button) have their own
+physical checklist, B1-B13, in [`docs/reference/android-touch.md`](reference/android-touch.md#physical-android-checklist-6--22);
+record those results in this table's notes or a copy of it.
+
 ## Delivery blockers
 
 List anything that stops a tester from playing or downloading (asset errors, wrong or mismatched

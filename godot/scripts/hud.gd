@@ -82,6 +82,10 @@ var _pickup_card: Panel
 var _pickup_lines: Array[Label] = []
 var _pickup_compare: Array[Label] = []
 var _pickup_style: StyleBoxFlat
+## Screen rectangles the pickup card must also stay clear of: the touch controls (issue #20), set by the scene each tick.
+var extra_avoid_rects: Array[Rect2] = []
+## Touch play (issue #20): whatever only speaks of keys and the mouse (the hint line, the help overlay) is not shown.
+var _touch_mode: bool = false
 
 ## Where the Converge cooldown sits (right of the dash one) and how wide its bar is.
 const CONVERGE_LABEL_X: float = 150.0
@@ -465,6 +469,9 @@ func pickup_card_avoid() -> Array[Rect2]:
 		var rect: Rect2 = occupied_rect(control)
 		if control.visible and rect.has_area():
 			rects.append(rect.grow(PICKUP_CARD_GAP))
+	# the touch controls (issue #20), when they are up: rectangles the scene hands in each tick
+	for extra: Rect2 in extra_avoid_rects:
+		rects.append(extra.grow(PICKUP_CARD_GAP))
 	return rects
 
 
@@ -558,10 +565,11 @@ func chain_window_fraction() -> float:
 
 
 ## The help overlay (prototype: while `help_t > 0` and the player lives), fading out over its last second. It gives way while the
-## wave banner is up and while a dropped sword's card is (each would sit on top of it), and comes back after them.
+## wave banner is up and while a dropped sword's card is (each would sit on top of it), and comes back after them. Every line of
+## it names a key or the mouse, so touch play (issue #20) never shows it: the touch buttons are labelled where they are.
 func _show_help(run: GameRun) -> void:
 	var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != "") or run.nearest_pickup() != null
-	var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way
+	var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way and not _touch_mode
 	var alpha: float = clampf(run.help_left, 0.0, 1.0) * 0.86
 	for line: Label in _help_lines:
 		line.visible = shown
@@ -655,15 +663,29 @@ func bind_joystick(joystick: TouchJoystick) -> void:
 	_joystick = joystick
 
 
-## Screen rectangles the touch joystick must not start in.
+## Screen rectangles a touch on the HUD's buttons occupies: it must neither start the touch joystick nor aim Converge at the
+## arena behind it. A hidden button (the Shove button outside the crowd encounter) takes no touch, so it blocks none.
 func button_rects() -> Array[Rect2]:
 	var rects: Array[Rect2] = []
-	rects.append(_pause_button.get_global_rect().grow(8.0))
-	rects.append(_restart_button.get_global_rect().grow(8.0))
-	rects.append(_dash_button.get_global_rect().grow(8.0))
-	rects.append(_encounter_button.get_global_rect().grow(8.0))
-	rects.append(_shove_button.get_global_rect().grow(8.0))
+	for button: Button in [_pause_button, _restart_button, _dash_button, _encounter_button, _shove_button]:
+		if button.is_visible_in_tree():
+			rects.append(button.get_global_rect().grow(8.0))
 	return rects
+
+
+## The Dash button's rectangle: the anchor the touch controls (issue #20) are laid out around.
+func dash_rect() -> Rect2:
+	return _dash_button.get_global_rect()
+
+
+## Touch play (issue #20): the keyboard hint line and the help overlay say nothing a touch player can use, so they go (the
+## help at once, not at the next tick).
+func set_touch_mode(on: bool) -> void:
+	_touch_mode = on
+	_hint_label.visible = not on
+	if on:
+		for line: Label in _help_lines:
+			line.visible = false
 
 
 ## Reads everything shown for the run (called every tick): health bar, counters,
