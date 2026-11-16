@@ -2610,16 +2610,37 @@ mutate digest-excludes-director                 scripts/sim/game_run.gd "	\"show
 mutate digest-skips-private-members             scripts/sim/state_digest.gd "		members[name] = _value(object.get(name))" "		if not name.begins_with(\"_\"):
 			members[name] = _value(object.get(name))"
 mutate digest-forgets-random-state              scripts/sim/state_digest.gd "\"state\": str(generator.state)}" "\"state\": \"\"}"
-mutate digest-skips-nested-objects              scripts/sim/state_digest.gd "	_seen[id] = _seen.size()
-	if object is RandomNumberGenerator:" "	_seen[id] = _seen.size()
-	if object is SwordState:
+mutate digest-skips-nested-objects              scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\"" "	if object is SwordState:
 		return {}
-	if object is RandomNumberGenerator:"
-mutate digest-skips-conditions                  scripts/sim/state_digest.gd "	_seen[id] = _seen.size()
-	if object is RandomNumberGenerator:" "	_seen[id] = _seen.size()
-	if object is EnemyConditions:
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\""
+mutate digest-skips-conditions                  scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\"" "	if object is EnemyConditions:
 		return {}
-	if object is RandomNumberGenerator:"
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\""
+# The same walk folded into the per-tick fingerprint, and the chain built from it.
+mutate fingerprint-skips-private-members        scripts/sim/state_digest.gd "		accumulator = mix(accumulator, _fold(object.get(name)))" "		if not name.begins_with(\"_\"):
+			accumulator = mix(accumulator, _fold(object.get(name)))"
+mutate fingerprint-forgets-random-state         scripts/sim/state_digest.gd "		return mix(mix(2, generator.seed), generator.state)" "		return mix(2, generator.seed)"
+mutate fingerprint-skips-conditions             scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return mix(" "	if object is EnemyConditions:
+		return 0
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return mix("
+mutate fingerprint-ignores-floats               scripts/sim/state_digest.gd "		TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_COLOR:" "		TYPE_FLOAT:
+			return 0
+		TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_COLOR:"
+mutate fight-chain-never-advances               tests/combined_fight.gd "		_chain = StateDigest.mix(_chain, run.state_fingerprint())" "		_chain = 0"
+mutate fight-chain-only-at-checkpoints          tests/combined_fight.gd "		_chain = StateDigest.mix(_chain, run.state_fingerprint())" "		if run.tick % CHECKPOINT_EVERY == 0:
+			_chain = StateDigest.mix(_chain, run.state_fingerprint())"
 mutate digest-rounds-away-small-differences     scripts/sim/state_digest.gd "	return \"%.6f\" % value" "	return \"%.0f\" % value"
 # The fight must keep exercising what it is meant to.
 mutate fight-stalkers-stand-still               tests/combined_fight.gd "		placements.append(stalker)" "		stalker.speed_scale = 0.0

@@ -47,6 +47,7 @@ func run_all() -> void:
 		return
 	print("render rates: the run state digest, then identical outcomes at low and high render rates")
 	_check_state_digest()
+	_check_chain_sees_one_tick()
 	if not RenderRateScenario.probes_enabled():
 		return
 	_check_combined_fight()
@@ -200,6 +201,36 @@ func _objects_in(value: Variant) -> Array[Object]:
 				if typeof(value[key]) == TYPE_OBJECT:
 					found.append(value[key] as Object)
 	return found
+
+
+# ------------------------------------------------------------ the per-tick chain
+## The chain of per-tick fingerprints must notice a difference that lasts ONE tick: the fight is played twice in lock
+## step, in the second run a value is changed for the single tick 78 (after tick 77's step, put back before tick 78's) , so the two runs are identical again at
+## the next checkpoints (the sampled digest cannot tell them apart) while their chains differ from tick 100 on.
+func _check_chain_sees_one_tick() -> void:
+	var clean: GameRun = GameRun.new(CombinedFight.segment_scenario(0))
+	var changed: GameRun = GameRun.new(CombinedFight.segment_scenario(0))
+	var clean_fight: CombinedFight = CombinedFight.new()
+	var changed_fight: CombinedFight = CombinedFight.new()
+	var steps: int = 0
+	while clean.tick < 160 and steps < 1600:
+		clean_fight.before_tick(clean)
+		changed_fight.before_tick(changed)
+		# The change exists only between the end of tick 77 and the start of tick 78's step: the fight's before_tick for tick 78 saw it.
+		if changed.tick == 78:
+			changed.dash_cooldown_left = clean.dash_cooldown_left
+		clean.step()
+		changed.step()
+		if changed.tick == 78:
+			changed.dash_cooldown_left += 0.3
+		clean.take_cues()
+		changed.take_cues()
+		steps += 1
+	_ok("the simulation reaches tick 160 within 1600 steps for the chain check (reached %d)" % clean.tick, clean.tick >= 160)
+	_ok("after the one-tick change the two runs hold the same state again", clean.state_digest() == changed.state_digest())
+	_ok("the readable digest at the checkpoints cannot see a one-tick difference (that is why the chain exists)", clean_fight.checkpoints["0:150"] == changed_fight.checkpoints["0:150"])
+	_ok("the chains agree before the one-tick change (tick 50)", clean_fight.chains["0:50"] == changed_fight.chains["0:50"])
+	_ok("the chain keeps a one-tick difference for good (ticks 100 and 150)", clean_fight.chains["0:100"] != changed_fight.chains["0:100"] and clean_fight.chains["0:150"] != changed_fight.chains["0:150"])
 
 
 # ------------------------------------------------------------ the combined fight
