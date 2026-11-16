@@ -583,6 +583,8 @@ func _variant(change: Callable) -> Callable:
 ## a tick). With `once` no clip loops, so every one of them runs out over and over.
 func _retime(root: Node, speed: float, once: bool) -> void:
 	var settings: Resource = root.get("settings") as Resource
+	if settings == null:
+		return  # a scene that is not texture art has no settings to retime (the checks that expect textured art fail on their own)
 	var copy: Resource = settings.duplicate(true)
 	for property: Dictionary in copy.get_property_list():
 		var value: Variant = copy.get(property["name"])
@@ -602,6 +604,10 @@ func _check_retime_is_exact() -> void:
 	for path: String in [VisualSets.scene_path(VisualSets.TEXTURED, "actor"), VisualSets.scene_path(VisualSets.TEXTURED, "sword")]:
 		var root: Node = (load(path) as PackedScene).instantiate()
 		var original: Resource = root.get("settings") as Resource
+		if original == null:
+			exact = false  # a textured set without texture art: nothing to retime, and the check below fails
+			root.free()
+			continue
 		for speed: float in [0.1, 60.0]:
 			_retime(root, speed, false)
 			var retimed: Resource = root.get("settings") as Resource
@@ -621,6 +627,8 @@ func _check_retime_is_exact() -> void:
 ## Other textures altogether (size and sheet layout), pivots moved far away, much bigger, turned by 33 degrees.
 func _reskin(root: Node) -> void:
 	var settings: Resource = root.get("settings") as Resource
+	if settings == null:
+		return  # see `_retime`
 	var copy: Resource = settings.duplicate(true)
 	var image: Image = Image.create_empty(1500, 900, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0.9, 0.2, 0.7, 0.8))
