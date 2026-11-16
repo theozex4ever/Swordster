@@ -241,24 +241,27 @@ PY
     not_applied=$((not_applied + 1))
     return 0
   fi
-  local verdict="" detail="" attempt status log focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
+  local verdict="" detail="" attempt status log stage focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
   for attempt in 1 2; do
     if [[ "$FAST" == 1 ]]; then
-      VERDICT=PARTIAL
+      VERDICT=PARTIAL; stage=focused
       if [[ -n "$focus" ]]; then
         status=0; log="$(run_checks "$dir" quick "$focus")" || status=$?
         judge "$status" "$log" quick
       fi
       if [[ "$VERDICT" == PARTIAL ]]; then
+        stage=quick
         status=0; log="$(run_checks "$dir" quick)" || status=$?
         judge "$status" "$log" quick
       fi
       if [[ "$VERDICT" == PARTIAL ]]; then
+        stage=full
         ((baseline_full)) || { check_baseline full; baseline_full=1; }
         status=0; log="$(run_checks "$dir" full)" || status=$?
         judge "$status" "$log" full
       fi
     else
+      stage=classic
       status=0; log="$(run_checks "$dir" classic)" || status=$?
       judge "$status" "$log" classic
     fi
@@ -269,7 +272,7 @@ PY
   rm -rf "$dir"
   local took; took="$(awk -v a="$began" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1fs", b - a }')"
   case "$verdict" in
-    CAUGHT)       echo "caught    $name   ($detail)   [$took]"; caught=$((caught + 1)) ;;
+    CAUGHT)       echo "caught    $name   ($detail)   [$stage, $took]"; caught=$((caught + 1)) ;;
     SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug   [$took]"; survived=$((survived + 1)) ;;
     INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail   [$took]"; inconclusive=$((inconclusive + 1)) ;;
   esac
