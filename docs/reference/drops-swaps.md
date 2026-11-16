@@ -212,4 +212,4 @@ Screenshots (in `docs/reference/drops-swaps/`):
 - Real-Windows input and real-device touch (issues #6, #22 and #20, by standing ruling). Windows evidence is engine-side frames
   of the shipped pack under Wine with no input: no swap key was sent to it.
 - Swapping with the touch buttons (issue #20) and the final default loadout (issue #16).
-- Multi-wave arming in a normal run (issue #18); the rolls themselves are pinned, but no normal run uses them yet.
+- Multi-wave arming in a normal run: done in issue #18 (see [waves](waves.md)); this slice pinned only the rolls themselves.
