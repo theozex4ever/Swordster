@@ -2250,6 +2250,86 @@ mutate waves-chain-text-position                scripts/presentation/effects_lay
 mutate waves-gong-silent                        scripts/audio/sfx_bank.gd "		SimCue.Kind.WAVE_STARTED:
 			play(\"wave\")" "		SimCue.Kind.WAVE_STARTED:
 			play(\"hit\")"
+# --- Render rates, the combined fight and the state digest (slice #41)
+# Presentation-side bugs the fight must show at some frame rate: each adds, per rendered frame, something the bare simulation never does.
+mutate render-enemies-chase-per-frame           scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for enemy: EnemyState in run.enemies:
+		enemy.position += (run.position - enemy.position).normalized() * enemy.speed * delta
+
+
+func _notification(what: int) -> void:"
+mutate render-dash-cooldown-per-frame           scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if run.dash_cooldown_left > 0.0:
+		run.dash_cooldown_left += delta
+
+
+func _notification(what: int) -> void:"
+mutate render-draws-gameplay-random-per-frame   scripts/main.gd "func _notification(what: int) -> void:" "func _process(_delta: float) -> void:
+	run.rng.randf()
+
+
+func _notification(what: int) -> void:"
+mutate render-sword-cooldown-per-frame          scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for sword: SwordState in run.swords:
+		sword.cooldown_left += delta
+
+
+func _notification(what: int) -> void:"
+mutate render-wave-break-per-frame              scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if not run.director.in_wave:
+		run.director.break_left -= delta
+
+
+func _notification(what: int) -> void:"
+mutate render-converge-cooldown-per-frame       scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	run.converge_cooldown_left = maxf(0.0, run.converge_cooldown_left - delta)
+
+
+func _notification(what: int) -> void:"
+mutate render-condition-timer-per-frame         scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for enemy: EnemyState in run.enemies:
+		enemy.conditions.burn = maxf(0.0, enemy.conditions.burn - delta)
+
+
+func _notification(what: int) -> void:"
+# The probe's own bookkeeping: a child that ends badly must fail the check even if its output is fine.
+mutate render-probe-exits-badly                 tests/frame_rate_probe.gd "	print(\"PROBE \" + JSON.stringify(result))
+	quit(0)" "	print(\"PROBE \" + JSON.stringify(result))
+	quit(3)"
+mutate launch-probe-exits-badly                 tests/frame_rate_probe.gd "\"standing\": picked.initial_enemies.size()}))
+	quit(0)" "\"standing\": picked.initial_enemies.size()}))
+	quit(3)"
+# The digest itself.
+mutate digest-excludes-dash-cooldown            scripts/sim/game_run.gd "	\"show_ranges\": \"a session toggle" "	\"dash_cooldown_left\": \"left out by mistake\",
+	\"show_ranges\": \"a session toggle"
+mutate digest-excludes-director                 scripts/sim/game_run.gd "	\"show_ranges\": \"a session toggle" "	\"director\": \"left out by mistake\",
+	\"show_ranges\": \"a session toggle"
+mutate digest-skips-private-members             scripts/sim/state_digest.gd "		members[name] = _value(object.get(name))" "		if not name.begins_with(\"_\"):
+			members[name] = _value(object.get(name))"
+mutate digest-forgets-random-state              scripts/sim/state_digest.gd "\"state\": str(generator.state)}" "\"state\": \"\"}"
+mutate digest-skips-nested-objects              scripts/sim/state_digest.gd "	_seen[id] = _seen.size()
+	if object is RandomNumberGenerator:" "	_seen[id] = _seen.size()
+	if object is SwordState:
+		return {}
+	if object is RandomNumberGenerator:"
+mutate digest-skips-conditions                  scripts/sim/state_digest.gd "	_seen[id] = _seen.size()
+	if object is RandomNumberGenerator:" "	_seen[id] = _seen.size()
+	if object is EnemyConditions:
+		return {}
+	if object is RandomNumberGenerator:"
+mutate digest-rounds-away-small-differences     scripts/sim/state_digest.gd "	return \"%.6f\" % value" "	return \"%.0f\" % value"
+# The fight must keep exercising what it is meant to.
+mutate fight-stalkers-stand-still               tests/combined_fight.gd "		placements.append(stalker)" "		stalker.speed_scale = 0.0
+		placements.append(stalker)"
+mutate fight-waves-unarmed                      tests/combined_fight.gd "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	return scenario" "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	scenario.arm_waves = false
+	return scenario"
+mutate fight-waves-never-start                  tests/combined_fight.gd "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	return scenario" "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	scenario.waves_enabled = false
+	return scenario"
+mutate fight-no-wave-segment                    tests/combined_fight.gd "	return scenario() if segment == 0 else waves_scenario()" "	return scenario()"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((caught + warned)) caught"
 if ((warned)); then echo "$warned mutation(s) were caught WITH A WARNING (a genuine FAIL line, then a crash, script error or timeout: a hygiene warning, not a failure; see the caught-with-warning lines)"; fi
