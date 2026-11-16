@@ -56,7 +56,8 @@ func _check_selection() -> void:
 	_ok("the textured set is asked for by name, in any case", VisualSets.resolve("textured") == VisualSets.TEXTURED and VisualSets.resolve(" Textured ") == VisualSets.TEXTURED)
 	_ok("two sets exist", VisualSets.ids().size() == 2 and VisualSets.ids().has(VisualSets.PLACEHOLDER) and VisualSets.ids().has(VisualSets.TEXTURED))
 	_ok("a launch option and a page address both carry it", LaunchOptions.VISUALS_ARGUMENT_PREFIX == "--visuals=" and LaunchOptions.VISUALS_QUERY == "visuals")
-	_ok("with nothing asked for, nothing is requested", LaunchOptions.requested_visuals().is_empty())
+	_ok("with nothing asked for, nothing is requested", LaunchOptions.requested_visuals().is_empty() and LaunchOptions.visuals_from(PackedStringArray()).is_empty())
+	_ok("the launch option is read among the other arguments", LaunchOptions.visuals_from(PackedStringArray(["--encounter=drops", "--visuals=textured", "--visuals=other"])) == "textured" and LaunchOptions.visuals_from(PackedStringArray(["--encounter=drops", "--visual=textured"])).is_empty())
 	var actor_scene: PackedScene = load(VisualSets.scene_path(VisualSets.TEXTURED, "actor")) as PackedScene
 	var sword_scene: PackedScene = load(VisualSets.scene_path(VisualSets.TEXTURED, "sword")) as PackedScene
 	var enemy_scene: PackedScene = load(VisualSets.scene_path(VisualSets.TEXTURED, "enemy")) as PackedScene
@@ -92,6 +93,10 @@ func _check_art_contract() -> void:
 		all_off_centre = all_off_centre and not art.pivot.is_equal_approx(frame * 0.5)
 	_ok("each sword type has its own texture sheet of four frames", all_textured)
 	_ok("the four sword sheets differ in size (%s)" % [sizes.keys()], sizes.size() == 4)
+	var frames_fit: bool = true
+	for art: SpriteArt in arts + [actor.body, actor.shadow, swords.glow, swords.shadow]:
+		frames_fit = frames_fit and art.frame_size().x * float(art.frame_count) == float(art.texture.get_width()) and art.frame_size().y == float(art.texture.get_height())
+	_ok("a frame is the texture's width over its frame count, and its full height", frames_fit)
 	_ok("every sword pivot lies inside its frame and is not the frame's centre", all_inside and all_off_centre)
 	_ok("the sword art points up (orientation 90) and is drawn at its own scale", swords.fang.orientation_degrees == 90.0 and not swords.fang.visual_scale.is_equal_approx(Vector2.ONE) and not swords.warden.visual_scale.is_equal_approx(swords.fang.visual_scale))
 	var body: SpriteArt = actor.body
@@ -111,6 +116,7 @@ func _check_art_contract() -> void:
 		for j: int in range(i + 1, tints.size()):
 			distinct = distinct and absf(tints[i].r - tints[j].r) + absf(tints[i].g - tints[j].g) + absf(tints[i].b - tints[j].b) > 0.6
 	_ok("the three element tints are clearly apart", distinct)
+	_ok("an attacking sword floats lower than an idle one, so the dip can be seen", swords.lift_attack < swords.lift_idle - 5.0)
 	var clip: SpriteClip = SpriteClip.new()
 	clip.frames = PackedInt32Array([5, 6, 7])
 	clip.fps = 10.0
@@ -216,7 +222,8 @@ func _check_sword_cues() -> void:
 				var art_ok: bool = blade.texture == art.texture and blade.hframes == art.frame_count and not blade.centered and blade.offset.is_equal_approx(-art.pivot)
 				var tint_ok: bool = blade.modulate.is_equal_approx(tint)
 				var glow_ok: bool = sword.glow_sprite().modulate.r == glow_tint.r and sword.glow_sprite().modulate.g == glow_tint.g and sword.glow_sprite().modulate.b == glow_tint.b
-				var size_ok: bool = blade.scale.is_equal_approx(art.visual_scale * SwordDefs.RARITY_SIZE[rarity])
+				var blade_length: float = art.frame_size().y * art.visual_scale.y * SwordDefs.RARITY_SIZE[rarity]
+				var size_ok: bool = blade.scale.is_equal_approx(art.visual_scale * SwordDefs.RARITY_SIZE[rarity]) and is_equal_approx(sword.glow_sprite().scale.x * settings.glow.frame_size().x, blade_length * 1.5) and sword.glow_sprite().texture == settings.glow.texture
 				var pose_ok: bool = sword.position == Vector2(120.0, 80.0) and is_equal_approx(blade.rotation, 0.7 + deg_to_rad(art.orientation_degrees))
 				correct_art = correct_art and art_ok
 				correct_tint = correct_tint and tint_ok
@@ -231,7 +238,7 @@ func _check_sword_cues() -> void:
 	_ok("each type draws its own sheet with the art's pivot (36 swords; first wrong: '%s')" % failing, correct_art)
 	_ok("the element tints the blade (fire, ice, poison)", correct_tint and tints_seen.size() == 3)
 	_ok("the glow is the rarity's colour for a Rare or Mythic sword and the element's for a Common one (%d colours)" % glows_seen.size(), correct_glow and glows_seen.size() == 5)
-	_ok("rarity scales the blade by its size factor", correct_size)
+	_ok("rarity scales the blade by its size factor, and the glow rings the blade at 1.5 blade lengths across", correct_size)
 	_ok("the blade turns to the sword's heading plus the art's orientation", correct_pose)
 	_ok("a Mythic blade is drawn larger than a Rare, a Rare larger than a Common", SwordDefs.RARITY_SIZE[2] > SwordDefs.RARITY_SIZE[1] and SwordDefs.RARITY_SIZE[1] > SwordDefs.RARITY_SIZE[0])
 	await _check_sword_phases(settings, scene)
