@@ -8,18 +8,17 @@ extends RefCounted
 ## exercised one. The probe (`frame_rate_probe.gd`) plays it through the real Main scene under the engine's own
 ## fixed-step loop at different frame rates; the checks also play it with bare `GameRun.step()` calls.
 ##
-## The player stands still 400 px from the north and east walls with the prototype's default loadout (Fang poison,
-## Warden ice, Colossus fire). Around him stand, every foe pinned in place (speed_scale 0):
-##   - eight ARMED foes a few steps away (every enemy type, a Pike or one of every other type, every rarity): they die,
-##     their swords lie, and swaps (two refused before anything lies) put a Pike, a Warden, a Fang and a Colossus into
-##     the slots; the slots' recharges carry over;
-##   - a column to the north (husks, a runner, a brute) that a Skewer carries into the north wall, and packs east
-##     (between him and the east wall: a Converge target, then the dev shove bowls it into the wall) and west
-##     (tight husks, runners and brutes that burn, poison, freeze and spread fire);
-##   - spitters that keep shooting orbs the swords parry or the player dashes through, and sturdy posts that
-##     soak up Maelstroms, slams and Cataclysm fields.
-## Commands (`COMMANDS`, same index in `AIMS`): (tick, kind, slot), with kind 0 Converge, 1 an ultimate of the slot,
-## 2 a swap into the slot, 3 a dash, 4 the dev shove; the aim is an offset from the player.
+## The player stands 400 px from the north and east walls with the prototype's default loadout (Fang poison, Warden
+## ice, Colossus fire); every foe is pinned in place (speed_scale 0). Around him:
+##   - four ARMED foes within a few steps (a husk, runner, brute and spitter carrying a Pike, a Fang, a Warden and a
+##     Colossus of different rarities) that die and drop their swords; swaps (two refused before anything lies) put
+##     the Pike into slot 0 and a Fang into slot 2, and the slots' recharges carry over;
+##   - a column north (husks, a runner, a brute) that a Skewer carries into the north wall, a sturdy pack east (between
+##     him and the east wall: Converge target, then the dev shove bowls it into the wall) and a tight pack west (husks,
+##     runners and brutes that burn, poison, freeze, shatter and spread fire);
+##   - sturdy husks south that fields and slams keep dosing, and two spitters whose orbs the swords parry or clear.
+## The script (`script()`) fires Cataclysm, Converge, Viper Flurry (twice), Maelstrom, two Skewers (north into the wall,
+## east to the range limit: the second starts from the first's state), refused presses, the shove and a dash.
 ##
 ## Playing it is the slowest part of the checks, so the render-rate group starts with
 ## `if not RenderRateScenario.probes_enabled(): return` (see run_checks.gd's switches).
