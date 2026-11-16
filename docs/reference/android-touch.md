@@ -16,7 +16,7 @@ the last section is the exact list that remains.
 | **Q / E / R** buttons (READY, ACTIVE or seconds left) | the slot's **ultimate**, same aiming as the Converge button | `ultimate_at_nearest(slot)` |
 | **Swap 1-3** (lit when a **sword drop** is within reach) | **swap** the nearest drop into that **sword slot** | `swap(slot)` |
 | **Ranges** | show / hide the attack-range rings | `toggle_ranges()` |
-| **Full** (only where the browser offers fullscreen) | asks the platform; not a gameplay command | - |
+| **Full** (only where the browser offers fullscreen) | asks the platform when the finger lifts on it (the browser grants a fullscreen request on a lift, not a landing); not a gameplay command | - |
 | **Dash**, **Pause / Resume**, **Restart** (the HUD's own) | as on desktop | `dash()`, `toggle_pause()`, `restart()` |
 | large **Resume** (paused) / **Restart** (run over) | explicit, hard to miss | `resume()`, `restart()` |
 
@@ -59,16 +59,18 @@ bottom right        [Swap 1][Swap 2][Swap 3]
                                              [ Dash ]  (the HUD's own button is the anchor)
 ```
 
-- Landscape keeps the game's 1280 x 720 base; a window **taller than wide** uses a 720 x 1280 base (touch play only), so the
-  controls are as large upright as sideways (about 0.57 css px per logical px on a 412 px phone either way). Desktop windows keep
+- Landscape keeps the game's 1280 x 720 base; a window **taller than wide** uses a 740 x 1280 base (touch play only), so the
+  controls are as large upright as sideways (about 0.55 css px per logical px on a 412 px phone either way). Desktop windows keep
   the project's own base. Square windows count as landscape.
-- In a narrow (portrait) view the bottom rows rise above the HUD's three sword cards. The HUD's own Dash button still overlaps
-  the third card's corner by about 10 px in portrait (the HUD is #19's), and a "Turn your phone sideways for a wider view" hint shows.
+- In a narrow (portrait) view the bottom rows rise above the HUD's three sword cards, and a "Turn your phone sideways for a wider view" hint
+  shows. The 740 px width (not 720) is what lets the HUD's own Dash button clear the third card; a check asserts no overlap at every window shape.
 - Safe area: touch buttons stay inside the insets (the Dash-anchored cluster is pulled in) and so does the joystick zone. Insets come
-  from the browser's `env(safe-area-inset-*)` (probed through a hidden element), from `DisplayServer.get_display_safe_area()` elsewhere,
-  or from `?safe=top,right,bottom,left` / `-- --safe=...` as a stand-in. The HUD's own elements do not move for insets (Chrome keeps the page
+  from the browser's `env(safe-area-inset-*)` (probed through a hidden element, together with the page's width), from
+  `DisplayServer.get_display_safe_area()` elsewhere, or from `?safe=top,right,bottom,left` / `-- --safe=...` as a stand-in **in the same
+  CSS pixels, through the same conversion onto the viewport** (a check gives both paths the same numbers and requires the same answer:
+  a 915 px page shown 1599 logical px wide turns 24,48,20,48 into left 83.88, top 41.94, right 83.88, bottom 34.95 either way). The HUD's own elements do not move for insets (Chrome keeps the page
   out of cutouts unless `viewport-fit=cover`, which the export's shell does not ask for).
-- Touch UI sizes are at least 76 logical px a side, which is 44 css px on a phone held sideways at 0.57 scale or better.
+- Touch UI sizes are at least 80 logical px a side, which is 44 css px on a phone held either way at 0.55 scale or better.
 - The controls are shown when the platform reports a touchscreen, `?touch=1` / `-- --touch` asks, or the first finger lands;
   `?touch=0` hides them. They hide the HUD's keyboard hint line. A desktop start shows none of this (a check pins it).
 - Launch options sit beside `?encounter=` and `?visuals=` (each read on its own from the same address; a check pins `--visuals=` still parses
@@ -80,6 +82,13 @@ bottom right        [Swap 1][Swap 2][Swap 3]
 left (`pagehide`) or blurred (`window.__swordsterSuspend`, installed once). Both call `release_input_and_pause`, which clears every
 finger, key and the stick, and pauses (idempotently). Nothing resumes by itself: the pause overlay and a large Resume button wait.
 
+**Buttons the engine believes are pressed.** A finger on a button when the page is suspended, the touch cancelled or the run restarted never
+reports its lift, and the engine's `Button` then believes itself pressed and swallows its next press (the run stayed paused with Resume doing
+nothing). The engine's buttons ignore a *cancelled* touch, so `Main` gives each such finger a plain lift (`_lift_on_buttons`, landing off the
+screen, with `TouchControls.quiet` set so the release-triggered Full button cannot act on it) before it forgets the finger, on suspend, on a
+cancelled touch and on restart (deferred for restart: the finger is inside the engine's own press handling then). Held Resume / Restart
+stay visible until that lift, because hiding a pressed button drops the hold only after the lift is delivered.
+
 ## Checks
 
 `touch_controls_checks.gd` (registered in `run_checks.gd`, focus group `touch_controls`, the #35 focus guard; it has no render-rate
@@ -90,7 +99,7 @@ counters and fail when they run out.
 | Group | Asserts |
 |---|---|
 | Pointer table | arena landing = Converge at the world point; a second / third / fifth finger independent; a finger on a button owns nothing else; tap thresholds (0.25 s and 18 px tap; 0.5 s, 19 px and back, cancelled do not); a stale press; `release_all` forgets fingers; unknown drags ignored |
-| Geometry | 6 views x 4 safe areas: in the safe area, >= 76 px, no overlaps, Dash clear; the zone is the earlier 55 % / 15 % with no insets; portrait lift; Q E R order |
+| Geometry | 6 views x 4 safe areas: in the safe area, >= 80 px, no overlaps, Dash clear; the zone is the earlier 55 % / 15 % with no insets; portrait lift; Q E R order |
 | Platform values | orientation base (square included), CSS-to-viewport insets, `?safe=` parsing, launch options beside `--visuals=` |
 | Activation, desktop | no touch UI on a desktop start; hint stays; a tall desktop window keeps its base; the first finger brings the controls up and already counts as the tap; off again restores desktop |
 | Views and aiming | 100+ taps at 10 window shapes (phones and tablets both ways, square) x 2 camera positions: the tap's world point is the camera plus the offset, clamped to 460 px, exactly one Converge, in the zone and outside it; the engine's own canvas transform agrees; a moved camera; portrait / landscape / square turned under a running scene |
@@ -112,8 +121,16 @@ change behaviour (the joystick already ignores a foreign finger's drag) was remo
 - A button that hides in its own `button_down` (Resume / Restart) was ignored the next time it appeared (the check's second pass
   failed). Fixed: it stays up until its finger lifts.
 - In the browser the layout silently never ran: `JavaScriptBridge.eval` returned a Variant that was not a `bool`, and the typed
-  `layout(..., fullscreen_supported: bool)` call failed without a message in a release export (found from the first Chromium screenshots:
-  every button stacked at the top left). Fixed: only a real `true` counts. Headless checks cannot see this; the Web run did.
+  `layout(..., fullscreen_supported: bool)` call failed without a message in a release export (found from the first Chromium
+  screenshots: every button stacked at the top left). **Round 1 of review then showed the first fix was wrong too**: it accepted only a
+  GDScript `bool`, but in the pinned Web runtime `document.fullscreenEnabled === true` comes back as the number `1`, so the Full button
+  stayed hidden. (My earlier note that headless Chromium lacks fullscreen support was wrong: `document.fullscreenEnabled` is `true`
+  there.) Fixed: `TouchPlatform.bridge_truthy` accepts a bool, a non-zero number or the text true / 1 / yes, `bridge_text` reads text or
+  numbers, a check covers each shape, and every other bridge read in the game goes through them. The Web run now shows the button and the
+  request (below).
+- A finger that never lifts left the engine's button pressed: see "Buttons the engine believes are pressed" above (review round 1).
+  The reproduction (hold Resume, suspend, press Resume again) is now a check, in the scene and in the browser.
+- `?safe=` was read as logical pixels while documented as CSS pixels (scale 1); it now takes the browser insets' conversion (review round 1).
 - The pre-existing `Hud.button_rects()` blocked the hidden Shove button's place (it would have swallowed arena taps there).
 
 ## Evidence
@@ -136,8 +153,7 @@ and a `touchCancel`, `Emulation.setSafeAreaInsetsOverride` (the page's `env()` r
 | Safe-area insets 24 / 48 / 20 / 48 (landscape) and 40 / 0 / 30 / 0 (portrait) | [web-13](android-touch/web-13-landscape-safe-area-notch.png), [web-14](android-touch/web-14-portrait-safe-area.png) |
 | The shipped, unmodified Windows build under Wine 11 (`--write-movie`, no input, isolated Xvfb display, own Wine prefix): desktop HUD, keyboard hint, no touch controls | [wine](android-touch/wine-shipped-desktop-unchanged.png) |
 
-What this does **not** show: the **Full** button is hidden in headless Chromium (`document.fullscreenEnabled` is false there), so
-fullscreen was not exercised; the "page hidden" event was a dispatched `visibilitychange`, not a real tab switch; CDP touches are not a
+What this does **not** show: whether a real phone grants the request (see below); the "page hidden" event was a dispatched `visibilitychange`, not a real tab switch; CDP touches are not a
 finger; Android Chrome's gesture navigation, notification shade, rotation lock, display cutouts and performance are untouched.
 
 ## Physical Android checklist (#6 / #22)

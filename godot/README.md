@@ -117,7 +117,7 @@ HUD's. The left of the screen steers (a floating joystick); a tap on the arena c
 and ultimate buttons aim at the nearest living enemy, or 300 px ahead of the player. Every finger has one owner for its whole life
 (a button, the joystick or the arena), so a thumb can steer while others press, and a finger on a button never also aims at the arena.
 A cancelled touch, focus loss, the page being hidden or a restart releases everything; backgrounding pauses and only an explicit
-Resume continues. A window taller than wide uses a 720 x 1280 base, so the controls are as large upright as sideways. Desktop play
+Resume continues. A window taller than wide uses a 740 x 1280 base, so the controls are as large upright as sideways. Desktop play
 (mouse and keys) shows none of this. Launch options: `?touch=1|0`, `?safe=top,right,bottom,left` (CSS px stand-in for safe-area insets).
 
 ### Drops and swaps (1 / 2 / 3)

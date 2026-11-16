@@ -79,7 +79,7 @@ let view = { w: 0, h: 0, vx: 0, vy: 0, s: 1 };
 const setView = async (w, h) => {
   view.w = w; view.h = h;
   const portrait = h > w;
-  view.s = portrait ? Math.min(w / 720, h / 1280) : Math.min(w / 1280, h / 720);
+  view.s = portrait ? Math.min(w / 740, h / 1280) : Math.min(w / 1280, h / 720);
   view.vx = w / view.s; view.vy = h / view.s;
   await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: DPR, mobile: true, screenWidth: w, screenHeight: h, screenOrientation: { type: portrait ? "portraitPrimary" : "landscapePrimary", angle: portrait ? 0 : 90 } });
 };
@@ -89,8 +89,9 @@ const where = {
   dash: () => css(view.vx - 128 + 52, view.vy - 128 + 52),
   converge: () => css(view.vx - 128 + 52, view.vy - 128 - 10 - 52),
   ultimate: (i) => css(view.vx - 128 - 120 - 10 - (3 - i) * 96 - (2 - i) * 10 + 48, view.vy - 24 - 96 - lift() + 48),
-  swap: (i) => css(view.vx - 128 - 120 - 10 - (3 - i) * 96 - (2 - i) * 10 + 48, view.vy - 24 - 96 - lift() - 10 - 39),
-  ranges: () => css(view.vx - 24 - 48, 116 + 39),
+  swap: (i) => css(view.vx - 128 - 120 - 10 - (3 - i) * 96 - (2 - i) * 10 + 48, view.vy - 24 - 96 - lift() - 10 - 40),
+  ranges: () => css(view.vx - 24 - 48, 116 + 40),
+  full: () => css(view.vx - 24 - 96 - 10 - 48, 116 + 40),
   pause: () => css(view.vx - 176 + 36, 16 + 22),
   resume: () => css(view.vx * 0.4, view.vy * 0.5 + 130),
   arena: (dx, dy) => css(view.vx * 0.5 + dx, view.vy * 0.5 + dy),
@@ -98,6 +99,15 @@ const where = {
 
 await send("Runtime.enable");
 await send("Page.enable");
+// an observer on every page: what the game asks of the Fullscreen API (the request, and whether the browser granted it)
+await send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__fs = { calls: 0, results: [] };
+  const original = Element.prototype.requestFullscreen;
+  Element.prototype.requestFullscreen = function (...args) {
+    window.__fs.calls++;
+    const outcome = original.apply(this, args);
+    Promise.resolve(outcome).then(() => window.__fs.results.push("granted"), (e) => window.__fs.results.push("refused: " + e));
+    return outcome;
+  };` });
 await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
 await send("Emulation.setEmitTouchEventsForMouse", { enabled: false });
 
@@ -154,6 +164,22 @@ const resume = where.resume();
 await finger.tap(0, resume.x, resume.y);
 await sleep(600); await shot("11-resumed-by-tap");
 
+// 5b. a finger on Resume when the page is suspended never reports its lift: the next press on Resume must still work
+await evaluate("window.__swordsterSuspend()");
+await sleep(300);
+await shot("11b-paused-again-before-held-resume");
+await finger.start(0, resume.x, resume.y); // resumes, and the finger stays down
+await sleep(200);
+await evaluate("window.__swordsterSuspend()"); // the page is suspended with that finger still on Resume
+await sleep(300);
+await shot("11c-suspended-with-finger-on-resume");
+// finger 0's lift is never delivered; a second finger lands on Resume
+await finger.start(1, resume.x, resume.y);
+await sleep(600);
+await shot("11d-second-press-on-resume-works");
+await finger.end(1);
+await finger.end(0);
+
 // 6. a window blur and a cancelled touch
 await finger.start(0, stick.x, stick.y);
 await finger.move(0, stick.x + 60, stick.y);
@@ -161,18 +187,33 @@ await sleep(300);
 await finger.cancel();
 await sleep(500); await shot("12-touch-cancelled-stopped");
 
-// 7. a notch: safe-area insets (the page's env(safe-area-inset-*))
+// 7. fullscreen: the browser says it is available (document.fullscreenEnabled), so the Full button is shown, and a tap on it asks
+console.log("document.fullscreenEnabled:", await evaluate("document.fullscreenEnabled"));
+await boot(915, 412);
+await shot("13-landscape-full-button-shown");
+const full = where.full();
+await finger.start(0, full.x, full.y);
+await sleep(100);
+console.log("Fullscreen requests while the finger is still down:", await evaluate("window.__fs.calls"));
+await finger.end(0);
+await sleep(600);
+console.log("Fullscreen requests after the lift:", await evaluate("window.__fs.calls"), "results:", await evaluate("JSON.stringify(window.__fs.results)"), "document.fullscreenElement:", await evaluate("String(document.fullscreenElement)"));
+await shot("14-landscape-after-full-tap");
+
+// 8. a notch: safe-area insets given by the browser (CDP env()), then the same numbers given as ?safe= (CSS pixels both ways)
 await send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 24, left: 48, right: 48, bottom: 20 } });
 console.log("env() probe after the override:", await evaluate("(function(){var d=document.createElement('div');d.style.cssText='position:fixed;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';document.body.appendChild(d);var s=getComputedStyle(d);var r=[s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].join(',');document.body.removeChild(d);return r;})()"));
-await boot(915, 412, "?safe=24,48,20,48");
-await shot("13-landscape-safe-area-notch");
+await boot(915, 412);
+await shot("15-landscape-safe-area-from-browser");
 await send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, left: 0, right: 0, bottom: 0 } });
+await boot(915, 412, "?safe=24,48,20,48");
+await shot("16-landscape-safe-area-from-query");
 
 // 8. portrait again with the notch in the other direction, and a tablet shape
 await boot(412, 915, "?safe=40,0,30,0");
-await shot("14-portrait-safe-area");
+await shot("17-portrait-safe-area");
 await boot(768, 1024);
-await shot("15-tablet-portrait");
+await shot("18-tablet-portrait");
 
 writeFileSync(join(outDir, "console.log"), consoleLines.join("\n"));
 console.log(consoleLines.filter((l) => /error|exception/i.test(l)).slice(0, 10).join("\n") || "no console errors");
