@@ -18,10 +18,10 @@ extends RefCounted
 
 const BUTTON: float = 96.0
 const CONVERGE_SIZE: float = 104.0
-## No touch button is smaller than this on either side: 44 CSS px on a phone held sideways (the view is then scaled by 0.57 or more).
-const MIN_SIDE: float = 76.0
-const SWAP_SIZE: Vector2 = Vector2(96.0, 78.0)
-const SMALL_SIZE: Vector2 = Vector2(96.0, 78.0)
+## No touch button is smaller than this on either side: 44 CSS px on a phone held either way (the view is then scaled by 0.55 or more).
+const MIN_SIDE: float = 80.0
+const SWAP_SIZE: Vector2 = Vector2(96.0, 80.0)
+const SMALL_SIZE: Vector2 = Vector2(96.0, 80.0)
 const BIG_SIZE: Vector2 = Vector2(260.0, 96.0)
 const GAP: float = 10.0
 const MARGIN: float = 24.0
@@ -35,7 +35,8 @@ const JOYSTICK_WIDTH_SHARE: float = 0.55
 const JOYSTICK_TOP_SHARE: float = 0.15
 ## The two base sizes the game is laid out for, by orientation.
 const LANDSCAPE_BASE: Vector2i = Vector2i(1280, 720)
-const PORTRAIT_BASE: Vector2i = Vector2i(720, 1280)
+## 740 wide (not 720): the HUD's Dash button then clears the third sword card by 10 px instead of overlapping it.
+const PORTRAIT_BASE: Vector2i = Vector2i(740, 1280)
 
 const CONVERGE: StringName = &"converge"
 const ULTIMATE: StringName = &"ultimate"
@@ -47,7 +48,7 @@ const RESTART: StringName = &"restart"
 
 
 ## The base viewport size for a window of `window_size` physical pixels: portrait windows get the portrait base, so the
-## controls stay as large on a phone held upright as on one held sideways (the HUD is laid out for 1280 x 720 or 720 x 1280).
+## controls stay as large on a phone held upright as on one held sideways (the HUD is laid out for 1280 x 720 or 740 x 1280).
 static func base_size_for(window_size: Vector2i) -> Vector2i:
 	return PORTRAIT_BASE if window_size.y > window_size.x else LANDSCAPE_BASE
 

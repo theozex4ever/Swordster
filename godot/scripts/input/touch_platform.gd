@@ -23,38 +23,78 @@ static func touchscreen_present() -> bool:
 	return DisplayServer.is_touchscreen_available()
 
 
-## The safe-area insets (left, top, right, bottom) in viewport pixels for a viewport `view` wide.
+## What a value the browser bridge returned means as a yes / no. The bridge's types are not fixed: a JavaScript `true` can come
+## back as a `bool`, as the number 1 (an `int` or a `float`) or as text, and a script that could not run as `null`. Only a clear
+## yes counts: `true`, a non-zero number, or the text "true" / "1" / "yes" (any case).
+static func bridge_truthy(value: Variant) -> bool:
+	if value is bool:
+		return value
+	if value is int or value is float:
+		return float(value) != 0.0
+	if value is String or value is StringName:
+		return String(value).strip_edges().to_lower() in ["true", "1", "yes"]
+	return false
+
+
+## A value the browser bridge returned as text ("" for null or anything that is not text or a number).
+static func bridge_text(value: Variant) -> String:
+	if value is String or value is StringName:
+		return String(value)
+	if value is int or value is float:
+		return str(value)
+	return ""
+
+
+## The safe-area insets (left, top, right, bottom) in viewport pixels for a viewport `view` wide. In a browser the page's
+## `env(safe-area-inset-*)` are read in CSS pixels together with the page's width; `?safe=` / `--safe=` stand in for them in the same
+## unit and go through the very same conversion onto the viewport (`insets_from_css_values`). Elsewhere an override is in window pixels.
 static func safe_insets(view: Vector2) -> Vector4:
 	var override: PackedFloat32Array = LaunchOptions.requested_safe_insets()
-	var css: Vector4 = Vector4.ZERO
-	var css_width: float = maxf(view.x, 1.0)
+	var override_css: Vector4 = Vector4.ZERO
 	if override.size() == 4:
-		css = Vector4(override[0], override[1], override[2], override[3])
-	elif OS.has_feature("web"):
-		var probed: Variant = JavaScriptBridge.eval(SAFE_AREA_PROBE)
-		if probed is String:
-			var parts: PackedStringArray = (probed as String).split(",")
-			if parts.size() == 5:
-				css = Vector4(parts[0].to_float(), parts[1].to_float(), parts[2].to_float(), parts[3].to_float())
-				css_width = maxf(parts[4].to_float(), 1.0)
-	else:
-		var screen: Vector2i = DisplayServer.screen_get_size()
-		var safe: Rect2i = DisplayServer.get_display_safe_area()
-		if screen.x > 0 and safe.has_area():
-			css = Vector4(float(safe.position.y), float(screen.x - safe.end.x), float(screen.y - safe.end.y), float(safe.position.x))
-			css_width = float(screen.x)
-	return TouchLayout.insets_from_css(css, view.x / css_width)
+		override_css = Vector4(override[0], override[1], override[2], override[3])
+	if OS.has_feature("web"):
+		var probe: PackedFloat32Array = parse_probe(bridge_text(JavaScriptBridge.eval(SAFE_AREA_PROBE)))
+		if probe.size() != 5:
+			return Vector4.ZERO
+		var page_width: float = probe[4]
+		if override.size() == 4:
+			return insets_from_css_values(override_css, page_width, view.x)
+		return insets_from_css_values(Vector4(probe[0], probe[1], probe[2], probe[3]), page_width, view.x)
+	if override.size() == 4:
+		return insets_from_css_values(override_css, float(DisplayServer.window_get_size().x), view.x)
+	var screen: Vector2i = DisplayServer.screen_get_size()
+	var safe: Rect2i = DisplayServer.get_display_safe_area()
+	if screen.x > 0 and safe.has_area():
+		var edges: Vector4 = Vector4(float(safe.position.y), float(screen.x - safe.end.x), float(screen.y - safe.end.y), float(safe.position.x))
+		return insets_from_css_values(edges, float(screen.x), view.x)
+	return Vector4.ZERO
+
+
+## Insets given as (top, right, bottom, left) in the units of a page `page_width` wide, as viewport insets (left, top, right,
+## bottom) for a viewport `view_width` wide. A page width of zero or less leaves the numbers as they are.
+static func insets_from_css_values(edges: Vector4, page_width: float, view_width: float) -> Vector4:
+	var per_unit: float = 1.0 if page_width <= 0.0 else view_width / page_width
+	return TouchLayout.insets_from_css(edges, per_unit)
+
+
+## The probe's answer "top,right,bottom,left,innerWidth" as five numbers, or none when it is not that.
+static func parse_probe(text: String) -> PackedFloat32Array:
+	var parts: PackedStringArray = text.split(",")
+	var values: PackedFloat32Array = PackedFloat32Array()
+	if parts.size() != 5:
+		return values
+	for part: String in parts:
+		if not part.strip_edges().is_valid_float():
+			return PackedFloat32Array()
+		values.append(part.strip_edges().to_float())
+	return values
 
 
 ## Whether the browser (or the OS) lets the game go fullscreen.
 static func fullscreen_supported() -> bool:
 	if OS.has_feature("web"):
-		# the browser's answer is a Variant (null when the script could not run): only a real `true` counts
-		var allowed: Variant = JavaScriptBridge.eval("document.fullscreenEnabled === true")
-		var supported: bool = false
-		if allowed is bool:
-			supported = allowed
-		return supported
+		return bridge_truthy(JavaScriptBridge.eval("document.fullscreenEnabled === true"))
 	return not OS.has_feature("mobile")
 
 

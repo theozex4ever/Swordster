@@ -40,6 +40,7 @@ var _feedback: ScreenFeedback = ScreenFeedback.new()
 
 var _platform: TouchPlatform = TouchPlatform.new()
 var _fullscreen_supported: bool = false
+var _insets_now: Vector4 = Vector4.ZERO
 
 
 func _ready() -> void:
@@ -84,6 +85,12 @@ func _input(event: InputEvent) -> void:
 		_unlock_audio()
 	if event is InputEventScreenTouch and not touch_mode:
 		set_touch_mode(true)
+	if event is InputEventScreenTouch and (event as InputEventScreenTouch).canceled:
+		# the browser or the OS took a finger: the engine's buttons ignore a cancel, so a button it was on would stay pressed
+		var taken: int = (event as InputEventScreenTouch).index
+		if input.touch.owner_of(taken) == TouchPointers.Owner.UI:
+			_lift_on_buttons([taken])
+		_touch.release_all()
 	# A mouse click is only a Converge when nothing in the HUD took it (the Pause, Restart and Dev
 	# buttons), so it is translated in `_unhandled_input`; here it only keeps the pointer current.
 	if event is InputEventMouseButton:
@@ -117,11 +124,45 @@ func _notification(what: int) -> void:
 
 
 func release_input_and_pause() -> void:
-	input.release_all()
+	_release_touch_state()
 	if run != null and not run.paused:
 		_submit(GameCommand.pause())
 	if _hud != null:
 		_hud.refresh_stick()
+
+
+## Forgets everything a finger or key was holding: the translator's keys, fingers and stick, and the buttons the engine believes
+## are pressed, whose fingers will never report their lift.
+func _release_touch_state() -> void:
+	if input.touch.count() > 0:
+		_lift_on_buttons(input.touch.ui_indices())
+	input.release_all()
+	if _touch != null:
+		_touch.release_all()
+
+
+func _lift_then_release_buttons(indices: Array[int]) -> void:
+	_lift_on_buttons(indices)
+	if _touch != null:
+		_touch.release_all()
+
+
+## Gives the engine the lift of fingers that were on buttons. A button ignores a cancelled touch, and without its finger's lift it
+## believes itself pressed and ignores its next press (the run would stay paused with Resume doing nothing). The lift lands far
+## off the screen, so no button treats it as a tap.
+func _lift_on_buttons(indices: Array[int]) -> void:
+	var viewport: Viewport = get_viewport()
+	if viewport == null:
+		return
+	# (a button the engine thinks was pressed counts any lift as its tap, wherever it lands: the touch layer must not act on these)
+	_touch.quiet = true
+	for index: int in indices:
+		var lift: InputEventScreenTouch = InputEventScreenTouch.new()
+		lift.index = index
+		lift.pressed = false
+		lift.position = Vector2(-10000.0, -10000.0)
+		viewport.push_input(lift, true)
+	_touch.quiet = false
 
 
 func _submit(command: GameCommand) -> void:
@@ -129,7 +170,10 @@ func _submit(command: GameCommand) -> void:
 	var restarts_before: int = run.restarts
 	run.apply(command)
 	if run.restarts != restarts_before:
+		# (the finger that pressed Restart is inside the engine's own press handling right now: its release waits a moment)
+		var held: Array[int] = input.touch.ui_indices()
 		input.release_all()
+		_lift_then_release_buttons.call_deferred(held)
 		_presenter.reset()
 		_feedback.reset()
 		_present()
@@ -199,7 +243,8 @@ func _update_touch_zone() -> void:
 		return
 	_apply_orientation()
 	var size: Vector2 = get_viewport().get_visible_rect().size
-	input.joystick.zone = TouchLayout.joystick_zone(size, _insets())
+	_insets_now = _read_insets()
+	input.joystick.zone = TouchLayout.joystick_zone(size, _insets_now)
 	input.joystick.blocked = _blocked_rects()
 	_show_touch()
 
@@ -215,7 +260,12 @@ func _apply_orientation() -> void:
 		window.content_scale_size = base
 
 
+## The safe-area insets as of the last viewport change (reading them asks the browser, so not every tick).
 func _insets() -> Vector4:
+	return _insets_now
+
+
+func _read_insets() -> Vector4:
 	if not touch_mode:
 		return Vector4.ZERO
 	if safe_insets_override is Vector4:

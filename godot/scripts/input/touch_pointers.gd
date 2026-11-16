@@ -68,6 +68,15 @@ func count() -> int:
 	return _contacts.size()
 
 
+## The fingers that landed on a button and are still down.
+func ui_indices() -> Array[int]:
+	var found: Array[int] = []
+	for index: int in _contacts:
+		if _contacts[index].owner == Owner.UI:
+			found.append(index)
+	return found
+
+
 func owner_of(index: int) -> int:
 	var contact: Contact = _contacts.get(index)
 	return -1 if contact == null else contact.owner

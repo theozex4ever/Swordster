@@ -16,6 +16,9 @@ signal fullscreen_pressed
 const DIM: Color = Color(1.0, 1.0, 1.0, 0.6)
 const LIT: Color = Color(1.0, 1.0, 1.0, 0.92)
 
+## Set while the scene hands the engine the lift of a finger that never reported one: no button may act on it.
+var quiet: bool = false
+
 var _root: Control
 var _buttons: Dictionary[StringName, Button] = {}
 var _rotate_hint: Label
@@ -42,7 +45,9 @@ func _ready() -> void:
 		_add(TouchLayout.ultimate_id(slot), "", func() -> void: command_requested.emit(GameCommand.ultimate_at_nearest(slot)))
 		_add(TouchLayout.swap_id(slot), "Swap %d" % (slot + 1), func() -> void: command_requested.emit(GameCommand.swap(slot)))
 	_add(TouchLayout.RANGES, "Ranges", func() -> void: command_requested.emit(GameCommand.toggle_ranges()))
-	_add(TouchLayout.FULLSCREEN, "Full", func() -> void: fullscreen_pressed.emit())
+	# the browser grants a fullscreen request only inside a user activation, and a touch gives one when the finger lifts
+	# (`pressed`: a lift on the button; one the engine is given to drop a hold, off the button, never asks)
+	_add(TouchLayout.FULLSCREEN, "Full", func() -> void: fullscreen_pressed.emit(), true)
 	_add(TouchLayout.RESUME, "Resume", func() -> void: command_requested.emit(GameCommand.resume()))
 	_add(TouchLayout.RESTART, "Restart", func() -> void: command_requested.emit(GameCommand.restart()))
 	for id: StringName in [TouchLayout.RESUME, TouchLayout.RESTART]:
@@ -167,7 +172,17 @@ func _want(id: StringName, wanted: bool) -> void:
 	_buttons[id].visible = wanted or _held.get(id, false)
 
 
-func _add(id: StringName, text: String, on_down: Callable) -> void:
+## Forgets every held button (focus loss, suspension, a cancelled touch, a restart): the finger that was on one will never
+## report its lift. Hidden-while-held buttons come back to what the run wants. (The engine's own hold on a pressed button is
+## dropped by `Main`, which gives it the missing lift.)
+func release_all() -> void:
+	_held.clear()
+	for id: StringName in _buttons:
+		if _wanted.has(id):
+			_buttons[id].visible = _wanted[id]
+
+
+func _add(id: StringName, text: String, on_action: Callable, on_release: bool = false) -> void:
 	var button: Button = Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
@@ -182,10 +197,15 @@ func _add(id: StringName, text: String, on_down: Callable) -> void:
 		button.add_theme_stylebox_override(state, pad)
 	button.button_down.connect(func() -> void:
 		_held[id] = true
-		on_down.call())
+		if not on_release:
+			on_action.call())
 	button.button_up.connect(func() -> void:
 		_held.erase(id)
 		if _wanted.has(id):
 			button.visible = _wanted[id])
+	if on_release:
+		button.pressed.connect(func() -> void:
+			if not quiet:
+				on_action.call())
 	_root.add_child(button)
 	_buttons[id] = button

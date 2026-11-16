@@ -2496,7 +2496,7 @@ mutate touch-translator-bypasses-pointers            scripts/input/input_transla
 mutate touch-translator-release-all-keeps-fingers    scripts/input/input_translator.gd "	_held.clear()
 	touch.release_all()" "	_held.clear()
 	joystick.release()"
-mutate touch-layout-swap-too-small                   scripts/input/touch_layout.gd "const SWAP_SIZE: Vector2 = Vector2(96.0, 78.0)" "const SWAP_SIZE: Vector2 = Vector2(96.0, 50.0)"
+mutate touch-layout-swap-too-small                   scripts/input/touch_layout.gd "const SWAP_SIZE: Vector2 = Vector2(96.0, 80.0)" "const SWAP_SIZE: Vector2 = Vector2(96.0, 50.0)"
 mutate touch-layout-no-lift                          scripts/input/touch_layout.gd "var lift: float = 0.0 if view.x >= WIDE_VIEW else LIFT" "var lift: float = 0.0"
 mutate touch-layout-no-shove-room                    scripts/input/touch_layout.gd "const SHOVE_ROOM: float = 120.0" "const SHOVE_ROOM: float = 0.0"
 mutate touch-layout-ignores-insets                   scripts/input/touch_layout.gd "	anchor.position = Vector2(minf(anchor.position.x, right - MARGIN - anchor.size.x), minf(anchor.position.y, bottom - MARGIN - anchor.size.y))
@@ -2520,7 +2520,7 @@ mutate touch-swap-button-slot                        scripts/touch/touch_control
 mutate touch-ranges-button-command                   scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.toggle_ranges())" "command_requested.emit(GameCommand.dash())"
 mutate touch-resume-button-pauses                    scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.resume())" "command_requested.emit(GameCommand.pause())"
 mutate touch-restart-button-resumes                  scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.restart())" "command_requested.emit(GameCommand.resume())"
-mutate touch-fullscreen-button-commands              scripts/touch/touch_controls.gd "func() -> void: fullscreen_pressed.emit())" "func() -> void: command_requested.emit(GameCommand.dash()))"
+mutate touch-fullscreen-button-commands              scripts/touch/touch_controls.gd "func() -> void: fullscreen_pressed.emit(), true)" "func() -> void: command_requested.emit(GameCommand.dash()), true)"
 mutate touch-hidden-buttons-block                    scripts/touch/touch_controls.gd "		if button.visible:
 			rects.append(" "		if true:
 			rects.append("
@@ -2570,6 +2570,37 @@ mutate touch-hud-avoid-ignores-touch                 scripts/hud.gd "	for extra:
 mutate touch-safe-override-count                     scripts/launch_options.gd "	if parts.size() != 4:" "	if parts.size() != 5:"
 mutate touch-safe-override-negative                  scripts/launch_options.gd "values.append(maxf(part.strip_edges().to_float(), 0.0))" "values.append(part.strip_edges().to_float())"
 
+mutate touch-bridge-number-is-no                     scripts/input/touch_platform.gd "	if value is int or value is float:
+		return float(value) != 0.0" "	if value is int or value is float:
+		return false"
+mutate touch-bridge-text-true-only                   scripts/input/touch_platform.gd "in [\"true\", \"1\", \"yes\"]" "in [\"true\"]"
+mutate touch-bridge-bool-inverted                    scripts/input/touch_platform.gd "	if value is bool:
+		return value
+	if value is int" "	if value is bool:
+		return not value
+	if value is int"
+mutate touch-bridge-text-drops-numbers               scripts/input/touch_platform.gd "		return str(value)" "		return \"\""
+mutate touch-safe-conversion-unscaled                scripts/input/touch_platform.gd "	var per_unit: float = 1.0 if page_width <= 0.0 else view_width / page_width" "	var per_unit: float = 1.0"
+mutate touch-safe-probe-count                        scripts/input/touch_platform.gd "	if parts.size() != 5:
+		return values" "	if parts.size() != 4:
+		return values"
+mutate touch-suspend-keeps-buttons                   scripts/main.gd "func release_input_and_pause() -> void:
+	_release_touch_state()" "func release_input_and_pause() -> void:
+	input.release_all()"
+mutate touch-cancel-keeps-buttons                    scripts/main.gd "		if input.touch.owner_of(taken) == TouchPointers.Owner.UI:
+			_lift_on_buttons([taken])" "		if input.touch.owner_of(taken) == TouchPointers.Owner.UI:
+			pass"
+mutate touch-restart-keeps-buttons                   scripts/main.gd "		_lift_then_release_buttons.call_deferred(held)" "		pass"
+mutate touch-lift-not-quiet                          scripts/main.gd "	_touch.quiet = true
+" "	_touch.quiet = false
+"
+mutate touch-lift-wrong-finger                       scripts/main.gd "		lift.index = index
+" "		lift.index = 0
+"
+mutate touch-ui-fingers-forgotten                    scripts/input/touch_pointers.gd "		if _contacts[index].owner == Owner.UI:" "		if false:"
+mutate touch-fullscreen-on-press                     scripts/touch/touch_controls.gd "		if not on_release:
+			on_action.call())" "		on_action.call())"
+mutate touch-portrait-base-narrow                    scripts/input/touch_layout.gd "const PORTRAIT_BASE: Vector2i = Vector2i(740, 1280)" "const PORTRAIT_BASE: Vector2i = Vector2i(720, 1280)"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi

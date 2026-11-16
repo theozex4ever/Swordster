@@ -99,9 +99,7 @@ static func requested_touch() -> String:
 		if argument.begins_with(TOUCH_ARGUMENT + "="):
 			return argument.trim_prefix(TOUCH_ARGUMENT + "=")
 	if OS.has_feature("web"):
-		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % TOUCH_QUERY)
-		if query is String:
-			return query as String
+		return TouchPlatform.bridge_text(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % TOUCH_QUERY))
 	return ""
 
 
@@ -112,9 +110,7 @@ static func requested_safe_insets() -> PackedFloat32Array:
 		if argument.begins_with(SAFE_ARGUMENT_PREFIX):
 			raw = argument.trim_prefix(SAFE_ARGUMENT_PREFIX)
 	if raw.is_empty() and OS.has_feature("web"):
-		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % SAFE_QUERY)
-		if query is String:
-			raw = query as String
+		raw = TouchPlatform.bridge_text(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % SAFE_QUERY))
 	return parse_insets(raw)
 
 

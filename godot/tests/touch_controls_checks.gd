@@ -39,6 +39,7 @@ func run_all() -> void:
 	await _check_ui_consumes_touches()
 	await _check_emulated_mouse_path()
 	await _check_release_and_suspension()
+	await _check_stuck_buttons()
 	await _check_paused_and_dead()
 	await _check_layout_in_scene()
 
@@ -275,7 +276,7 @@ func _hud_dash(view: Vector2) -> Rect2:
 
 func _check_layout_geometry() -> void:
 	print("touch: the layout fits every view, orientation and safe area")
-	var views: Array[Vector2] = [Vector2(1280.0, 720.0), Vector2(1600.0, 720.0), Vector2(1280.0, 853.0), Vector2(1280.0, 1280.0), Vector2(720.0, 1280.0), Vector2(720.0, 1560.0)]
+	var views: Array[Vector2] = [Vector2(1280.0, 720.0), Vector2(1600.0, 720.0), Vector2(1280.0, 853.0), Vector2(1280.0, 1280.0), Vector2(740.0, 1280.0), Vector2(740.0, 1560.0)]
 	var insets_list: Array[Vector4] = [Vector4.ZERO, Vector4(48.0, 0.0, 48.0, 0.0), Vector4(0.0, 40.0, 0.0, 34.0), Vector4(60.0, 30.0, 60.0, 20.0)]
 	var problems: Array[String] = []
 	var combos: int = 0
@@ -301,10 +302,10 @@ func _check_layout_geometry() -> void:
 			var zone: Rect2 = TouchLayout.joystick_zone(view, insets)
 			if not safe.encloses(zone) or zone.size.x < 300.0 or zone.size.y < 300.0:
 				problems.append("%s %s joystick zone %s" % [view, insets, zone])
-	_ok("at %d combinations of view and safe area every button lies inside the safe area, is at least 76 px a side, and none overlaps another or the HUD's Dash (%d problems: %s)" % [combos, problems.size(), problems.slice(0, 3)], problems.is_empty())
+	_ok("at %d combinations of view and safe area every button lies inside the safe area, is at least 80 px a side, and none overlaps another or the HUD's Dash (%d problems: %s)" % [combos, problems.size(), problems.slice(0, 3)], problems.is_empty())
 	var plain: Rect2 = TouchLayout.joystick_zone(Vector2(1280.0, 720.0), Vector4.ZERO)
 	_ok("with no safe-area insets the joystick zone is the earlier one: the left 55 % below the top 15 %", plain == Rect2(0.0, 108.0, 704.0, 612.0))
-	var lifted: Dictionary[StringName, Rect2] = TouchLayout.button_rects(Vector2(720.0, 1280.0), Vector4.ZERO, _hud_dash(Vector2(720.0, 1280.0)))
+	var lifted: Dictionary[StringName, Rect2] = TouchLayout.button_rects(Vector2(740.0, 1280.0), Vector4.ZERO, _hud_dash(Vector2(740.0, 1280.0)))
 	var flat: Dictionary[StringName, Rect2] = TouchLayout.button_rects(Vector2(1280.0, 720.0), Vector4.ZERO, _hud_dash(Vector2(1280.0, 720.0)))
 	_ok("in a narrow view the ultimate row rises clear of the HUD's sword cards (bottom 114 px); in a wide one it does not", lifted[TouchLayout.ultimate_id(0)].end.y <= 1280.0 - 114.0 and flat[TouchLayout.ultimate_id(0)].end.y > 720.0 - 114.0 and flat[TouchLayout.ultimate_id(0)].end.y == _hud_dash(Vector2(1280.0, 720.0)).end.y)
 	_ok("the ultimate buttons read Q, E, R from left to right and the swap buttons sit above them", flat[TouchLayout.ultimate_id(0)].position.x < flat[TouchLayout.ultimate_id(1)].position.x and flat[TouchLayout.ultimate_id(1)].position.x < flat[TouchLayout.ultimate_id(2)].position.x and flat[TouchLayout.swap_id(1)].end.y < flat[TouchLayout.ultimate_id(1)].position.y)
@@ -313,14 +314,42 @@ func _check_layout_geometry() -> void:
 
 func _check_platform_values() -> void:
 	print("touch: orientation, safe-area and launch values")
-	_ok("a window taller than wide uses the portrait base 720 x 1280, anything else the landscape 1280 x 720 (square included)",
-		TouchLayout.base_size_for(Vector2i(412, 915)) == Vector2i(720, 1280) and TouchLayout.base_size_for(Vector2i(915, 412)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(800, 800)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(801, 800)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(800, 801)) == Vector2i(720, 1280))
-	_ok("is_portrait is height over width", TouchLayout.is_portrait(Vector2(720.0, 1280.0)) and not TouchLayout.is_portrait(Vector2(1280.0, 720.0)) and not TouchLayout.is_portrait(Vector2(500.0, 500.0)))
+	_ok("a window taller than wide uses the portrait base 740 x 1280, anything else the landscape 1280 x 720 (square included)",
+		TouchLayout.base_size_for(Vector2i(412, 915)) == Vector2i(740, 1280) and TouchLayout.base_size_for(Vector2i(915, 412)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(800, 800)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(801, 800)) == Vector2i(1280, 720) and TouchLayout.base_size_for(Vector2i(800, 801)) == Vector2i(740, 1280))
+	_ok("is_portrait is height over width", TouchLayout.is_portrait(Vector2(740.0, 1280.0)) and not TouchLayout.is_portrait(Vector2(1280.0, 720.0)) and not TouchLayout.is_portrait(Vector2(500.0, 500.0)))
 	var from_css: Vector4 = TouchLayout.insets_from_css(Vector4(10.0, 20.0, 30.0, 40.0), 2.0)
 	_ok("CSS insets (top, right, bottom, left) become viewport insets (left, top, right, bottom) scaled onto the viewport: (80, 20, 40, 60)", from_css == Vector4(80.0, 20.0, 40.0, 60.0))
 	_ok("negative or missing insets are zero", TouchLayout.insets_from_css(Vector4(-5.0, 0.0, -1.0, 3.0), 1.5) == Vector4(4.5, 0.0, 0.0, 0.0))
 	_ok("a safe-area override of four numbers parses (top, right, bottom, left)", LaunchOptions.parse_insets("12, 0,34.5,7") == PackedFloat32Array([12.0, 0.0, 34.5, 7.0]))
 	_ok("a wrong count, text or an empty value is no override, a negative one is clamped to 0", LaunchOptions.parse_insets("1,2,3").is_empty() and LaunchOptions.parse_insets("a,b,c,d").is_empty() and LaunchOptions.parse_insets("").is_empty() and LaunchOptions.parse_insets("-4,1,1,1") == PackedFloat32Array([0.0, 1.0, 1.0, 1.0]))
+	# the browser bridge hands back a JavaScript `true` as a bool, as the number 1, or as text: every shape means the same
+	var yes: Array = [true, 1, 1.0, 2, "true", "TRUE", " 1 ", "yes", &"true"]
+	var no: Array = [false, 0, 0.0, "false", "0", "", "no", "undefined", null, [1], {"a": 1}, Vector2.ONE]
+	var yes_wrong: Array = []
+	for value: Variant in yes:
+		if not TouchPlatform.bridge_truthy(value):
+			yes_wrong.append(var_to_str(value))
+	var no_wrong: Array = []
+	for value: Variant in no:
+		if TouchPlatform.bridge_truthy(value):
+			no_wrong.append(var_to_str(value))
+	_ok("the bridge's yes is a bool true, the number 1 or 2 (int or float), or the text true / 1 / yes in any case (wrongly no: %s)" % [yes_wrong], yes_wrong.is_empty())
+	_ok("and everything else is a no: false, 0, 0.0, empty or other text, null, a list, a dictionary, a vector (wrongly yes: %s)" % [no_wrong], no_wrong.is_empty())
+	_ok("bridge text: text stays text, numbers become their text, null and objects become empty", TouchPlatform.bridge_text("a,b") == "a,b" and TouchPlatform.bridge_text(1) == "1" and TouchPlatform.bridge_text(null) == "" and TouchPlatform.bridge_text([1]) == "")
+	# the safe area: the browser's insets and the `?safe=` stand-in take one conversion
+	var probe: PackedFloat32Array = TouchPlatform.parse_probe("24,48,20,48,915")
+	_ok("the page's probe answer parses to five numbers (a wrong one to none)", probe == PackedFloat32Array([24.0, 48.0, 20.0, 48.0, 915.0]) and TouchPlatform.parse_probe("1,2,3,4").is_empty() and TouchPlatform.parse_probe("a,b,c,d,e").is_empty() and TouchPlatform.parse_probe("").is_empty())
+	var view_width: float = 915.0 / 412.0 * 720.0
+	var override: PackedFloat32Array = LaunchOptions.parse_insets("24,48,20,48")
+	var from_browser: Vector4 = Vector4(-1.0, -1.0, -1.0, -1.0)
+	var from_override: Vector4 = Vector4(-2.0, -2.0, -2.0, -2.0)
+	if probe.size() == 5 and override.size() == 4:
+		from_browser = TouchPlatform.insets_from_css_values(Vector4(probe[0], probe[1], probe[2], probe[3]), probe[4], view_width)
+		from_override = TouchPlatform.insets_from_css_values(Vector4(override[0], override[1], override[2], override[3]), probe[4], view_width)
+	var scale: float = view_width / 915.0
+	_ok("a 915 px wide page shown 1599 logical px wide: browser insets 24,48,20,48 (top, right, bottom, left) and the same numbers given as `?safe=` both come out as (left %.2f, top %.2f, right %.2f, bottom %.2f)" % [48.0 * scale, 24.0 * scale, 48.0 * scale, 20.0 * scale],
+		from_browser.is_equal_approx(from_override) and from_browser.is_equal_approx(Vector4(48.0 * scale, 24.0 * scale, 48.0 * scale, 20.0 * scale)) and absf(from_browser.x - 83.88) < 0.01 and absf(from_browser.y - 41.94) < 0.01 and absf(from_browser.w - 34.95) < 0.01)
+	_ok("a page width of zero (unknown) leaves the numbers as they are", TouchPlatform.insets_from_css_values(Vector4(1.0, 2.0, 3.0, 4.0), 0.0, 1599.0) == Vector4(4.0, 1.0, 2.0, 3.0))
 	var launch: PackedStringArray = PackedStringArray(["--touch", "--visuals=textured", "--safe=1,2,3,4"])
 	_ok("the touch launch options sit beside the visuals one without clashing: `--visuals=textured` is still read from the same arguments, and `--touch` is not mistaken for a value", LaunchOptions.visuals_from(launch) == "textured" and LaunchOptions.visuals_from(PackedStringArray(["--touch=0"])) == "")
 	_ok("with no touchscreen reported (headless) and no request there are no touch controls", not TouchPlatform.touchscreen_present() or LaunchOptions.requested_touch() == "1")
@@ -530,8 +559,14 @@ func _check_buttons_and_aiming() -> void:
 	swapping._touch.fullscreen_pressed.disconnect(TouchPlatform.toggle_fullscreen)
 	swapping._touch.fullscreen_pressed.connect(func() -> void: asked[0] += 1)
 	var tick_before: int = srun.tick
-	_press_button(window, swapping, TouchLayout.FULLSCREEN)
-	_ok("the fullscreen button asks the platform (one request) and commands nothing in the run", asked[0] == 1 and srun.tick == tick_before and srun.cue_count(SimCue.Kind.CONVERGE) == 0)
+	var full_at: Vector2 = swapping._touch.button_rect(TouchLayout.FULLSCREEN).get_center()
+	_send(window, _touch(5, full_at, true))
+	_ok("the fullscreen button does not ask while the finger is still down (the browser grants a fullscreen request on the lift)", asked[0] == 0)
+	_send(window, _touch(5, full_at, false))
+	_ok("it asks the platform once when the finger lifts, and commands nothing in the run", asked[0] == 1 and srun.tick == tick_before and srun.cue_count(SimCue.Kind.CONVERGE) == 0)
+	_send(window, _touch(5, full_at, true))
+	_send(window, _touch(5, full_at, false, true))
+	_ok("a cancelled touch on it asks for nothing more (a cancelled contact never lifts)", asked[0] == 1)
 	swapping._fullscreen_supported = false
 	swapping._touch.layout(Vector2.ZERO, Vector4.ZERO, Rect2(), false)
 	swapping._show_touch()
@@ -871,10 +906,13 @@ func _check_layout_in_scene() -> void:
 				for i: int in rects.size():
 					if rects[i].intersects(hud_rect):
 						problems.append("%s %s: %s overlaps HUD %s" % [size, insets, labels[i], hud_button.text])
+			for card: Control in main._hud._ult_cards:
+				if card.visible and card.get_global_rect().intersects(main._hud.dash_rect()):
+					problems.append("%s: the HUD's Dash overlaps a sword card %s" % [size, card.get_global_rect()])
 			var zone: Rect2 = main.input.joystick.zone
 			if not safe.encloses(zone):
 				problems.append("%s %s joystick zone %s" % [size, insets, zone])
-	_ok("at %d window and safe-area combinations in the running scene every touch button lies in the safe area and clear of the HUD's buttons, and the stick's zone follows (%d problems: %s)" % [shapes, problems.size(), problems.slice(0, 3)], problems.is_empty())
+	_ok("at %d window and safe-area combinations in the running scene every touch button lies in the safe area and clear of the HUD's buttons, the HUD's Dash clears the sword cards, and the stick's zone follows (%d problems: %s)" % [shapes, problems.size(), problems.slice(0, 3)], problems.is_empty())
 
 	# a dropped sword's card keeps clear of the touch controls
 	await _resize(main, window, Vector2i(1280, 720))
@@ -889,6 +927,84 @@ func _check_layout_in_scene() -> void:
 		if main._touch.button_rect(id).intersects(card):
 			collides.append(String(id))
 	_ok("with a dropped sword in reach its card appears and covers no touch button (%s collide)" % [collides], main._hud.pickup_card_visible() and collides.is_empty())
+	main.queue_free()
+	window.queue_free()
+	await _tree.process_frame
+
+
+# ----------------------------------------- a finger that never lifts
+## A finger that was on a button when the page was suspended (or the touch was cancelled, or the run restarted) never reports
+## its lift. The engine would go on believing the button is down and swallow its next press: the run would stay paused with the
+## Resume button doing nothing. Each case presses the button again WITHOUT the lift ever having been delivered.
+func _check_stuck_buttons() -> void:
+	print("touch: a button whose finger never lifted still works the next time")
+	var window: Window = _window(Vector2i(1280, 720))
+	var main: Main = await _main_in(window, _scenario([Vector2(250.0, 20.0)]))
+	var run: GameRun = main.run
+	var failures: Array[String] = []
+	for index: int in [5, 6]:
+		run.apply(GameCommand.pause())
+		main._present()
+		var resume_at: Vector2 = main._touch.button_rect(TouchLayout.RESUME).get_center()
+		_send(window, _touch(5, resume_at, true))
+		if run.paused:
+			failures.append("first press did not resume")
+		main.release_input_and_pause()
+		if not run.paused or main.input.touch.count() != 0 or not main._touch._held.is_empty():
+			failures.append("suspend left paused %s, %d contacts, held %s" % [run.paused, main.input.touch.count(), main._touch._held])
+		resume_at = main._touch.button_rect(TouchLayout.RESUME).get_center()
+		_send(window, _touch(index, resume_at, true))
+		if run.paused:
+			failures.append("after suspension a Resume press with finger %d was swallowed" % index)
+		_send(window, _touch(index, resume_at, false))
+		_send(window, _touch(5, resume_at, false))
+	_ok("hold Resume, suspend the page (its lift never arrives), press Resume again with the same or another finger: the run resumes (%d problems: %s)" % [failures.size(), failures], failures.is_empty())
+
+	var other: Array[String] = []
+	run.apply(GameCommand.resume())
+	var pause_at: Vector2 = main._hud._pause_button.get_global_rect().get_center()
+	_send(window, _touch(5, pause_at, true))
+	if not run.paused:
+		other.append("first Pause press did not pause")
+	main.release_input_and_pause()
+	_send(window, _touch(5, pause_at, true))
+	if run.paused:
+		other.append("the HUD's Pause button swallowed its press after suspension")
+	_send(window, _touch(5, pause_at, false))
+	_ok("the HUD's own Pause button has the same guarantee (%s)" % [other], other.is_empty())
+
+	var cancelled: Array[String] = []
+	run.apply(GameCommand.pause())
+	main._present()
+	var resume_cancel: Vector2 = main._touch.button_rect(TouchLayout.RESUME).get_center()
+	_send(window, _touch(5, resume_cancel, true))
+	_send(window, _touch(5, resume_cancel, false, true))
+	run.apply(GameCommand.pause())
+	main._present()
+	_send(window, _touch(5, resume_cancel, true))
+	if run.paused:
+		cancelled.append("Resume swallowed its press after a cancelled touch")
+	_send(window, _touch(5, resume_cancel, false))
+	_ok("hold Resume, the touch is cancelled (no lift), press Resume again: it works (%s)" % [cancelled], cancelled.is_empty())
+
+	var restarted: Array[String] = []
+	run.apply(GameCommand.pause())
+	main._present()
+	var resume_restart: Vector2 = main._touch.button_rect(TouchLayout.RESUME).get_center()
+	_send(window, _touch(5, resume_restart, true))
+	var restart_at: Vector2 = main._hud._restart_button.get_global_rect().get_center()
+	_send(window, _touch(6, restart_at, true))
+	if run.restarts == 0:
+		restarted.append("Restart did not restart")
+	await _tree.process_frame
+	run.apply(GameCommand.pause())
+	main._present()
+	_send(window, _touch(5, resume_restart, true))
+	if run.paused:
+		restarted.append("Resume swallowed its press after a restart")
+	_send(window, _touch(5, resume_restart, false))
+	_send(window, _touch(6, restart_at, false))
+	_ok("hold Resume, restart with another finger, pause, press Resume again without the first lift: it works (%s)" % [restarted], restarted.is_empty())
 	main.queue_free()
 	window.queue_free()
 	await _tree.process_frame
