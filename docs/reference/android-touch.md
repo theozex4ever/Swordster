@@ -109,12 +109,13 @@ counters and fail when they run out.
 | Engine emulation | through `Input.parse_input_event`: one Converge per arena tap, one dash per Dash tap, the Converge button once, a second finger reaching a button while the first steers |
 | Release, suspension | cancel releases the stick and the player coasts to a stop; focus-out, window focus-out and app pause each pause, release stick, key and two fingers, ignore the old fingers, stay paused however long, need Resume (a landing on Resume that appeared after the stick's rectangles were set is the button's), then a *new* finger steers |
 | Paused, dead | paused: taps, Converge, 3 ultimates, a swap, Ranges, Dash do nothing and spend no cooldown; dead: same; no Restart until the delay, then a big Restart that restarts and clears the stick |
+| Bridge values | `bridge_truthy` / `bridge_text` over every shape the browser bridge can return (bool, int 1 / 0 / 2, float, text true / 1 / yes in any case, empty text, null, list, dictionary, vector); the probe's answer parses; a 915 px page shown 1599 px wide gives the same insets from the browser and from `?safe=` (83.88 / 41.94 / 83.88 / 34.95) |
+| Fingers that never lift | hold Resume, suspend, press Resume again with the same and another finger: it resumes; the same for the HUD's Pause; for a cancelled touch; for a restart with another finger. Full asks nothing while the finger is down, once on the lift, nothing for a cancelled touch |
 | Scene layout | 10 window shapes x 3 safe areas in the running scene: touch buttons in the safe area and clear of the HUD's buttons; the zone follows |
 
-Mutations: the `touch` section of `tools/godot/mutation-check.sh` (60 mutations: tap and travel thresholds, ownership, UI consumption,
+Mutations: the `touch` section of `tools/godot/mutation-check.sh` (74 mutations: tap and travel thresholds, ownership, UI consumption,
 world mapping, stale and cancelled contacts, `release_all`, layout constants and insets, orientation, every button's command, slot and
-aim, dimming, held Resume / Restart, first-touch activation, blocked rectangles, launch-option parsing). One mutation that could not
-change behaviour (the joystick already ignores a foreign finger's drag) was removed instead of excused.
+aim, dimming, held Resume / Restart, first-touch activation, blocked rectangles, launch-option parsing, the bridge readings, the safe-area conversion, the lift given to buttons on suspend, cancel and restart). Mutations that could not change behaviour (the joystick already ignores a foreign finger's drag; `_held.clear()` is also done by the lift's `button_up`) were removed instead of excused.
 
 ## Found while building
 
@@ -135,10 +136,13 @@ change behaviour (the joystick already ignores a foreign finger's drag) was remo
 
 ## Evidence
 
-Web export in headless Chromium (`tools/godot/web-touch-capture.mjs`): `Emulation.setDeviceMetricsOverride` (mobile, device scale
-factor 2), `Emulation.setTouchEmulationEnabled`, real `Input.dispatchTouchEvent` with several points at once, the page's `visibilitychange`
-and a `touchCancel`, `Emulation.setSafeAreaInsetsOverride` (the page's `env()` read back as `24px,48px,20px,48px`), build
-`20261116-125000-f000aaa82`. No console errors.
+Web export in headless Chromium (`tools/godot/web-touch-capture.mjs`, browser events only): `Emulation.setDeviceMetricsOverride` (mobile,
+device scale factor 2), `Emulation.setTouchEmulationEnabled`, real `Input.dispatchTouchEvent` with several points at once, a dispatched
+`visibilitychange`, a `touchCancel`, `Emulation.setSafeAreaInsetsOverride` (the page's `env()` read back as `24px,48px,20px,48px`) and an
+observer on `Element.prototype.requestFullscreen`; build `20261116-143141-c774c39f5` (the head this document ships with). No console errors.
+**Fullscreen:** `document.fullscreenEnabled` is `true` in this Chromium (an earlier version of this document said it was not: wrong; the
+Full button was hidden by the bridge reading described above). The Full button is shown; the observer counts **0** requests while the finger
+is down and **1** after the lift, the result is `["granted"]` and `document.fullscreenElement` is the canvas.
 
 | What | Screenshot |
 |---|---|
@@ -146,15 +150,22 @@ and a `touchCancel`, `Emulation.setSafeAreaInsetsOverride` (the page's `env()` r
 | The same phone turned landscape (915 x 412) under the running game | [web-03](android-touch/web-03-landscape-after-turn.png) |
 | Tap on the arena: `converge 2.2s`, swords striking at that point | [web-04](android-touch/web-04-landscape-tap-converge-at-point.png) |
 | Converge button: `Converge 2.2s`, aimed at the nearest enemy | [web-05](android-touch/web-05-landscape-converge-button-nearest.png) |
-| Stick held (ring), a second finger on Dash (`dash 0.3s`), a third on Q (Viper Flurry ACTIVE), all at once | [web-07](android-touch/web-07-landscape-stick-dash-ultimate-together.png) |
+| Stick held (ring), a second finger on Dash, a third on Q (Viper Flurry ACTIVE), all at once | [web-07](android-touch/web-07-landscape-stick-dash-ultimate-together.png) |
 | Page hidden: PAUSED with the large Resume button | [web-09](android-touch/web-09-page-hidden-paused.png) |
 | Back in the page, a tap on Resume resumes (Q now recharging) | [web-11](android-touch/web-11-resumed-by-tap.png) |
+| A finger holds Resume (it resumed), the page is suspended again with that finger still down: PAUSED | [web-11c](android-touch/web-11c-suspended-with-finger-on-resume.png) |
+| A second finger lands on Resume without the first one's lift ever arriving: the run resumes (the review's reproduction) | [web-11d](android-touch/web-11d-second-press-on-resume-works.png) |
 | Touch cancelled mid-drag: no ring, no walking | [web-12](android-touch/web-12-touch-cancelled-stopped.png) |
-| Safe-area insets 24 / 48 / 20 / 48 (landscape) and 40 / 0 / 30 / 0 (portrait) | [web-13](android-touch/web-13-landscape-safe-area-notch.png), [web-14](android-touch/web-14-portrait-safe-area.png) |
+| The **Full** button is shown (landscape) | [web-13](android-touch/web-13-landscape-full-button-shown.png) |
+| After the tap on it (one granted `requestFullscreen`; headless keeps the viewport size) | [web-14](android-touch/web-14-landscape-after-full-tap.png) |
+| Safe area 24 / 48 / 20 / 48 from the browser (CDP `env()`), and the same numbers as `?safe=24,48,20,48`: identical layouts | [web-15](android-touch/web-15-landscape-safe-area-from-browser.png), [web-16](android-touch/web-16-landscape-safe-area-from-query.png) |
+| Portrait with `?safe=40,0,30,0` | [web-17](android-touch/web-17-portrait-safe-area.png) |
 | The shipped, unmodified Windows build under Wine 11 (`--write-movie`, no input, isolated Xvfb display, own Wine prefix): desktop HUD, keyboard hint, no touch controls | [wine](android-touch/wine-shipped-desktop-unchanged.png) |
 
-What this does **not** show: whether a real phone grants the request (see below); the "page hidden" event was a dispatched `visibilitychange`, not a real tab switch; CDP touches are not a
-finger; Android Chrome's gesture navigation, notification shade, rotation lock, display cutouts and performance are untouched.
+What this does **not** show: whether a real phone grants the fullscreen request (a headless Chromium grants it without a real gesture
+policy; Android Chrome wants a user activation, which is why Full acts on the lift); the "page hidden" event was a dispatched
+`visibilitychange`, not a real tab switch; CDP touches are not a finger; Android Chrome's gesture navigation, notification shade, rotation
+lock, display cutouts and performance are untouched.
 
 ## Physical Android checklist (#6 / #22)
 
@@ -170,8 +181,8 @@ doing nothing, and "Pause then Resume" can use the large Resume button):
 | B5 | Empty arena (right after a wave clears): Converge button and each ultimate | fire ahead of the player, not at the button |
 | B6 | Rotate portrait <-> landscape idle, mid-drag, while paused | layout refits, taps still land on target, nothing stuck, still paused |
 | B7 | Home / app switch / lock screen / tab switch mid-drag, return | paused, no stuck movement or ring, only Resume continues |
-| B8 | Edge gesture or notification shade mid-drag (cancelled touch) | stick released, fresh touch works |
-| B9 | Fullscreen via **Full** (and the itch.io button) | button present only where offered; controls still reachable and aimed correctly after |
+| B8 | Edge gesture or notification shade mid-drag (cancelled touch), also with a finger on a button (Resume, Dash, Pause) | stick released, fresh touch works, the button works on its next press |
+| B9 | Fullscreen via **Full** (and the itch.io button) | the button is shown on Android Chrome; one tap enters fullscreen (the request acts on the lift); controls still reachable and aimed correctly after; record if a stuck-pressed look or a refused request appears |
 | B10 | A device with a display cutout, fullscreen, landscape both directions | no button under the cutout; record whether `env()` insets are non-zero |
 | B11 | Dead, then restart by the large Restart button; paused, resume by the large Resume | works the first time, every time |
 | B12 | Tap target size and thumb reach on the named reference phone | buttons comfortable; list any that are not |
