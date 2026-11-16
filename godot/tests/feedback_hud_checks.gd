@@ -37,6 +37,7 @@ func run_all() -> void:
 	_check_sound_files()
 	await _check_sound_sites()
 	await _check_sound_in_a_run()
+	_check_cues_from_the_run()
 	await _check_audio_unlock()
 	await _check_help()
 	await _check_chain_counter()
@@ -275,6 +276,48 @@ func _check_sound_in_a_run() -> void:
 	await _tree.process_frame
 
 
+## The cues a real run produces carry what the sounds and sparks need: the sword that struck, whether it was heavy, what died and how.
+func _check_cues_from_the_run() -> void:
+	print("feedback: the run's cues carry the sword, the weight of a blow and what died")
+	var scenario: RunScenario = RunScenario.normal_run()
+	scenario.seed = 3
+	scenario.crit_chance = 0.0
+	scenario.wave_count = 0
+	var run: GameRun = GameRun.new(scenario)
+	run.iframes = HEALED_FULL
+	var warden: SwordState = run.swords[1]
+	var brute: EnemyState = EnemyState.make(EnemyDefs.BRUTE, run.position + Vector2(300.0, 0.0), 1, 0.0, 9400, 0.0, 0.0, null)
+	run.enemies.append(brute)
+	run.take_cues()
+	run.hit_enemy(brute, 5.0, Vector2.RIGHT, 10.0, warden, false)
+	run.hit_enemy(brute, 5.0, Vector2.RIGHT, 10.0, warden, true)
+	var hits: Array[SimCue] = []
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.ENEMY_HIT:
+			hits.append(cue)
+	_ok("a blow's cue names the sword that struck, how heavy it was and how big its target (%d cues)" % hits.size(), hits.size() == 2 and hits[0].spec == warden.spec and not hits[0].heavy and hits[1].heavy and hits[1].spec == warden.spec and hits[0].radius == brute.radius)
+	run.hit_enemy(brute, 9999.0, Vector2.RIGHT, 10.0, warden, true)
+	var deaths: Array[SimCue] = []
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.ENEMY_KILLED:
+			deaths.append(cue)
+	_ok("a kill by a heavy blow says what died, how big it was and that the blow was heavy (the prototype's `kill(.., big)`)", deaths.size() == 1 and deaths[0].enemy_kind == EnemyDefs.BRUTE and deaths[0].radius == brute.radius and deaths[0].critical)
+	var husk: EnemyState = EnemyState.make(EnemyDefs.HUSK, run.position + Vector2(300.0, 0.0), 1, 0.0, 9401, 0.0, 0.0, null)
+	run.enemies.append(husk)
+	run.hit_enemy(husk, 9999.0, Vector2.RIGHT, 10.0, warden, false)
+	var light: Array[SimCue] = []
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.ENEMY_KILLED:
+			light.append(cue)
+	_ok("and one by a plain blow is not heavy", light.size() == 1 and light[0].enemy_kind == EnemyDefs.HUSK and not light[0].critical)
+	run.try_ultimate(1, run.position + Vector2(200.0, 0.0))
+	var started: Array[SimCue] = []
+	for cue: SimCue in run.take_cues():
+		if cue.kind == SimCue.Kind.ULTIMATE_STARTED:
+			started.append(cue)
+	_ok("an ultimate's cue names the sword whose ultimate it is", started.size() == 1 and started[0].spec == warden.spec)
+
+
 ## Browsers keep audio locked until the first click, tap or key: nothing is heard before, the first gesture unlocks and says so, and
 ## releasing a key or a finger is not a gesture.
 func _check_audio_unlock() -> void:
@@ -309,6 +352,10 @@ func _check_audio_unlock() -> void:
 	var lift: InputEventScreenTouch = InputEventScreenTouch.new()
 	lift.pressed = false
 	released._input(lift)
+	var click_up: InputEventMouseButton = InputEventMouseButton.new()
+	click_up.button_index = MOUSE_BUTTON_LEFT
+	click_up.pressed = false
+	released._input(click_up)
 	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
 	motion.position = Vector2(50.0, 50.0)
 	released._input(motion)
@@ -859,6 +906,22 @@ func _check_impact_effects() -> void:
 	_ok("the sparks are the sword's element's colour, paler (%s against %s) and fly along the blow" % [tint, sword_tint], tint.is_equal_approx(sword_tint) and Vector2(spark["vel"]).x > 0.0)
 	_ok("the number is bigger for a bigger blow and a critical is gold with a '!' (size %d and %d, '%s', %s)" % [small_text["size"], big_text["size"], big_text["text"], big_text["color"]], int(small_text["size"]) == 22 and int(big_text["size"]) == 50 and String(big_text["text"]) == "40!" and Color(big_text["color"]).r > 0.9 and Color(big_text["color"]).b < 0.5)
 	_ok("and it rises, drifting the way the blow went (%s)" % [Vector2(big_text["vel"])], Vector2(big_text["vel"]).x > 50.0 and Vector2(big_text["vel"]).y < -120.0)
+	var fastest_heavy: float = 0.0
+	var fastest_plain: float = 0.0
+	for round: int in 20:
+		effects.clear()
+		effects.apply_cue(big)
+		for plain_spark: Dictionary in effects._sparks:
+			fastest_plain = maxf(fastest_plain, Vector2(plain_spark["vel"]).length())
+		var heavy_hit: SimCue = SimCue.make(SimCue.Kind.ENEMY_HIT, Vector2(500.0, 500.0), Vector2.RIGHT, 40, true)
+		heavy_hit.spec = spec
+		heavy_hit.radius = 16.0
+		heavy_hit.heavy = true
+		effects.clear()
+		effects.apply_cue(heavy_hit)
+		for fast_spark: Dictionary in effects._sparks:
+			fastest_heavy = maxf(fastest_heavy, Vector2(fast_spark["vel"]).length())
+	_ok("a heavy blow throws its sparks faster than a plain one (up to %.0f px/s against %.0f; the prototype's 900 and 650)" % [fastest_heavy, fastest_plain], fastest_plain <= 650.1 and fastest_heavy > 660.0 and fastest_heavy <= 900.1)
 	# a kill
 	var killed: SimCue = SimCue.make(SimCue.Kind.ENEMY_KILLED, Vector2(600.0, 600.0), Vector2.RIGHT)
 	killed.enemy_kind = EnemyDefs.BRUTE
@@ -890,7 +953,7 @@ func _check_impact_effects() -> void:
 		waited += 1
 	for bit: Dictionary in effects._bits:
 		landed = landed or bit["kind"] == &"debris"
-	_ok("debris is thrown up (%.0f px) and the whole burst is gone within 1.2 s, leaving nothing behind (%d bits after %d ticks)" % [highest, effects._bits.size(), waited], highest > 20.0 and effects._bits.is_empty() and not landed)
+	_ok("debris is thrown up (%.0f px, no higher than gravity allows) and the whole burst is gone within 1.2 s, leaving nothing behind (%d bits after %d ticks)" % [highest, effects._bits.size(), waited], highest > 20.0 and highest < 90.0 and effects._bits.is_empty() and not landed)
 	# a hit on the player, a dash, a spawn
 	effects.clear()
 	effects.apply_cue(SimCue.make(SimCue.Kind.PLAYER_HURT, Vector2(500.0, 500.0), Vector2.LEFT, 8))
@@ -931,12 +994,14 @@ func _check_trails_and_cracks() -> void:
 	for trail: Array in effects._trails.values():
 		longest = maxi(longest, trail.size())
 		shortest = mini(shortest, trail.size())
-	_ok("each of the three swords drags a ribbon of its last %d positions (%d ribbons, %d to %d long)" % [EffectsLayer.TRAIL_POINTS, effects._trails.size(), shortest, longest], effects._trails.size() == 3 and longest == EffectsLayer.TRAIL_POINTS and shortest == EffectsLayer.TRAIL_POINTS)
+	_ok("each of the three swords drags a ribbon of its last %d positions (%d ribbons, %d to %d long)" % [EffectsLayer.TRAIL_POINTS, effects._trails.size(), shortest, longest], effects._trails.size() == 3 and longest == 9 and shortest == 9)
 	var swift: float = 0.0
+	var idlest: float = 1.0
 	for trail: Array in effects._trails.values():
 		for point: Dictionary in trail:
 			swift = maxf(swift, float(point["intensity"]))
-	_ok("and it is brighter the faster the blade moves (up to %.2f while they chase and strike, never below 0.12)" % swift, swift > 0.3)
+			idlest = minf(idlest, float(point["intensity"]))
+	_ok("and it is brighter the faster the blade moves (from %.2f at rest to %.2f while they chase and strike; the prototype's floor is 0.12)" % [idlest, swift], swift > 0.3 and idlest < 0.5 and idlest >= 0.12)
 	run.hitstop = 0.5
 	var stamp: Array = (effects._trails.values()[0] as Array).duplicate(true)
 	effects.sync(run)
