@@ -49,8 +49,12 @@ static func safe_insets(view: Vector2) -> Vector4:
 ## Whether the browser (or the OS) lets the game go fullscreen.
 static func fullscreen_supported() -> bool:
 	if OS.has_feature("web"):
+		# the browser's answer is a Variant (null when the script could not run): only a real `true` counts
 		var allowed: Variant = JavaScriptBridge.eval("document.fullscreenEnabled === true")
-		return allowed == true
+		var supported: bool = false
+		if allowed is bool:
+			supported = allowed
+		return supported
 	return not OS.has_feature("mobile")
 
 
