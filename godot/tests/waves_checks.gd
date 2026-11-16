@@ -788,6 +788,9 @@ func _play_waves(seed_value: int, waves: int) -> Dictionary:
 			var expected_hp: float = float(row["armed"] if enemy.armed != null else row["unarmed"]) if not row.is_empty() else -1.0
 			if expected_hp < 0.0 or not _near(enemy.max_hp, expected_hp, EPS):
 				record["problems"].append("%s in wave %d has %.3f health, not %.3f" % [enemy.kind, run.director.wave, enemy.max_hp, expected_hp])
+			if not wave_info.has("killed"):
+				record["problems"].append("an enemy arrived in wave %d after the wave had been completed" % run.director.wave)
+				wave_info = {"wave": run.director.wave, "queued": [], "armed": 0, "killed": [], "armed_killed": 0, "spawned": 0}
 			wave_info["killed"].append(enemy.kind)
 			wave_info["armed_killed"] += 1 if enemy.armed != null else 0
 			run.kill(enemy, Vector2.RIGHT)
@@ -1045,6 +1048,9 @@ func _check_hud() -> void:
 	var running: Array = hud_ref["running"]
 	_ok("the wave, kill and chain readouts say '%s' (the prototype draws '%s', '%s', '%s')" % [hud._wave_label.text, running[0]["text"], running[1]["text"], running[2]["text"]],
 		hud._wave_label.text.begins_with(String(running[0]["text"])) and hud._wave_label.text.contains(String(running[1]["text"])) and hud._wave_label.text.contains("chain 5"))
+	run.combo = 3
+	_tick_main(main, 1)
+	_ok("a chain of three is the first to show ('%s')" % hud._wave_label.text, hud._wave_label.text.contains("chain 3"))
 	run.combo = 2
 	_tick_main(main, 1)
 	_ok("a chain of two shows no chain readout, as the prototype's x counter begins at three", not hud._wave_label.text.contains("chain"))

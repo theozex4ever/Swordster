@@ -18,7 +18,10 @@
 // shows the attack ranges, and Q, E and R press the slots' ultimates, all as browser key and mouse events), drops (issue #17: the drops
 // encounter; a swap key with nothing lying about is refused, then the player walks about as the armed foes die and press
 // 1, 2 and 3 as browser key events, the page paused with P for every screenshot, so the drops, the pickup card, the swaps and
-// the refusals can be seen).
+// the refusals can be seen), waves (issue #18: the NORMAL run, played for SECONDS seconds by browser key and mouse events only: the
+// player circles with WASD, clicks Converge near the middle of the view, presses Q, E and R and 1, 2 and 3 as it goes, and the page is
+// paused with P for every screenshot, so the wave banners, the spawn warnings, the breaks, the armed foes and their drops, the
+// kill and chain counters and the healing can be seen over several waves; after a death R restarts).
 //
 //   node tools/godot/web-encounter-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
 //
@@ -104,7 +107,7 @@ await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
 const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus | converge | drops
-const query = scenario === "normal" || scenario === "converge" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
+const query = scenario === "normal" || scenario === "converge" || scenario === "waves" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
   // The pinned crowd starts fighting the moment the engine runs, so react to the
@@ -306,6 +309,41 @@ if (scenario === "crowd") {
   await watch("08-ultimates-starting", 250);
   await watch("09-ultimates-running", 600);
   await watch("10-ultimates-landing", 900);
+} else if (scenario === "waves") {
+  // The normal run, played by key and mouse events alone (no autopilot exists in the game: this script is the player).
+  const pause = async () => { await key("KeyP", "p", 80); await sleep(300); };
+  const hold = async (code, k, vk, ms) => {
+    const common = { code, key: k, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common });
+    await sleep(ms);
+    await send("Input.dispatchKeyEvent", { type: "keyUp", ...common });
+  };
+  const seconds = Number(process.env.SECONDS ?? 150);
+  const shotEvery = Number(process.env.SHOT_EVERY ?? 6);
+  const moves = [["KeyD", "d", 68], ["KeyS", "s", 83], ["KeyA", "a", 65], ["KeyW", "w", 87]];
+  const aims = [[640 + 160, 360 - 20], [640 - 170, 360 + 40], [640 + 30, 360 - 180], [640 - 40, 360 + 170]];
+  let round = 0;
+  let lastShot = Date.now();
+  let shots = 0;
+  while ((Date.now() - t0) / 1000 < seconds) {
+    const [code, k, vk] = moves[round % 4];
+    const [ax, ay] = aims[round % 4];
+    await move(ax, ay);
+    if (round % 2 === 0) await clickWith(ax, ay, "left");
+    if (round % 5 === 1) await key("KeyQ", "q", 81);
+    if (round % 7 === 3) await key("KeyE", "e", 69);
+    if (round % 9 === 5) await key("KeyR", "r", 82);
+    if (round % 3 === 2) { const slot = Math.floor(round / 3) % 3; await key(`Digit${slot + 1}`, String(slot + 1), 49 + slot); }
+    await hold(code, k, vk, 700);
+    if ((Date.now() - lastShot) / 1000 >= shotEvery) {
+      await pause();
+      await shot(`waves-${String(shots++).padStart(3, "0")}-t${stamp().replace(".", "_")}`);
+      await pause();
+      lastShot = Date.now();
+    }
+    round++;
+  }
+  console.log(`played ${round} rounds, ${shots} screenshots, ${stamp()}s`);
 } else if (scenario === "drops") {
   // The drops encounter, driven only by browser key events. The software-rendered page takes seconds per screenshot while the
   // game runs on, so the game is PAUSED with P (a key the game itself handles) for every screenshot: paused, a drop's card,
