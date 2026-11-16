@@ -321,6 +321,8 @@ func _check_platform_values() -> void:
 	_ok("negative or missing insets are zero", TouchLayout.insets_from_css(Vector4(-5.0, 0.0, -1.0, 3.0), 1.5) == Vector4(4.5, 0.0, 0.0, 0.0))
 	_ok("a safe-area override of four numbers parses (top, right, bottom, left)", LaunchOptions.parse_insets("12, 0,34.5,7") == PackedFloat32Array([12.0, 0.0, 34.5, 7.0]))
 	_ok("a wrong count, text or an empty value is no override, a negative one is clamped to 0", LaunchOptions.parse_insets("1,2,3").is_empty() and LaunchOptions.parse_insets("a,b,c,d").is_empty() and LaunchOptions.parse_insets("").is_empty() and LaunchOptions.parse_insets("-4,1,1,1") == PackedFloat32Array([0.0, 1.0, 1.0, 1.0]))
+	var launch: PackedStringArray = PackedStringArray(["--touch", "--visuals=textured", "--safe=1,2,3,4"])
+	_ok("the touch launch options sit beside the visuals one without clashing: `--visuals=textured` is still read from the same arguments, and `--touch` is not mistaken for a value", LaunchOptions.visuals_from(launch) == "textured" and LaunchOptions.visuals_from(PackedStringArray(["--touch=0"])) == "")
 	_ok("with no touchscreen reported (headless) and no request there are no touch controls", not TouchPlatform.touchscreen_present() or LaunchOptions.requested_touch() == "1")
 
 
