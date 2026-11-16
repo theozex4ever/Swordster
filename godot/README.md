@@ -141,6 +141,18 @@ better). The wave line shows the wave, your kills and, from three in a row, the 
 over you; healing motes (three a kill, half a point each) are the only healing. There is no end: a run is only lost (**R** restarts).
 Fixtures and the other dev encounters are unchanged.
 
+### Visual sets: replacing the player and sword art
+
+Slice #21 ([artist guide](../docs/art/replacing-visuals.md)). The player and the spirit swords are replaceable
+views (ADR 0003); a **visual set** names which scenes draw them. `placeholder` (the default, the shipped look) draws
+them procedurally; `textured` draws texture sheets (`godot/art/placeholder/`, original placeholder drawings made by
+`tools/godot/gen_placeholder_art.gd`) with their own sizes, pivots, orientation and animation clips, kept in two
+settings resources. Pick one at launch: `Swordster.exe -- --visuals=textured` or `index.html?visuals=textured`
+(it composes with `--encounter=`); anything else keeps the default. Scale, pivot, orientation and clips are
+presentation only: `visual_replacement_checks.gd` replays the scripted fights of earlier slices with the drawn look,
+the textured look and hostile replacements (other texture sizes, pivots, orientation, animation speed and length)
+and requires identical per-tick movement, hit geometry, damage, timing, cooldowns and targets.
+
 ### The crowd encounter
 
 A development fixture for slice #9: one wave of five husks, five runners and two
