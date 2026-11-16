@@ -1,0 +1,43 @@
+name: Mutation gate
+
+# The mutation checks (tools/godot/mutation-check.sh) as a gate: every deliberate bug must be
+# rejected by a genuine failing check. The FULL list runs in FAST mode (the checker's focused /
+# quick / full steps, so a mutation costs a few seconds and the whole pass about ten minutes of
+# wall time over the shards) on
+#   - every pull request that touches godot/, tools/godot/, tools/reference/ or a mutation workflow, and
+#   - every push to main (no path filter: main always has a verdict for its head).
+# It is blocking: the "all shards" job fails unless every shard ran, the shards together covered
+# the whole list, and every mutation was caught (see tools/godot/mutation-summary.sh). A mutation
+# that is caught-with-warning (a genuine FAIL line and then a crash or timeout) is listed but
+# never fails it. The strict classic pass (every mutation runs the complete suite) is the weekly
+# run in mutation.yml. See "Mutation checks" in godot/README.md.
+on:
+  pull_request:
+    paths:
+      - "godot/**"
+      - "tools/godot/**"
+      - "tools/reference/**"
+      - ".github/workflows/mutation*.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to a pull request cancels that PR's superseded run (its result would be for a
+  # commit nobody will merge). Pushes to main are never cancelled: each head keeps its verdict.
+  group: mutation-gate-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mutation:
+    name: mutation
+    uses: ./.github/workflows/mutation-pass.yml
+    with:
+      mode: fast
+      # About 1,100 mutations at a few seconds each: 16 shards keep the wall time near ten minutes
+      # (measured in the pull request that introduced this gate; see godot/README.md). The repository is
+      # public, so the runner minutes are free.
+      shards: 16
+      timeout-minutes: 40

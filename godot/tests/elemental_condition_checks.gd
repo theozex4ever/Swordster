@@ -11,7 +11,6 @@ extends RefCounted
 ## copies a starting number. Tolerances and exceptions: docs/reference/elemental-conditions.md.
 
 const REFERENCE_PATH: String = "res://tests/reference/elemental_conditions.json"
-const PROBE_SCRIPT: String = "res://tests/frame_rate_probe.gd"
 
 ## Same-algorithm comparisons at the prototype's 60 FPS step; the reference rounds timers to
 ## four decimals and positions to three.
@@ -19,7 +18,6 @@ const POSITION_TOL: float = 0.05  # px
 const VELOCITY_TOL: float = 0.05  # px/s
 const TIMER_TOL: float = 0.001    # seconds, accumulators, dps
 const HP_TOL: float = 0.001
-const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 const PARKED: float = 99.0
 const DT: float = GameRun.TICK_DT
 
@@ -62,7 +60,6 @@ func run_all() -> void:
 	_check_conditions_encounter()
 	await _check_main_scene()
 	await _check_visual_independence()
-	await _check_render_rates()
 
 
 # --------------------------------------------------------------- helpers
@@ -905,49 +902,3 @@ func _check_visual_independence() -> void:
 	for main: Main in hosts:
 		main.queue_free()
 	await _tree.process_frame
-
-
-# -------------------------------------------------------- render rates
-func _check_render_rates() -> void:
-	print("conditions: identical outcomes at low and high render rates")
-	if not RenderRateScenario.probes_enabled():
-		return
-	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.CONDITIONS)
-	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
-	_ok("the scripted fight does something worth comparing (freezes %d, burning deaths %d, damage ticks %d, shatters %d, kills %d)" % [int(headless["frozen_cues"]), int(headless["spread_cues"]), int(headless["condition_damage_cues"]), int(headless["shatter_cues"]), int(headless["kills"])],
-		int(headless["frozen_cues"]) >= 2 and int(headless["spread_cues"]) >= 2 and int(headless["condition_damage_cues"]) >= 20 and int(headless["kills"]) >= 6)
-	_ok("exactly once: kill cues equal kills (%d) and no dead enemy is still in the run" % int(headless["kills"]), int(headless["kill_cues"]) == int(headless["kills"]))
-	var executable: String = OS.get_executable_path()
-	var project: String = ProjectSettings.globalize_path("res://")
-	var frames: Dictionary[int, int] = {}
-	for rate: int in PROBE_FRAME_RATES:
-		var output: Array = []
-		var arguments: PackedStringArray = ["--headless", "--path", project, "--fixed-fps", str(rate), "--script", PROBE_SCRIPT, "--", "--probe=rate-conditions"]
-		var code: int = OS.execute(executable, arguments, output, true)
-		var line: String = _probe_line(output)
-		_ok("the engine played the conditions fight at %d fps (exit %d)" % [rate, code], code == 0 and not line.is_empty(), "%s" % [output])
-		if line.is_empty():
-			continue
-		var result: Dictionary = JSON.parse_string(line)
-		frames[rate] = int(result["frames"])
-		var comparable: Dictionary = result.duplicate()
-		for key: String in ["frames", "visuals", "enemies"]:
-			comparable.erase(key)
-		_ok("at %d fps the real Main scene ends the fight exactly like the bare simulation: same burns, poison, freezes, spread deaths and survivors" % rate, comparable == expected_digest, _first_difference(comparable, expected_digest))
-	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
-		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
-
-
-func _probe_line(output: Array) -> String:
-	for chunk: Variant in output:
-		for line: String in String(chunk).split("\n"):
-			if line.begins_with("PROBE "):
-				return line.trim_prefix("PROBE ")
-	return ""
-
-
-func _first_difference(actual: Dictionary, expected: Dictionary) -> String:
-	for key: Variant in expected:
-		if not actual.has(key) or actual[key] != expected[key]:
-			return "%s: %s vs %s" % [key, str(actual.get(key)), str(expected[key])]
-	return ""

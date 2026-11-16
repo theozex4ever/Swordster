@@ -4,7 +4,8 @@ extends RefCounted
 ## check groups, so the mutation checker can try the group a mutation belongs to first and
 ## reject it in a second or two. A group is named by its file name without `_checks.gd`
 ## ("warden_maelstrom"); `--focus=none` runs no group at all, only run_checks.gd's own checks.
-## Every group's `run_all()` starts with `if not CheckFocus.includes("<its name>"): return`. A
+## Every group's `run_all()` starts with `if not CheckFocus.includes("<its name>"): return`; the render-rate
+## group (render_rate_checks.gd) is `--focus=render_rate`. A
 ## group without that line still runs, so a missing line costs time, never correctness.
 ## Without `--focus` every group runs. A run with ANY `--focus` is only partial evidence, so
 ## run_checks.gd reports it as "CHECKS PARTIAL", never "CHECKS PASSED" (see `active()`).

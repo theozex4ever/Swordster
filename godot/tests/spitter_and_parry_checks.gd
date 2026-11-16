@@ -10,14 +10,12 @@ extends RefCounted
 ## Tolerances and deliberate exceptions: docs/reference/spitters-projectiles-parries.md.
 
 const REFERENCE_PATH: String = "res://tests/reference/spitters_and_parries.json"
-const PROBE_SCRIPT: String = "res://tests/frame_rate_probe.gd"
 
 ## Same-algorithm comparisons at the prototype's 60 FPS step.
 const POSITION_TOL: float = 0.05  # px
 const VELOCITY_TOL: float = 0.05  # px/s
 const SCALAR_TOL: float = 0.002  # health, timers, shake, stun, charge
 const TICK_TOL: int = 1
-const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 ## Where the strike fixtures park the sword (far from the player, like the capture).
 const CENTER: Vector2 = Vector2(1300.0, 900.0)
 
@@ -59,7 +57,6 @@ func run_all() -> void:
 	_check_normal_run_unchanged()
 	await _check_main_scene()
 	await _check_visual_independence()
-	await _check_render_rates()
 
 
 # --------------------------------------------------------------- helpers
@@ -1038,56 +1035,3 @@ func _check_visual_independence() -> void:
 	for main: Main in hosts:
 		main.queue_free()
 	await _tree.process_frame
-
-
-# -------------------------------------------------------- render rates
-func _check_render_rates() -> void:
-	print("spitters: identical outcomes at low and high render rates")
-	if not RenderRateScenario.probes_enabled():
-		return
-	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.SPITTERS)
-	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
-	_ok("the scripted fight does something worth comparing (orbs %d, parried %d, player hurt %d, alive %s)" % [int(headless["shot_cues"]), int(headless["parry_cues"]), int(headless["hurt_cues"]), not bool(headless["dead"])],
-		int(headless["shot_cues"]) >= 25 and int(headless["parry_cues"]) >= 5 and int(headless["hurt_cues"]) >= 3 and not bool(headless["dead"]))
-	# Health is the maximum, less 8 per orb that hurt, plus 0.5 per healing mote already collected.
-	var healed: float = Mote.HEAL * float(3 * int(headless["kills"]) - int(headless["motes"]))
-	_ok("exactly once: every hurt cue cost 8 health and none is lost (health %.1f = 100 - 8 x %d + %.1f healed)" % [float(headless["hp"]), int(headless["hurt_cues"]), healed], absf(float(headless["hp"]) - (GameRun.PLAYER_MAX_HP - float(int(headless["hurt_cues"]) * ProjectileState.DAMAGE) + healed)) < 0.01)
-	var executable: String = OS.get_executable_path()
-	var project: String = ProjectSettings.globalize_path("res://")
-	var frames: Dictionary[int, int] = {}
-	for rate: int in PROBE_FRAME_RATES:
-		var output: Array = []
-		var arguments: PackedStringArray = ["--headless", "--path", project, "--fixed-fps", str(rate), "--script", PROBE_SCRIPT, "--", "--probe=rate-spitters"]
-		var code: int = OS.execute(executable, arguments, output, true)
-		var line: String = _probe_line(output)
-		_ok("the engine played the orb fight at %d fps (exit %d)" % [rate, code], code == 0 and not line.is_empty(), "%s" % [output])
-		if line.is_empty():
-			continue
-		var result: Dictionary = JSON.parse_string(line)
-		frames[rate] = int(result["frames"])
-		var comparable: Dictionary = result.duplicate()
-		for key: String in ["frames", "visuals", "enemies"]:
-			comparable.erase(key)
-		_ok("at %d fps the real Main scene ends the fight exactly like the bare simulation: same orbs, parries, hits, survivors and orbs in the air" % rate, comparable == expected_digest, _first_difference(comparable, expected_digest))
-	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
-		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
-	var launch_output: Array = []
-	OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=spitters"], launch_output, true)
-	var launch_line: String = _probe_line(launch_output)
-	var launched: Dictionary = JSON.parse_string(launch_line) if not launch_line.is_empty() else {}
-	_ok("the launch option --encounter=spitters starts the spitter encounter", String(launched.get("encounter", "")) == "spitters" and int(launched.get("wave_kinds", 0)) == 8 and not bool(launched.get("dev_shove", true)), "%s" % [launch_output])
-
-
-func _probe_line(output: Array) -> String:
-	for chunk: Variant in output:
-		for line: String in String(chunk).split("\n"):
-			if line.begins_with("PROBE {"):
-				return line.trim_prefix("PROBE ")
-	return ""
-
-
-func _first_difference(a: Dictionary, b: Dictionary) -> String:
-	for key: Variant in a:
-		if JSON.stringify(a[key]) != JSON.stringify(b.get(key)):
-			return "%s: %s vs %s" % [key, a[key], b.get(key)]
-	return ""

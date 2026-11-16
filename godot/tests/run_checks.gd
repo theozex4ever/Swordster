@@ -10,10 +10,10 @@ extends SceneTree
 ## The mutation checker (tools/godot/mutation-check.sh) adds two switches after `--`:
 ##   --fail-fast    stop at the first failing check: print its "  FAIL" line, then the usual
 ##                  "CHECKS FAILED: <failed> of <run>" verdict, and exit 1 like a complete run.
-##                  Later checks are neither run nor counted, and the render-rate probes that
-##                  have not started yet are skipped.
-##   --skip-probes  skip the render-rate probes (RenderRateScenario.probes_enabled()). A run
-##                  without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
+##                  Later checks are neither run nor counted, and the render-rate group (child
+##                  Godot processes) is skipped if it has not started yet.
+##   --skip-probes  skip the render-rate group (render_rate_checks.gd, RenderRateScenario.probes_enabled()).
+##                  A run without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
 ##   --focus=<g>    run only the check group(s) named <g> (see CheckFocus), after run_checks.gd's
 ##                  own checks; the mutation checker tries the group a mutation belongs to first.
 ##                  ANY --focus (even --focus=none or one naming every group) leaves groups or
@@ -65,6 +65,9 @@ func _run_all() -> void:
 	await converge.run_all()
 	var drops: DropsSwapsChecks = DropsSwapsChecks.new(_check, self)
 	await drops.run_all()
+	# The one place the frame rate is varied (child Godot processes): last, and skipped by --skip-probes.
+	var render_rates: RenderRateChecks = RenderRateChecks.new(_check, self)
+	render_rates.run_all()
 	if _failed == 0 and _total > 0:
 		print(_passed_line())
 		quit(0)

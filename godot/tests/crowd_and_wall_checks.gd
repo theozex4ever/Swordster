@@ -10,7 +10,6 @@ extends RefCounted
 ## Tolerances and exceptions: docs/reference/runners-brutes-crowd.md.
 
 const REFERENCE_PATH: String = "res://tests/reference/crowd_and_walls.json"
-const PROBE_SCRIPT: String = "res://tests/frame_rate_probe.gd"
 
 ## Same-algorithm comparisons at the prototype's 60 FPS step.
 const POSITION_TOL: float = 0.05  # px
@@ -21,7 +20,6 @@ const SCALAR_TOL: float = 0.002  # health, timers, shake, stun
 const CROWD_POSITION_TOL: float = 0.5
 const TICK_TOL: int = 1
 ## Frame rates (engine clock) the render-rate probe plays at.
-const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 
 var _check: Callable
 var _tree: SceneTree
@@ -60,7 +58,6 @@ func run_all() -> void:
 	_check_restart_with_crowd()
 	await _check_main_scene()
 	await _check_visual_independence()
-	await _check_render_rates()
 
 
 # --------------------------------------------------------------- helpers
@@ -928,64 +925,3 @@ func _check_visual_independence() -> void:
 	for main: Main in hosts:
 		main.queue_free()
 	await _tree.process_frame
-
-
-# -------------------------------------------------------- render rates
-func _check_render_rates() -> void:
-	print("crowd: identical outcomes at low and high render rates")
-	if not RenderRateScenario.probes_enabled():
-		return
-	var headless: Dictionary = RenderRateScenario.play_headless()
-	# Probe output travels as JSON text, so compare both sides after the same round trip.
-	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
-	_ok("the scripted crowd fight does something worth comparing (kills %d, slams %d, bowls %d, shoves %d)" % [int(headless["kills"]), int(headless["slam_cues"]), int(headless["bowl_cues"]), int(headless["shove_cues"])],
-		int(headless["kills"]) >= 8 and int(headless["slam_cues"]) >= 3 and int(headless["bowl_cues"]) >= 5 and int(headless["shove_cues"]) == RenderRateScenario.SHOVE_TICKS.size())
-	_ok("exactly once: kills equal kill cues", int(headless["kills"]) == int(headless["kill_cues"]))
-	var executable: String = OS.get_executable_path()
-	var project: String = ProjectSettings.globalize_path("res://")
-	var frames: Dictionary[int, int] = {}
-	for rate: int in PROBE_FRAME_RATES:
-		var output: Array = []
-		var arguments: PackedStringArray = ["--headless", "--path", project, "--fixed-fps", str(rate), "--script", PROBE_SCRIPT, "--", "--probe=rate"]
-		var code: int = OS.execute(executable, arguments, output, true)
-		var line: String = _probe_line(output)
-		_ok("the engine played the fight at %d fps (exit %d)" % [rate, code], code == 0 and not line.is_empty(), "%s" % [output])
-		if line.is_empty():
-			continue
-		var result: Dictionary = JSON.parse_string(line)
-		frames[rate] = int(result["frames"])
-		var comparable: Dictionary = result.duplicate()
-		for key: String in ["frames", "visuals", "enemies"]:
-			comparable.erase(key)
-		_ok("at %d fps the real Main scene ends the fight exactly like the bare simulation" % rate, comparable == expected_digest, _first_difference(comparable, expected_digest))
-		_ok("at %d fps every kill is rewarded exactly once (kills %d, kill cues %d, alive %d, visuals %d)" % [rate, int(result["kills"]), int(result["kill_cues"]), int(result["enemies"]), int(result["visuals"])],
-			int(result["kills"]) == int(result["kill_cues"]) and int(result["visuals"]) == int(result["enemies"]) + 3)
-	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
-		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
-	for encounter: String in ["crowd", "wall"]:
-		var launch_output: Array = []
-		OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=%s" % encounter], launch_output, true)
-		var launch_line: String = _probe_line(launch_output)
-		var launched: Dictionary = JSON.parse_string(launch_line) if not launch_line.is_empty() else {}
-		var standing: int = RunScenario.WALL_CROWD_KINDS.size() if encounter == "wall" else 0
-		_ok("the launch option --encounter=%s starts that encounter" % encounter, bool(launched.get("dev_shove", false)) and int(launched.get("standing", -1)) == standing, "%s" % [launch_output])
-	var plain_output: Array = []
-	OS.execute(executable, ["--headless", "--path", project, "--script", PROBE_SCRIPT, "--", "--probe=launch", "--encounter=nonsense"], plain_output, true)
-	var plain_line: String = _probe_line(plain_output)
-	var plain: Dictionary = JSON.parse_string(plain_line) if not plain_line.is_empty() else {}
-	_ok("an unknown or missing launch option starts the normal husk wave", plain.has("dev_shove") and not bool(plain["dev_shove"]) and int(plain["wave_kinds"]) == 0 and int(plain["standing"]) == 0, "%s" % [plain_output])
-
-
-func _probe_line(output: Array) -> String:
-	for chunk: Variant in output:
-		for line: String in String(chunk).split("\n"):
-			if line.begins_with("PROBE {"):
-				return line.trim_prefix("PROBE ")
-	return ""
-
-
-func _first_difference(a: Dictionary, b: Dictionary) -> String:
-	for key: Variant in a:
-		if JSON.stringify(a[key]) != JSON.stringify(b.get(key)):
-			return "%s: %s vs %s" % [key, a[key], b.get(key)]
-	return ""
