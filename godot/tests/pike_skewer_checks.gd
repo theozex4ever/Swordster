@@ -1207,7 +1207,7 @@ func _check_main_scene() -> void:
 	main._input(_key(KEY_E))
 	var sword: SwordState = main.run.swords[1]
 	_ok("E with the mouse 300 px above the view's centre starts slot two's Skewer heading north (%s) while the others stay put" % [sword.dir], sword.phase == SwordState.Phase.ULTIMATE and sword.dir.distance_to(expected) <= 0.01 and main.run.swords[0].phase != SwordState.Phase.ULTIMATE)
-	_ok("it is announced and heard (a heave sound, ULTIMATE_STARTED cue)", main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1 and main._sfx.played.has("dash"), "%s" % [main._sfx.played])
+	_ok("it is announced and heard (a heave sound, ULTIMATE_STARTED cue)", main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1 and main._sfx.played.has("heave"), "%s" % [main._sfx.played])
 	var effects: EffectsLayer = main._presenter._effects
 	_tick_main(main, 8)
 	await _tree.process_frame
@@ -1218,7 +1218,7 @@ func _check_main_scene() -> void:
 		_tick_main(main, 1)
 		await _tree.process_frame
 		carry_seen = carry_seen or (effects.draw_counts.get(&"skewer_carry_ring", 0) > 0 and effects.draw_counts.get(&"skewer_carry_line", 0) > 0)
-		launch_heard = launch_heard or main._sfx.played.has("strike")
+		launch_heard = launch_heard or main._sfx.played.has("pierce")
 	_ok("in flight it rings the enemies it carries (%d draws) and the launch and the release are cues (launched %d, released %d)" % [effects.draw_counts.get(&"skewer_carry_ring", 0), main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED), main.run.cue_count(SimCue.Kind.SKEWER_RELEASED)],
 		carry_seen and main.run.cue_count(SimCue.Kind.SKEWER_LAUNCHED) == 1 and main.run.cue_count(SimCue.Kind.SKEWER_RELEASED) == 1 and main.run.cue_count(SimCue.Kind.ENEMY_HIT) >= 3)
 	_ok("the encounter legend counts what happened (skewers launched 1, wall slams %d): %s" % [main.run.cue_count(SimCue.Kind.WALL_SLAM), hud._encounter_label.text.get_slice("\n", 0)],
@@ -1252,13 +1252,13 @@ func _check_main_scene() -> void:
 	await _tree.create_timer(0.1).timeout
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_LAUNCHED, Vector2.ZERO, Vector2.RIGHT))
-	var launch_is_heard: bool = main._sfx.played.has("strike")
+	var launch_is_heard: bool = main._sfx.played.has("pierce")
 	main._sfx.played.clear()
 	await _tree.create_timer(0.1).timeout
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, Vector2.ZERO, Vector2.ZERO, 0))
 	var silent_release: bool = main._sfx.played.is_empty()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.SKEWER_RELEASED, Vector2.ZERO, Vector2.ZERO, 3))
-	_ok("the launch is heard (a thrust's sound), a release that flung something is heard, one that flung nothing is silent", launch_is_heard and silent_release and main._sfx.played.has("hit"), "%s" % [main._sfx.played])
+	_ok("the launch is heard (the prototype's pierce) and a release is silent, whatever it flung (the prototype plays nothing there; a wall slam has its own thud cue)", launch_is_heard and silent_release and main._sfx.played.is_empty(), "%s" % [main._sfx.played])
 	var pike_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._pike:

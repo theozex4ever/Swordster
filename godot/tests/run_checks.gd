@@ -78,6 +78,8 @@ func _run_all() -> void:
 	await replacement.run_all()
 	var waves: WavesChecks = WavesChecks.new(_check, self)
 	await waves.run_all()
+	var feedback: FeedbackHudChecks = FeedbackHudChecks.new(_check, self)
+	await feedback.run_all()
 	# The one place the frame rate is varied (child Godot processes): last, and skipped by --skip-probes.
 	var render_rates: RenderRateChecks = RenderRateChecks.new(_check, self)
 	render_rates.run_all()

@@ -28,6 +28,8 @@ var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 @onready var _sfx: SfxBank = $Sfx
 @onready var _hud: Hud = $Hud
 @onready var _presenter: RunPresenter = $Presenter
+## Whole-screen feedback (vignette, the red flash of a hit); made here, between the world and the HUD, so the scene file stays as it was.
+var _feedback: ScreenFeedback = ScreenFeedback.new()
 
 
 func _ready() -> void:
@@ -36,6 +38,8 @@ func _ready() -> void:
 	run = GameRun.new(scenario)
 	_fx_rng.randomize()
 	VisualSets.apply(visuals if not visuals.is_empty() else LaunchOptions.requested_visuals(), self)
+	add_child(_feedback)
+	move_child(_feedback, _hud.get_index())
 	visual = actor_visual.instantiate() as ActorVisual
 	add_child(visual)
 	move_child(visual, _presenter.get_index())
@@ -109,6 +113,7 @@ func _submit(command: GameCommand) -> void:
 	if run.restarts != restarts_before:
 		input.release_all()
 		_presenter.reset()
+		_feedback.reset()
 		_present()
 		visual.snap()
 		_camera.reset_smoothing()
@@ -127,6 +132,7 @@ func _present() -> void:
 	visual.apply_state(run.iframes > 0.0, run.dead)
 	_presenter.sync(run)
 	_dispatch_cues()
+	_feedback.sync(run)
 	var trauma_squared: float = run.trauma * run.trauma
 	var shake: Vector2 = Vector2(_fx_rng.randf_range(-1.0, 1.0), _fx_rng.randf_range(-1.0, 1.0)) * trauma_squared * 26.0
 	_camera.global_position = run.camera + shake + run.kick
@@ -138,6 +144,7 @@ func _dispatch_cues() -> void:
 	for cue: SimCue in cues:
 		_sfx.play_cue(cue)
 	_presenter.apply_cues(cues)
+	_feedback.apply_cues(cues)
 
 
 ## A viewport point's world position (the prototype's `mouse_world`: the camera's

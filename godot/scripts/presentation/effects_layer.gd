@@ -22,10 +22,19 @@ extends Node2D
 ## shows a ring closing on the point it was aimed at. A sword lying in the arena stands in a ring of its rarity's colour, glows in the rarity's and the
 ## element's, and a Rare or Mythic one throws a pillar of light (taller for a Mythic); an armed enemy's death rings and names
 ## the drop in its rarity's colour, a swap rings, sparks and names the sword now equipped, and a swap with nothing in reach
-## says so. Purely visual: it reads the
+## says so. Impacts read at a glance: a blow throws sparks in its sword's colour along the blow, sized by the damage, with the
+## number rising in the direction it struck (bigger for a bigger blow, gold with a "!" for a critical); a kill bursts into dots and
+## falling debris in the enemy's colour (more for a heavy blow) inside a ring of its pale colour; a hit on the player throws red
+## sparks; a dash, a spawn, a slam and a wall slam leave puffs of smoke, a slam also flying debris; and every sword drags a fading
+## ribbon behind its blade, brighter the faster it moves. Purely visual: it reads the
 ## run's state and cues, owns its own random stream and never influences gameplay.
 
 const MAX_EFFECTS: int = 160
+## Dots, debris and smoke are many and short-lived; the prototype keeps its newest 700 particles in all, a little less here.
+const MAX_BITS: int = 500
+## A sword's ribbon keeps this many points (the prototype's nine) and every sword's tip and guard sit this far along its blade.
+const TRAIL_POINTS: int = 9
+const GRAVITY: float = 1400.0
 
 var _rings: Array[Dictionary] = []
 var _texts: Array[Dictionary] = []
@@ -48,6 +57,13 @@ var _last_sweep_angle: Dictionary = {}
 var draw_counts: Dictionary[StringName, int] = {}
 var _run: GameRun
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Dots, debris and smoke: pos, vel, life, max, size, color, kind (&"dot", &"debris" or &"smoke"), drag, z (height above the
+## ground), vz, grow (smoke only).
+var _bits: Array[Dictionary] = []
+## Each sword's ribbon, by sword: the last TRAIL_POINTS of {tip, guard, intensity}.
+var _trails: Dictionary = {}
+## The ground the Colossus cracks, set by the presenter (it draws under the actors).
+var ground: GroundMarks
 
 
 func clear() -> void:
@@ -57,6 +73,8 @@ func clear() -> void:
 	_streaks.clear()
 	_embers.clear()
 	_wedges.clear()
+	_bits.clear()
+	_trails.clear()
 	_last_sweep_angle.clear()
 	_last_sword_at.clear()
 	queue_redraw()
@@ -84,6 +102,8 @@ func sync(run: GameRun) -> void:
 			wedge["life"] = float(wedge["life"]) - dt
 		_wedges = _wedges.filter(func(wd: Dictionary) -> bool: return float(wd["life"]) > 0.0)
 		_add_sweep_wedges(run)
+		_update_bits(dt)
+		_record_trails(run)
 		for ember: Dictionary in _embers:
 			ember["life"] = float(ember["life"]) - dt
 			ember["pos"] = Vector2(ember["pos"]) + Vector2(ember["vel"]) * dt
@@ -97,6 +117,69 @@ func sync(run: GameRun) -> void:
 		if run.dash_left > 0.0:
 			_add_ring(run.position, GameRun.PLAYER_RADIUS * 0.6, GameRun.PLAYER_RADIUS * 1.2, 0.22, Color(0.35, 0.65, 0.85, 0.7), 2.0)
 	queue_redraw()
+
+
+## Moves every dot, bit of debris and puff of smoke one tick: drag slows it, debris falls under gravity and bounces
+## (the prototype's `update_particles`), and the newest MAX_BITS are kept.
+func _update_bits(dt: float) -> void:
+	var alive: Array[Dictionary] = []
+	for bit: Dictionary in _bits:
+		bit["life"] = float(bit["life"]) - dt
+		if float(bit["life"]) <= 0.0:
+			continue
+		bit["pos"] = Vector2(bit["pos"]) + Vector2(bit["vel"]) * dt
+		if float(bit["drag"]) > 0.0:
+			bit["vel"] = Vector2(bit["vel"]) * exp(-dt * float(bit["drag"]))
+		if bit["kind"] == &"debris":
+			bit["vz"] = float(bit["vz"]) - GRAVITY * dt
+			bit["z"] = float(bit["z"]) + float(bit["vz"]) * dt
+			if float(bit["z"]) < 0.0:
+				bit["z"] = 0.0
+				bit["vz"] = -float(bit["vz"]) * 0.35
+				bit["vel"] = Vector2(bit["vel"]) * 0.6
+		alive.append(bit)
+	if alive.size() > MAX_BITS:
+		alive = alive.slice(alive.size() - MAX_BITS)
+	_bits = alive
+
+
+func _add_bit(kind: StringName, at: Vector2, velocity: Vector2, life: float, size: float, color: Color, drag: float, z: float = 0.0, vz: float = 0.0, grow: float = 0.0) -> void:
+	_bits.append({"kind": kind, "pos": at, "vel": velocity, "life": life, "max": life, "size": size, "color": color, "drag": drag, "z": z, "vz": vz, "grow": grow})
+
+
+## A puff of smoke: `count` bits flung from `at` (or from within `spread` of it) that swell and fade.
+func _puff(at: Vector2, count: int, speed_low: float, speed_high: float, life: Vector2, size: Vector2, color: Color, drag: float, grow: float, spread: float = 0.0) -> void:
+	for i: int in count:
+		var heading: float = _rng.randf_range(0.0, TAU)
+		_add_bit(&"smoke", at + SimMath.polar(heading, spread), SimMath.polar(heading if spread > 0.0 else _rng.randf_range(0.0, TAU), _rng.randf_range(speed_low, speed_high)), _rng.randf_range(life.x, life.y), _rng.randf_range(size.x, size.y), color, drag, 0.0, 0.0, grow)
+
+
+## Sparks along a blow, in a fan of +-`spread` radians about `direction`.
+func _spray(at: Vector2, direction: Vector2, count: int, color: Color, speed: Vector2 = Vector2(200.0, 650.0), spread: float = 0.9, life: Vector2 = Vector2(0.15, 0.4)) -> void:
+	var base: float = direction.angle()
+	for i: int in count:
+		_add_spark(at, SimMath.polar(base + _rng.randf_range(-spread, spread), _rng.randf_range(speed.x, speed.y)), _rng.randf_range(life.x, life.y), color)
+
+
+## Every sword drags a ribbon of its last nine tips and guards, brighter the faster the blade moves; nothing is recorded in a
+## hitstop, when the swords stand still, as in the prototype.
+func _record_trails(run: GameRun) -> void:
+	if run.hitstop > 0.0:
+		return
+	var live: Dictionary = {}
+	for sword: SwordState in run.swords:
+		var key: int = sword.get_instance_id()
+		live[key] = true
+		var heading: Vector2 = SimMath.polar(sword.angle)
+		var lift: Vector2 = Vector2(0.0, -sword.altitude)
+		var points: Array = _trails.get(key, [])
+		points.append({"tip": sword.position + heading * sword.length * 0.65 + lift, "guard": sword.position - heading * sword.length * 0.35 + lift, "color": _sword_color(sword.spec), "intensity": clampf((sword.velocity.length() + absf(sword.fall_speed)) / 1400.0, 0.12, 1.0)})
+		if points.size() > TRAIL_POINTS:
+			points.pop_front()
+		_trails[key] = points
+	for key: int in _trails.keys():
+		if not live.has(key):
+			_trails.erase(key)
 
 
 ## A sword in its ultimate leaves a short bright streak along every move.
@@ -178,13 +261,7 @@ func _add_field_particles(run: GameRun, dt: float) -> void:
 func apply_cue(cue: SimCue) -> void:
 	match cue.kind:
 		SimCue.Kind.ENEMY_HIT:
-			_add_ring(cue.position, 10.0, 30.0 + float(cue.amount) * 0.4, 0.18, Color(1.0, 0.95, 0.8, 0.9), 2.0)
-			var jitter: Vector2 = Vector2(_rng.randf_range(-10.0, 10.0), -22.0)
-			var label: String = "%d%s" % [cue.amount, "!" if cue.critical else ""]
-			var number: Color = Color(1.0, 0.88, 0.35) if cue.critical else Color.WHITE
-			if cue.element == ConditionDefs.ICE:
-				number = Color(0.78, 0.94, 1.0)
-			_add_text(cue.position + jitter, label, number, 1.0 if cue.critical else 0.75, 28 if cue.critical else 22)
+			_apply_hit(cue)
 		SimCue.Kind.ENEMY_FROZEN:
 			_add_ring(cue.position, 16.0, 40.0, 0.3, Color(element_color(ConditionDefs.ICE), 0.95), 3.0)
 			_add_text(cue.position + Vector2(0.0, -40.0), "FROZEN", element_color(ConditionDefs.ICE), 0.7, 22)
@@ -200,22 +277,27 @@ func apply_cue(cue: SimCue) -> void:
 		SimCue.Kind.CONDITION_DAMAGE:
 			_add_text(cue.position + Vector2(_rng.randf_range(-12.0, 12.0), -18.0), str(cue.amount), element_color(cue.element), 0.6, 20)
 		SimCue.Kind.ENEMY_KILLED:
-			_add_ring(cue.position, 12.0, 52.0, 0.3, Color(0.9, 0.5, 0.6, 0.9), 3.0)
+			_apply_kill(cue)
 		SimCue.Kind.ENEMY_SPAWNED:
 			_add_ring(cue.position, 6.0, 50.0, 0.3, Color(0.78, 0.31, 0.47, 0.9), 2.0)
+			_puff(cue.position, 8, 120.0, 120.0, Vector2(0.5, 0.5), Vector2(7.0, 7.0), Color(0.34, 0.2, 0.38, 0.7), 3.0, 10.0)
 		SimCue.Kind.PLAYER_HURT:
 			_add_ring(cue.position, 10.0, 60.0, 0.3, Color(1.0, 0.35, 0.35, 0.9), 3.0)
-			_add_text(cue.position + Vector2(0.0, -30.0), "-%d" % cue.amount, Color(1.0, 0.35, 0.35), 0.8, 30)
+			_add_text(cue.position + Vector2(0.0, -30.0), "-%d" % cue.amount, Color(1.0, 0.35, 0.35), 0.8, 32)
+			_spray(cue.position, cue.direction, 14, Color(1.0, 0.43, 0.43), Vector2(200.0, 650.0))
 		SimCue.Kind.PLAYER_DIED:
 			_add_ring(cue.position, 10.0, 220.0, 0.8, Color(0.47, 0.86, 1.0, 0.9), 4.0)
 		SimCue.Kind.DASH:
 			_add_ring(cue.position, 10.0, 46.0, 0.25, Color(0.35, 0.65, 0.85, 0.8), 2.0)
+			for i: int in 10:
+				_add_bit(&"smoke", cue.position, -cue.direction * _rng.randf_range(80.0, 260.0) + SimMath.polar(_rng.randf_range(0.0, TAU), 60.0), 0.4, _rng.randf_range(3.0, 6.0), Color(0.35, 0.63, 0.82, 0.8), 3.0, 0.0, 0.0, 10.0)
 		SimCue.Kind.BOWLED:
 			_add_ring(cue.position, 6.0, 28.0, 0.16, Color(1.0, 0.86, 0.78, 0.9), 3.0)
 			_add_text(cue.position + Vector2(_rng.randf_range(-8.0, 8.0), -18.0), "-%d" % cue.amount, Color(1.0, 0.86, 0.78), 0.5, 18)
 		SimCue.Kind.WALL_SLAM:
 			_add_ring(cue.position, 12.0, 70.0, 0.3, Color(1.0, 0.55, 0.38, 0.95), 4.0)
 			_add_text(cue.position + Vector2(0.0, -30.0), "SLAM %d" % cue.amount, Color(1.0, 0.59, 0.47), 0.8, 26)
+			_puff(cue.position, 10, 80.0, 240.0, Vector2(0.5, 0.5), Vector2(5.0, 9.0), Color(0.3, 0.26, 0.36, 0.8), 4.0, 14.0)
 		SimCue.Kind.SHOVE:
 			_add_ring(cue.position, 20.0, GameRun.DEV_SHOVE_RADIUS, 0.35, Color(0.75, 0.85, 1.0, 0.7), 3.0)
 		SimCue.Kind.PROJECTILE_FIRED:
@@ -258,6 +340,14 @@ func apply_cue(cue: SimCue) -> void:
 				_add_spark(cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(200.0, 800.0)), _rng.randf_range(0.2, 0.5), slam_tint)
 			if cue.critical:
 				_add_text(cue.position + Vector2(0.0, -cue.radius * 0.35), "CATACLYSM", slam_tint, 0.9, 30)
+			# dust thrown up by the blow, stones that fall back and the cracks left in the floor
+			for i: int in 26:
+				var dust_heading: float = _rng.randf_range(0.0, TAU)
+				_add_bit(&"smoke", cue.position + SimMath.polar(dust_heading, cue.radius * 0.3), SimMath.polar(dust_heading, _rng.randf_range(200.0, 520.0)), _rng.randf_range(0.5, 0.9), _rng.randf_range(8.0, 14.0), Color(0.16, 0.13, 0.2, 0.85), 4.0, 0.0, 0.0, 30.0)
+			for i: int in 18:
+				_add_bit(&"debris", cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(80.0, 340.0)), _rng.randf_range(0.7, 1.2), _rng.randf_range(3.0, 7.0), Color(0.24, 0.2, 0.28), 2.0, 4.0, _rng.randf_range(250.0, 600.0))
+			if ground != null:
+				ground.add_cracks(cue.position, _rng)
 		SimCue.Kind.FIELD_CREATED:
 			_add_ring(cue.position, cue.radius * 0.6, cue.radius, 0.4, Color(element_color(cue.element), 0.9), 4.0)
 		SimCue.Kind.FIELD_PULSED:
@@ -311,9 +401,37 @@ func _add_spark(at: Vector2, velocity: Vector2, life: float, color: Color = Colo
 		_sparks.append({"pos": at, "vel": velocity, "life": life, "max": life, "color": color})
 
 
-func _add_text(at: Vector2, text: String, color: Color, life: float, size: int, rise: float = 80.0) -> void:
+## An impact: sparks in the sword's colour along the blow (more for a bigger blow, faster for a heavy one), a ring of that colour
+## and the number rising and drifting the way the blow went, sized by the damage (the prototype's `hit_enemy`).
+func _apply_hit(cue: SimCue) -> void:
+	var tint: Color = element_color(cue.spec.element).lerp(Color.WHITE, 0.4) if cue.spec != null else Color(1.0, 0.95, 0.8)
+	var reach: float = cue.radius if cue.radius > 0.0 else 14.0
+	_spray(cue.position, cue.direction, clampi(int(4.0 + float(cue.amount) * 0.35), 4, 26), tint, Vector2(250.0, 900.0) if cue.heavy else Vector2(200.0, 650.0))
+	_add_ring(cue.position, reach * 0.6, reach + 14.0 + float(cue.amount) * 0.4, 0.18, Color(tint, 0.9), 2.0)
+	var size: int = 22 if cue.amount < 12 else 32 if cue.amount < 35 else 40
+	if cue.critical:
+		size = mini(56, size + 10)
+	var number: Color = Color(1.0, 0.88, 0.35) if cue.critical else Color.WHITE
+	if cue.element == ConditionDefs.ICE:
+		number = Color(0.78, 0.94, 1.0)
+	_add_text(cue.position + Vector2(_rng.randf_range(-10.0, 10.0), -reach - 6.0), "%d%s" % [cue.amount, "!" if cue.critical else ""], number, 1.0 if cue.critical else 0.75, size, 90.0 + float(cue.amount), cue.direction.x * 60.0)
+
+
+## A death: dots and falling debris in the enemy's colour (14 dots more when the blow was heavy or critical) and a ring of its pale
+## colour (the prototype's `kill`).
+func _apply_kill(cue: SimCue) -> void:
+	var body: Color = PlaceholderEnemyVisual.color_of(cue.enemy_kind) if cue.enemy_kind != &"" else Color(0.9, 0.5, 0.6)
+	var reach: float = cue.radius if cue.radius > 0.0 else 16.0
+	for i: int in 16 + (14 if cue.critical else 0):
+		_add_bit(&"dot", cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(60.0, 360.0)) + cue.direction * _rng.randf_range(100.0, 500.0), _rng.randf_range(0.3, 0.7), _rng.randf_range(2.0, 4.5), body, 5.0)
+	for i: int in 6 + int(reach / 3.0):
+		_add_bit(&"debris", cue.position, SimMath.polar(_rng.randf_range(0.0, TAU), _rng.randf_range(40.0, 220.0)) + cue.direction * 200.0, _rng.randf_range(0.6, 1.1), _rng.randf_range(3.0, 6.0), body.darkened(0.4), 3.0, 8.0, _rng.randf_range(150.0, 420.0))
+	_add_ring(cue.position, reach, reach * 3.2, 0.3, Color(body.lerp(Color.WHITE, 0.5), 0.95), 3.0)
+
+
+func _add_text(at: Vector2, text: String, color: Color, life: float, size: int, rise: float = 80.0, drift: float = 0.0) -> void:
 	if _texts.size() < MAX_EFFECTS:
-		_texts.append({"pos": at, "vel": Vector2(0.0, -rise), "life": life, "max": life, "text": text, "color": color, "size": size})
+		_texts.append({"pos": at, "vel": Vector2(drift, -rise), "life": life, "max": life, "text": text, "color": color, "size": size})
 
 
 func _draw() -> void:
@@ -364,6 +482,10 @@ func _draw() -> void:
 				_draw_impact_ring(&"cataclysm_ring", sword.ultimate_point, area, sword.cataclysm_rise_progress(), tint)
 			if sword.ultimate_victim != null and not sword.ultimate_victim.dead:
 				draw_arc(sword.ultimate_victim.position, sword.ultimate_victim.radius + 8.0, 0.0, TAU, 20, Color(tint, 0.7), 2.0)
+	for bit: Dictionary in _bits:
+		_draw_bit(bit)
+	for trail: Array in _trails.values():
+		_draw_trail(trail)
 	for ember: Dictionary in _embers:
 		var ember_fade: float = clampf(float(ember["life"]) / float(ember["max"]), 0.0, 1.0)
 		draw_circle(Vector2(ember["pos"]), float(ember["size"]), Color(Color(ember["color"]), ember_fade))
@@ -388,6 +510,39 @@ func _draw() -> void:
 		var at: Vector2 = Vector2(text["pos"])
 		draw_string(font, at + Vector2(2.0, 2.0), String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), Color(0.0, 0.0, 0.0, a))
 		draw_string(font, at, String(text["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1.0, int(text["size"]), color)
+
+
+## One dot, bit of debris or puff of smoke. Smoke swells as it fades; debris is a square that shrinks and rides up on its height.
+func _draw_bit(bit: Dictionary) -> void:
+	var fade: float = clampf(float(bit["life"]) / float(bit["max"]), 0.0, 1.0)
+	var at: Vector2 = Vector2(bit["pos"])
+	var tint: Color = bit["color"]
+	match bit["kind"]:
+		&"smoke":
+			draw_circle(at, float(bit["size"]) + float(bit["grow"]) * (1.0 - fade), Color(tint, tint.a * fade * 0.55))
+		&"debris":
+			var side: float = float(bit["size"]) * (0.5 + 0.5 * fade)
+			draw_rect(Rect2(at - Vector2(side, side + float(bit["z"]) * 2.0) * 0.5, Vector2(side, side)), Color(tint, fade + 0.2))
+		_:
+			draw_circle(at, maxf(1.0, float(bit["size"]) * fade), Color(tint, fade))
+
+
+## A sword's ribbon (the prototype's `draw_trail`): a quad between each pair of recorded points, newest brightest, with a pale
+## line along the tips.
+func _draw_trail(trail: Array) -> void:
+	var count: int = trail.size()
+	if count < 2:
+		return
+	for k: int in count - 1:
+		var from: Dictionary = trail[k]
+		var to: Dictionary = trail[k + 1]
+		var inten: float = float(k + 1) / float(count) * float(to["intensity"])
+		if inten < 0.05:
+			continue
+		var quad: PackedVector2Array = PackedVector2Array([Vector2(from["tip"]), Vector2(to["tip"]), Vector2(to["guard"]), Vector2(from["guard"])])
+		var ribbon: Color = Color(Color(to["color"]), inten * 0.55)
+		draw_primitive(quad, PackedColorArray([ribbon, ribbon, ribbon, ribbon]), PackedVector2Array())
+		draw_line(Vector2(from["tip"]), Vector2(to["tip"]), Color(Color(to["color"]).lerp(Color.WHITE, 0.5), inten), 2.0)
 
 
 ## The arc a Warden is about to cut: a faint band along the whole sweep that brightens as the
