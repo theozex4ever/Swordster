@@ -28,8 +28,10 @@ const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 ## after this is hung; it is killed and the check fails instead of waiting for ever.
 const PROBE_DEADLINE_MSEC: int = 120000
 const POLL_MSEC: int = 20
-## How many child Godot processes run at once (the machine they run on is shared).
+## How many child Godot processes run at once (the machine they run on is shared): 4, or the number in the environment
+## variable SWORDSTER_PROBE_CHILDREN (1 to 4) for a machine that is lent to several jobs.
 const MAX_CHILDREN: int = 4
+const CHILDREN_ENV: String = "SWORDSTER_PROBE_CHILDREN"
 
 var _check: Callable
 var _tree: SceneTree
@@ -292,7 +294,7 @@ func _run_children(argument_lists: Array[PackedStringArray]) -> Array[Dictionary
 	var running: Array[int] = []
 	var started: int = Time.get_ticks_msec()
 	while (next < argument_lists.size() or not running.is_empty()) and Time.get_ticks_msec() - started < PROBE_DEADLINE_MSEC:
-		while next < argument_lists.size() and running.size() < MAX_CHILDREN:
+		while next < argument_lists.size() and running.size() < _max_children():
 			var full: PackedStringArray = PackedStringArray(["--headless", "--path", project])
 			full.append_array(argument_lists[next])
 			var child: Dictionary = OS.execute_with_pipe(executable, full)
@@ -315,6 +317,11 @@ func _run_children(argument_lists: Array[PackedStringArray]) -> Array[Dictionary
 		OS.kill(pids[index])
 		results[index] = {"code": -1, "output": "killed after %d ms" % PROBE_DEADLINE_MSEC}
 	return results
+
+
+func _max_children() -> int:
+	var wanted: String = OS.get_environment(CHILDREN_ENV)
+	return clampi(int(wanted), 1, MAX_CHILDREN) if wanted.is_valid_int() else MAX_CHILDREN
 
 
 ## What the child has written to its pipe so far: reads what `get_length()` says is waiting, a bounded number of

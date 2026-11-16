@@ -41,7 +41,7 @@ sandbox() { # name -> a copy of the tools and the Godot project that mutation-ch
 }
 checker() { # sandbox mode log -> runs ONLY=speed-zero, prints the exit status
   local status=0
-  env -i HOME="$1/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" ONLY=speed-zero FAST="$2" \
+  env -i HOME="$1/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" SWORDSTER_PROBE_CHILDREN="${SWORDSTER_PROBE_CHILDREN:-4}" ONLY=speed-zero FAST="$2" \
     "$1/repo/tools/godot/mutation-check.sh" >"$3" 2>&1 || status=$?
   echo "$status"
 }
@@ -286,7 +286,7 @@ assert text.count(old) == 1
 open(path, "w").write(text.replace(old, old + "\tif GameRun.PLAYER_SPEED < 1.0 and _skip_probes:\n\t\tOS.delay_msec(600000)\n"))
 PY
   log="$ROOT/fallthrough.log"; status=0
-  env -i HOME="$sb/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" ONLY=speed-zero FAST=1 QUICK_TIMEOUT=6 FULL_TIMEOUT=120 \
+  env -i HOME="$sb/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" SWORDSTER_PROBE_CHILDREN="${SWORDSTER_PROBE_CHILDREN:-4}" ONLY=speed-zero FAST=1 QUICK_TIMEOUT=6 FULL_TIMEOUT=120 \
     "$sb/repo/tools/godot/mutation-check.sh" >"$log" 2>&1 || status=$?
   problem=PASS
   [[ "$status" == 0 ]] || problem="exit $status, wanted 0"
