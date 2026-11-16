@@ -1368,7 +1368,7 @@ func _check_main_scene() -> void:
 	main._input(_key(KEY_E))
 	var sword: SwordState = main.run.swords[1]
 	_ok("E with the mouse 320 px east of the view's centre starts slot two's Cataclysm there (%s) while the others stay put" % [sword.ultimate_point], sword.phase == SwordState.Phase.ULTIMATE and sword.ultimate_point.distance_to(main.run.camera + Vector2(320.0, 0.0)) <= 1.0 and main.run.swords[0].phase != SwordState.Phase.ULTIMATE)
-	_ok("it is announced and heard (ULTIMATE_STARTED cue, a sound)", main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1 and main._sfx.played.has("dash"), "%s" % [main._sfx.played])
+	_ok("it is announced and heard (ULTIMATE_STARTED cue, a sound)", main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1 and main._sfx.played.has("heave"), "%s" % [main._sfx.played])
 	var effects: EffectsLayer = main._presenter._effects
 	_tick_main(main, 8)
 	await _tree.process_frame
@@ -1432,7 +1432,7 @@ func _check_main_scene() -> void:
 	await _tree.create_timer(0.1).timeout
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.COLOSSUS_SLAM, Vector2.ZERO, Vector2.DOWN, 0))
-	_ok("a slam is heard even when it struck nothing", main._sfx.played.has("hit"), "%s" % [main._sfx.played])
+	_ok("a slam is heard even when it struck nothing (a boom)", main._sfx.played.has("boom"), "%s" % [main._sfx.played])
 	var colossus_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._colossus:

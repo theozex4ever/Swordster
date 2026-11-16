@@ -69,6 +69,8 @@ func _run_all() -> void:
 	await replacement.run_all()
 	var waves: WavesChecks = WavesChecks.new(_check, self)
 	await waves.run_all()
+	var feedback: FeedbackHudChecks = FeedbackHudChecks.new(_check, self)
+	await feedback.run_all()
 	var touch: TouchControlsChecks = TouchControlsChecks.new(_check, self)
 	await touch.run_all()
 	if _failed == 0 and _total > 0:

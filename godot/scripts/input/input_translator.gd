@@ -11,7 +11,7 @@ extends RefCounted
 ## the ultimate first and the restart after it, and the run refuses whichever does
 ## not apply (an ultimate once dead, a restart while alive or before the delay). A left or right
 ## mouse click commands Converge at the cursor's world point, and Tab or G shows or hides the
-## attack ranges. A mouse click the engine made up from a touch is not a Converge: touch has its own path (issue #20, `TouchPointers`):
+## attack ranges and H the help overlay. A mouse click the engine made up from a touch is not a Converge: touch has its own path (issue #20, `TouchPointers`):
 ## a finger landing on the arena commands Converge at the tapped world point, the joystick and the buttons take the rest, and every
 ## finger is tracked by its index alone.
 
@@ -26,6 +26,8 @@ const RESTART_KEYS: Array[Key] = [KEY_R]
 ## Mouse buttons that command Converge (the prototype's buttons 1 and 3).
 const CONVERGE_BUTTONS: Array[MouseButton] = [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]
 const RANGE_KEYS: Array[Key] = [KEY_TAB, KEY_G]
+## H shows or hides the help overlay.
+const HELP_KEYS: Array[Key] = [KEY_H]
 ## Ultimate keys by sword slot: Q = slot one, E = slot two, R = slot three.
 const ULTIMATE_KEYS: Array[Key] = [KEY_Q, KEY_E, KEY_R]
 ## Keys 1, 2 and 3 swap the nearest dropped sword into sword slot one, two or three.
@@ -81,6 +83,8 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 				commands.append(GameCommand.swap(SWAP_KEYS.find(code)))
 			elif code in RANGE_KEYS:
 				commands.append(GameCommand.toggle_ranges())
+			elif code in HELP_KEYS:
+				commands.append(GameCommand.toggle_help())
 			elif code in SHOVE_KEYS:
 				commands.append(GameCommand.dev_shove())
 			elif code in ENCOUNTER_KEYS:

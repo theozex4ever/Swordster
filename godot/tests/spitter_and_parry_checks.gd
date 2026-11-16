@@ -996,7 +996,7 @@ func _check_main_scene() -> void:
 	_ok("the dev button says where it leads and that it restarts play, and the shove stays hidden here", main._hud._encounter_button.text == "Dev: Conditions (restarts)" and not main._hud._shove_button.visible, main._hud._encounter_button.text)
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.PROJECTILE_PARRIED, Vector2.ZERO))
-	_ok("a parry has its own sound, different from a hit's", main._sfx.played.has("parry") and not main._sfx.played.has("hit"), "%s" % [main._sfx.played])
+	_ok("a parry has its own sound, different from a hit's", main._sfx.played.has("parry") and not main._sfx.played.has("thud"), "%s" % [main._sfx.played])
 	for i: int in 6:
 		main._hud._encounter_button.button_down.emit()
 		await _tree.process_frame
