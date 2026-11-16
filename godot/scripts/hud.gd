@@ -560,7 +560,8 @@ func show_run(run: GameRun) -> void:
 	_hp_lag.size = Vector2(HP_BAR_SIZE.x * clampf(_hp_shown / run.max_hp, 0.0, 1.0), HP_BAR_SIZE.y)
 	_hp_label.text = "%d" % int(run.hp)
 	_wave_label.text = "WAVE %d    kills %d" % [maxi(1, run.director.wave), run.kills]
-	if run.combo >= 2:
+	# The prototype shows the chain from the third kill (`combo >= 3`).
+	if run.combo >= 3:
 		_wave_label.text += "    chain %d" % run.combo
 	if run.dash_cooldown_left > 0.0:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
