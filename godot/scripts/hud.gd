@@ -87,6 +87,8 @@ var _pickup_style: StyleBoxFlat
 const CONVERGE_LABEL_X: float = 150.0
 const CONVERGE_BAR_WIDTH: float = 150.0
 const DASH_BAR_WIDTH: float = 120.0
+## The cooldown bars sit under their labels (which are 26 px tall from y 118); the encounter legend below them.
+const DASH_BAR_Y: float = 146.0
 const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 108.0)
 ## The chain counter sits under the Pause / Restart / Dev buttons, right-aligned this far from the view's right edge.
 const CHAIN_RIGHT_MARGIN: float = 28.0
@@ -102,7 +104,7 @@ const HELP_LINES: Array[String] = [
 	"TAB or G  show sword ranges     P  pause     H  hide help",
 	"swords attack automatically and apply their element: fire / ice / poison",
 ]
-const HELP_TOP: float = 224.0
+const HELP_TOP: float = 248.0
 const HELP_LINE_HEIGHT: float = 22.0
 ## Wide enough for the longest comparison line ("1  Common Venom Colossus   DMG -26   SPD +0.3/s   RNG +100" needs 430 px at the
 ## card's 14 px font from the 12 px margin: `DropsSwapsChecks._check_card_text_bounds` measures all 36 swords, so a longer name fails it).
@@ -140,16 +142,16 @@ func _ready() -> void:
 	_converge_label = _make_label(root, "converge ready")
 	_converge_label.position = Vector2(CONVERGE_LABEL_X, 118.0)
 	_converge_track = _make_rect(root, Color(0.16, 0.2, 0.28))
-	_converge_track.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_track.position = Vector2(CONVERGE_LABEL_X, DASH_BAR_Y)
 	_converge_track.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
 	_converge_bar = _make_rect(root, Color(0.78, 0.9, 1.0))
-	_converge_bar.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_bar.position = Vector2(CONVERGE_LABEL_X, DASH_BAR_Y)
 	_converge_bar.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
 	_dash_track = _make_rect(root, Color(0.16, 0.2, 0.28))
-	_dash_track.position = Vector2(16.0, 142.0)
+	_dash_track.position = Vector2(16.0, DASH_BAR_Y)
 	_dash_track.size = Vector2(DASH_BAR_WIDTH, 4.0)
 	_dash_bar = _make_rect(root, Color(0.47, 0.86, 1.0))
-	_dash_bar.position = Vector2(16.0, 142.0)
+	_dash_bar.position = Vector2(16.0, DASH_BAR_Y)
 	_dash_bar.size = Vector2(DASH_BAR_WIDTH, 4.0)
 	_chain_label = _make_label(root, "")
 	_chain_label.add_theme_font_size_override("font_size", 56)
@@ -163,8 +165,8 @@ func _ready() -> void:
 	_chain_bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_chain_bar.offset_right = -CHAIN_RIGHT_MARGIN
 	_chain_bar.offset_left = -CHAIN_RIGHT_MARGIN - CHAIN_BAR_WIDTH
-	_chain_bar.offset_top = CHAIN_TOP + 72.0
-	_chain_bar.offset_bottom = CHAIN_TOP + 75.0
+	_chain_bar.offset_top = CHAIN_TOP + 80.0
+	_chain_bar.offset_bottom = CHAIN_TOP + 83.0
 	_chain_bar.visible = false
 	for i: int in HELP_LINES.size():
 		var help_line: Label = _make_label(root, HELP_LINES[i])
@@ -237,7 +239,7 @@ func _ready() -> void:
 	_shove_button.button_down.connect(func() -> void: shove_pressed.emit())
 	_shove_button.visible = false
 	_encounter_label = _make_label(root, "")
-	_encounter_label.position = Vector2(16.0, 146.0)
+	_encounter_label.position = Vector2(16.0, 158.0)
 	_encounter_label.visible = false
 
 	_pause_overlay = _make_label(root, "PAUSED\nPress P / Esc or tap Resume")
