@@ -2311,7 +2311,38 @@ mutate feedback-kill-dots-few                     scripts/presentation/effects_l
 mutate feedback-kill-heavy-same                   scripts/presentation/effects_layer.gd "for i: int in 16 + (14 if cue.critical else 0):" "for i: int in 16:"
 mutate feedback-kill-no-debris                    scripts/presentation/effects_layer.gd "for i: int in 6 + int(reach / 3.0):" "for i: int in 0:"
 mutate feedback-debris-weightless                 scripts/presentation/effects_layer.gd "bit[\"vz\"] = float(bit[\"vz\"]) - GRAVITY * dt" "bit[\"vz\"] = float(bit[\"vz\"])"
-mutate feedback-bits-uncapped                     scripts/presentation/effects_layer.gd "		alive = alive.slice(alive.size() - MAX_BITS)" "		pass"
+mutate feedback-bits-uncapped                     scripts/presentation/effects_layer.gd "	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
+" ""
+mutate feedback-bits-cap-on-update-only         scripts/presentation/effects_layer.gd "	_bits = alive
+
+
+func _add_bit(kind: StringName, at: Vector2, velocity: Vector2, life: float, size: float, color: Color, drag: float, z: float = 0.0, vz: float = 0.0, grow: float = 0.0) -> void:
+	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
+" "	if alive.size() > MAX_BITS:
+		alive = alive.slice(alive.size() - MAX_BITS)
+	_bits = alive
+
+
+func _add_bit(kind: StringName, at: Vector2, velocity: Vector2, life: float, size: float, color: Color, drag: float, z: float = 0.0, vz: float = 0.0, grow: float = 0.0) -> void:
+"
+mutate feedback-bits-cap-late                      scripts/presentation/effects_layer.gd "	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
+" "	if _bits.size() >= MAX_BITS * 10:
+		_bits.pop_front()
+"
+mutate feedback-bits-cap-off-by-one               scripts/presentation/effects_layer.gd "	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
+" "	if _bits.size() > MAX_BITS:
+		_bits.pop_front()
+"
+mutate feedback-bits-drops-newest                 scripts/presentation/effects_layer.gd "	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
+	_bits.append(" "	if _bits.size() >= MAX_BITS:
+		return
+	_bits.append("
+mutate feedback-bits-ceiling-raised               scripts/presentation/effects_layer.gd "const MAX_BITS: int = 500" "const MAX_BITS: int = 700"
 mutate feedback-hurt-sparks-few                   scripts/presentation/effects_layer.gd "_spray(cue.position, cue.direction, 14, Color(1.0, 0.43, 0.43), Vector2(200.0, 650.0))" "_spray(cue.position, cue.direction, 4, Color(1.0, 0.43, 0.43), Vector2(200.0, 650.0))"
 mutate feedback-dash-no-smoke                     scripts/presentation/effects_layer.gd "			for i: int in 10:
 				_add_bit(&\"smoke\", cue.position, -cue.direction" "			for i: int in 0:

@@ -76,12 +76,20 @@ slices' stand-ins `hit`, `strike`, `kill` and `wave` are gone.
 Browsers keep audio locked until a user gesture. `Main._input` unlocks on the first key press, mouse press or touch press (releases,
 motion and the engine's emulated mouse are not gestures); until then every sound is dropped and the HUD asks for a click or tap.
 `tools/godot/web-feedback-capture.mjs` plays the exported build in headless Chromium (browser key and mouse events only) with
-`--autoplay-policy=user-gesture-required` and wraps `AudioContext` / `AudioBufferSourceNode.start` before the page loads; the report is
-[web-audio-report.json](feedback-sound-hud/web-audio-report.json). Result for build 20261116-124501-e46522905: **0 sounds started
-before the first click, 6 in the 0.6 s after it (the unlock chirp and the Converge's chime among them), 509 over the whole
-run**, no console errors; the context reports a base latency of 10.7 ms and an output latency of 40-64 ms at 48 kHz, and the first
-start is stamped on the context's own clock right after the click. Honest limits: headless Chromium's context was already `running`
-before the click (the autoplay flag did not suspend it), so the browser's suspended-to-running transition itself is not shown; what
+`--autoplay-policy=user-gesture-required` and wraps `AudioContext` / `AudioBufferSourceNode.start` before the page loads. It also
+records the first trusted user gesture (a press or key down; moves and releases are not gestures) with the event's own timestamp on the
+page clock, the same clock every sound start is stamped on; the report is
+[web-audio-report.json](feedback-sound-hud/web-audio-report.json). Sound starts are counted against that timestamp
+(`startedBeforeFirstGesture`, `startedAfterFirstGesture`); the earlier `startedBeforeFirstClick` counted AudioContexts that were not
+running, which says nothing about when sounds started, and is gone (`startsWhileContextNotRunning` keeps that number, apart, under its
+true name). Result for build 20261116-134623-e327803b3 (regenerated for #49; the screenshots in this folder are from the original
+#19 build 20261116-124501-e46522905): the first gesture was a `pointerdown` at 5087 ms on the page clock; **0 sounds started before
+it, 361 after it** (6 within the following second, the unlock chirp and the Converge's chime among them, the first 42.6 ms after the
+gesture), no console errors; the context reports a base latency of 10.7 ms and an output latency of 48 ms at 48 kHz, and the first
+start is stamped on the context's own clock right after the click. The earlier run's counts (509 over the whole run, 0 before the
+click) came from the old metric and a different fight; the totals vary with how the fight goes. Honest limits: headless
+Chromium's context was already `running` before the click (the autoplay flag did not suspend it), so the browser's
+suspended-to-running transition itself is not shown (`startsWhileContextNotRunning` is 0 for that reason, and proves nothing); what
 is shown is that the game's own gate keeps every sound silent until the first gesture and plays afterwards. Nor can headless prove that
 anything is audible (the output is muted) or how the latency feels on a device; real-device sound is deferred to #6 and #22.
 
@@ -111,7 +119,7 @@ numbers 22 / 32 / 40 by damage (under 12 / 35), +10 for a critical (cap 56), dri
 dots (+14 when heavy) and `6 + r / 3` pieces of debris under gravity 1400 with a 0.35 bounce, and rings `r` to `3.2 r`; a hit on the
 player throws 14 red sparks; a dash, a spawn and a wall slam leave smoke; a slam leaves 26 puffs, 18 stones and 5-8 cracks that last 7 s
 (the first second glowing); each sword keeps nine points of ribbon. Differences: everything is drawn with ordinary alpha blending (the
-prototype adds light), the layer keeps at most 500 bits (the prototype 700), and ribbons use the sword's element colour.
+prototype adds light), the layer keeps at most 500 bits at every instant (the prototype 700; the cap is applied as each bit is inserted, evicting the oldest, so a burst of 95 heavy kills never holds more than 500) and ribbons use the sword's element colour.
 
 ## Checks
 
@@ -120,7 +128,9 @@ row of the sound table through the real `SfxBank`; a real run's sounds; audio un
 release); help, chain counter, cooldown bars, health and counters through real runs; every key and mouse alias; pause, death and the
 delayed restart; the banner-then-card transition at six window sizes; pairwise layout at six window sizes; the hurt flash; impact
 particles; ribbons and cracks; and a 2400-tick normal run through the real Main scene against the bare simulation (hitstop and slow-motion
-timeline, final digest). Every wait loop is bounded by a counter that does not depend on the tick. Mutations: the `feedback` section of
+timeline, final digest); the particle ceiling right after 95 simultaneous heavy kill bursts (4,180 bits offered, 500 kept, no update in
+between); and the same run with feedback off, normal and dense (the effects layer flooded every third tick) ending in one simulation
+digest. Every wait loop is bounded by a counter that does not depend on the tick. Mutations: the `feedback` section of
 `tools/godot/mutation-check.sh`.
 
 Export evidence ([screenshots](feedback-sound-hud/)): the Web build in headless Chromium (help after the first click and hidden with H,

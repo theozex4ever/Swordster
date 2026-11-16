@@ -7,22 +7,22 @@
         "baseLatency": 0.010666666666666666,
         "outputLatency": 0.048,
         "sampleRate": 48000,
-        "currentTime": 3.498666666666667
+        "currentTime": 3.2533333333333334
       }
     ],
     "starts": 0,
     "states": [
       {
-        "at": 1398.7000000029802,
+        "at": 810.2000000029802,
         "state": "running"
       },
       {
-        "at": 2898.7000000029802,
+        "at": 1756.7000000029802,
         "state": "running",
-        "currentTime": 1.4506666666666668
+        "currentTime": 0.864
       }
     ],
-    "workletMessages": 143
+    "workletMessages": 339
   },
   "afterFirstClick": {
     "contexts": [
@@ -31,46 +31,46 @@
         "baseLatency": 0.010666666666666666,
         "outputLatency": 0.048,
         "sampleRate": 48000,
-        "currentTime": 5.802666666666667
+        "currentTime": 4.96
       }
     ],
     "starts": 6,
     "states": [
       {
-        "at": 1398.7000000029802,
+        "at": 810.2000000029802,
         "state": "running"
       },
       {
-        "at": 2898.7000000029802,
+        "at": 1756.7000000029802,
         "state": "running",
-        "currentTime": 1.4506666666666668
+        "currentTime": 0.864
       }
     ],
-    "workletMessages": 360
+    "workletMessages": 599
   },
   "afterFight": {
     "contexts": [
       {
         "state": "running",
         "baseLatency": 0.010666666666666666,
-        "outputLatency": 0.04,
+        "outputLatency": 0.048,
         "sampleRate": 48000,
-        "currentTime": 71.25333333333333
+        "currentTime": 52.87466666666667
       }
     ],
-    "starts": 360,
+    "starts": 297,
     "states": [
       {
-        "at": 1398.7000000029802,
+        "at": 810.2000000029802,
         "state": "running"
       },
       {
-        "at": 2898.7000000029802,
+        "at": 1756.7000000029802,
         "state": "running",
-        "currentTime": 1.4506666666666668
+        "currentTime": 0.864
       }
     ],
-    "workletMessages": 3814
+    "workletMessages": 5344
   },
   "afterRestart": {
     "contexts": [
@@ -79,25 +79,34 @@
         "baseLatency": 0.010666666666666666,
         "outputLatency": 0.048,
         "sampleRate": 48000,
-        "currentTime": 208.71466666666666
+        "currentTime": 188.18133333333333
       }
     ],
-    "starts": 509,
+    "starts": 361,
     "states": [
       {
-        "at": 1398.7000000029802,
+        "at": 810.2000000029802,
         "state": "running"
       },
       {
-        "at": 2898.7000000029802,
+        "at": 1756.7000000029802,
         "state": "running",
-        "currentTime": 1.4506666666666668
+        "currentTime": 0.864
       }
     ],
-    "workletMessages": 22475
+    "workletMessages": 26712
   },
-  "soundsStarted": 509,
-  "startedBeforeFirstClick": 0,
-  "firstStartContextTime": 5.088,
+  "soundsStarted": 361,
+  "firstGesture": {
+    "type": "pointerdown",
+    "at": 5087.4000000059605,
+    "seenAt": 5118.300000011921
+  },
+  "startedBeforeFirstGesture": 0,
+  "startedAfterFirstGesture": 361,
+  "startedWithinSecondOfGesture": 6,
+  "firstStartAfterGestureMs": 42.6,
+  "startsWhileContextNotRunning": 0,
+  "firstStartContextTime": 4.245333333333333,
   "consoleErrors": []
 }

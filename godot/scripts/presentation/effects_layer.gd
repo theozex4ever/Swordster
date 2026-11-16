@@ -31,6 +31,7 @@ extends Node2D
 
 const MAX_EFFECTS: int = 160
 ## Dots, debris and smoke are many and short-lived; the prototype keeps its newest 700 particles in all, a little less here.
+## The ceiling holds at every instant, not only after the next update: `_add_bit` evicts the oldest bit to make room.
 const MAX_BITS: int = 500
 ## A sword's ribbon keeps this many points (the prototype's nine) and every sword's tip and guard sit this far along its blade.
 const TRAIL_POINTS: int = 9
@@ -120,7 +121,7 @@ func sync(run: GameRun) -> void:
 
 
 ## Moves every dot, bit of debris and puff of smoke one tick: drag slows it, debris falls under gravity and bounces
-## (the prototype's `update_particles`), and the newest MAX_BITS are kept.
+## (the prototype's `update_particles`). The MAX_BITS ceiling is enforced where bits are added, in `_add_bit`.
 func _update_bits(dt: float) -> void:
 	var alive: Array[Dictionary] = []
 	for bit: Dictionary in _bits:
@@ -138,12 +139,12 @@ func _update_bits(dt: float) -> void:
 				bit["vz"] = -float(bit["vz"]) * 0.35
 				bit["vel"] = Vector2(bit["vel"]) * 0.6
 		alive.append(bit)
-	if alive.size() > MAX_BITS:
-		alive = alive.slice(alive.size() - MAX_BITS)
 	_bits = alive
 
 
 func _add_bit(kind: StringName, at: Vector2, velocity: Vector2, life: float, size: float, color: Color, drag: float, z: float = 0.0, vz: float = 0.0, grow: float = 0.0) -> void:
+	if _bits.size() >= MAX_BITS:
+		_bits.pop_front()
 	_bits.append({"kind": kind, "pos": at, "vel": velocity, "life": life, "max": life, "size": size, "color": color, "drag": drag, "z": z, "vz": vz, "grow": grow})
 
 
