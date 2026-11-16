@@ -13,7 +13,7 @@ extends CanvasLayer
 signal command_requested(command: GameCommand)
 signal fullscreen_pressed
 
-const DIM: Color = Color(1.0, 1.0, 1.0, 0.45)
+const DIM: Color = Color(1.0, 1.0, 1.0, 0.6)
 const LIT: Color = Color(1.0, 1.0, 1.0, 0.92)
 
 var _root: Control
@@ -172,6 +172,14 @@ func _add(id: StringName, text: String, on_down: Callable) -> void:
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_font_size_override("font_size", 20)
+	# a plain, readable pad: the default theme's near-black one vanishes against the arena
+	for state: String in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var pad: StyleBoxFlat = StyleBoxFlat.new()
+		pad.bg_color = Color(0.2, 0.23, 0.34, 0.8) if state != "pressed" else Color(0.36, 0.42, 0.6, 0.9)
+		pad.set_corner_radius_all(10)
+		pad.set_border_width_all(2)
+		pad.border_color = Color(0.7, 0.75, 0.95, 0.55)
+		button.add_theme_stylebox_override(state, pad)
 	button.button_down.connect(func() -> void:
 		_held[id] = true
 		on_down.call())
