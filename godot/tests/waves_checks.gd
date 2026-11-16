@@ -982,6 +982,12 @@ func _check_fixtures_unchanged() -> void:
 	while survived.director.wave == 0 and bound < 400:
 		survived.step()
 		bound += 1
+	var plain: GameRun = GameRun.new(RunScenario.fang_fixture())
+	bound = 0
+	while plain.director.wave == 0 and bound < 400:
+		plain.step()
+		bound += 1
+	_ok("an unarmed fixture's banner has no second line about armed foes ('%s', '%s'): that line belongs to the armed normal run" % [plain.banner_title, plain.banner_sub], plain.banner_title == "WAVE 1" and plain.banner_sub.is_empty())
 	_ok("a fixture's single wave composition is still its own (the crowd's 12: %d queued, kinds %s)" % [survived.director.queue.size(), _kinds_in(survived.director.queue.slice(0, 3))], survived.director.queue.size() == 12 and survived.director.queue.has(EnemyDefs.BRUTE) and survived.director.queue.has(EnemyDefs.RUNNER))
 
 
@@ -1026,7 +1032,10 @@ func _check_hud() -> void:
 	var banners: Dictionary = _ref["banners"]
 	_ok("when wave 1 starts the banner names it and says what to do ('%s' / '%s'), full strength then fading" % [hud._banner_label.text, hud._banner_sub_label.text],
 		hud._banner_label.text == banners["started"][0] and hud._banner_sub_label.text == banners["started"][1] and hud._banner_label.modulate.a >= 0.99 and hud._banner_sub_label.modulate.a >= 0.99)
-	_tick_main(main, 150)
+	_tick_main(main, 100)
+	var fading: float = run.banner_left
+	_ok("in its last second the banner and its second line fade together (left %.2f s: alpha %.2f and %.2f)" % [fading, hud._banner_label.modulate.a, hud._banner_sub_label.modulate.a], fading > 0.0 and fading < 1.0 and _near(hud._banner_label.modulate.a, fading, 0.02) and _near(hud._banner_sub_label.modulate.a, fading, 0.02))
+	_tick_main(main, 50)
 	_ok("after its 2.4 s the banner is gone", hud._banner_label.text == "" and hud._banner_sub_label.text == "")
 	run.kills = 123
 	run.director.wave = 7
@@ -1080,6 +1089,8 @@ func _check_banner_clearance() -> void:
 		hud.show_run(run)
 		var view: Rect2 = window.get_visible_rect()
 		var banner_rects: Array[Rect2] = [_text_rect(hud._banner_label), _text_rect(hud._banner_sub_label)]
+		if banner_rects[0].grow(4.0).intersects(banner_rects[1]):
+			covered.append("%s: the banner's two lines overlap %s %s" % [size, banner_rects[0], banner_rects[1]])
 		var live: Array[Rect2] = []
 		var shown_over: Array[Control] = [hud._pickup_card, hud._stick, hud._banner_label, hud._banner_sub_label, hud._outcome_shade, hud._outcome_title, hud._outcome_detail, hud._outcome_prompt, hud._pause_overlay]
 		for child: Node in hud.get_child(0).get_children():
@@ -1183,7 +1194,7 @@ func _check_main_scene() -> void:
 	_tick_main(main, 2)
 	await _tree.process_frame
 	_ok("a chain of ten announces itself above the player (the CHAIN text is on the effects layer: %s)" % [effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "10 CHAIN!")],
-		effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "10 CHAIN!" and int(text["size"]) == 56 and (text["color"] as Color).is_equal_approx(Color(1.0, 0.78, 0.35))))
+		effects._texts.any(func(text: Dictionary) -> bool: return String(text["text"]) == "10 CHAIN!" and int(text["size"]) == 56 and (text["color"] as Color).is_equal_approx(Color(1.0, 0.78, 0.35)) and _near(float(text["max"]), 1.4, 1e-9) and (text["vel"] as Vector2).y < -30.0 and (text["vel"] as Vector2).y > -40.0 and absf((text["vel"] as Vector2).x) < 1e-9 and _near(((text["pos"] as Vector2) - big_chain.position).y, -60.0 - 0.0, 3.0)))
 	# the clear: banner, slow motion, drops
 	for enemy: EnemyState in run.enemies.duplicate():
 		run.kill(enemy, Vector2.RIGHT)
