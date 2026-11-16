@@ -746,8 +746,10 @@ func _check_keys_and_r() -> void:
 	# R while paused and dead (after the delay) still restarts: death is tested before the pause.
 	var run_pd: GameRun = _run_of([])
 	run_pd.hurt_player(1000, CENTER + Vector2(50.0, 0.0))
-	while run_pd.death_time <= GameRun.RESTART_DELAY:
+	var death_ticks: int = 0
+	while run_pd.death_time <= GameRun.RESTART_DELAY and death_ticks < 600:
 		run_pd.step()
+		death_ticks += 1
 	run_pd.apply(GameCommand.pause())
 	for command: GameCommand in InputTranslator.new().handle_event(_key(KEY_R, true)):
 		run_pd.apply(command)

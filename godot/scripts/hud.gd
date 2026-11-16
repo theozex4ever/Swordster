@@ -76,6 +76,9 @@ const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 98.0)
 ## card's 14 px font from the 12 px margin: `DropsSwapsChecks._check_card_text_bounds` measures all 36 swords, so a longer name fails it).
 const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)
 const PICKUP_CARD_MARGIN: float = 10.0
+## The clear space the card keeps around every other HUD element, and around the dropped sword it describes.
+const PICKUP_CARD_GAP: float = 6.0
+const PICKUP_DROP_HALO: float = 30.0
 const ULT_KEYS: Array[String] = ["Q", "E", "R"]
 
 
@@ -316,8 +319,8 @@ func pickup_card_rect() -> Rect2:
 	return _pickup_card.get_global_rect()
 
 
-## Shows the card of the dropped sword a swap key would claim, beside it (clamped into the view, above the sword cards),
-## or hides it: nothing within reach, or the player is dead.
+## Shows the card of the dropped sword a swap key would claim, beside it, or hides it: nothing within reach, or the player
+## is dead. Where it goes is `_pickup_card_spot`.
 func _show_pickup(run: GameRun) -> void:
 	var near: PickupState = null if run.dead else run.nearest_pickup()
 	_pickup_card.visible = near != null
@@ -327,10 +330,7 @@ func _show_pickup(run: GameRun) -> void:
 	var tint: Color = SwordDefs.RARITY_COLORS[spec.rarity]
 	_pickup_style.border_color = tint
 	var view: Vector2 = get_viewport().get_visible_rect().size
-	var screen_at: Vector2 = near.position - run.camera + view * 0.5
-	_pickup_card.position = Vector2(
-		clampf(screen_at.x + 40.0, PICKUP_CARD_MARGIN, maxf(PICKUP_CARD_MARGIN, view.x - PICKUP_CARD_SIZE.x - PICKUP_CARD_MARGIN)),
-		clampf(screen_at.y - PICKUP_CARD_SIZE.y - 40.0, PICKUP_CARD_MARGIN, maxf(PICKUP_CARD_MARGIN, view.y - PICKUP_CARD_SIZE.y - ULT_CARD_SIZE.y - 40.0)))
+	_pickup_card.position = _pickup_card_spot(near.position - run.camera + view * 0.5, view)
 	var texts: Array[String] = PickupCard.lines(spec)
 	for i: int in texts.size():
 		_pickup_lines[i].text = texts[i]
@@ -346,6 +346,117 @@ func _show_pickup(run: GameRun) -> void:
 			var equipped: SwordSpec = run.swords[slot].spec
 			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
 			_pickup_compare[slot].modulate = SwordDefs.RARITY_COLORS[equipped.rarity].lerp(Color.WHITE, 0.35)
+
+
+## The screen rectangle a HUD control really draws on: a label only where its text is (a full-screen label with a centred
+## line occupies that line, not the screen), anything else its own rectangle at least as large as its minimum size (a button
+## or label grows to it a frame after its text changes). Empty for a label with no text.
+static func occupied_rect(control: Control) -> Rect2:
+	var box: Rect2 = control.get_global_rect()
+	if control is Label:
+		var label: Label = control
+		if label.text.is_empty():
+			return Rect2()
+		var need: Vector2 = label.get_minimum_size()
+		var spare: Vector2 = (box.size - need).max(Vector2.ZERO)
+		var shift: Vector2 = Vector2(
+			0.0 if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT else (0.5 if label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER else 1.0),
+			0.0 if label.vertical_alignment == VERTICAL_ALIGNMENT_TOP else (0.5 if label.vertical_alignment == VERTICAL_ALIGNMENT_CENTER else 1.0))
+		return Rect2(box.position + spare * shift, need)
+	return Rect2(box.position, box.size.max(control.get_combined_minimum_size()))
+
+
+## Every live HUD element the pickup card must stay clear of, each as the rectangle it draws on, widened by
+## `PICKUP_CARD_GAP`: the build and hint lines, the health bar and its value, the dash and Converge readouts (text and bar), the
+## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the sword cards.
+## What is not here has no fixed place or lasts a moment: the wave banner, the outcome and pause overlays (full-screen text
+## shown over everything by design), the touch joystick indicator, and the world-space effects (range rings, floating texts).
+## Controls that are hidden at the moment (the legend outside an encounter, the Shove button, a missing slot) reserve nothing.
+func pickup_card_avoid() -> Array[Rect2]:
+	var controls: Array[Control] = []
+	controls.append_array([_build_label, _hint_label])
+	controls.append_array([_hp_back, _hp_label])
+	controls.append_array([_dash_label, _converge_label, _converge_track])
+	controls.append(_wave_label)
+	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])
+	controls.append(_encounter_label)
+	controls.append(_audio_prompt)
+	controls.append_array(_ult_cards)
+	var rects: Array[Rect2] = []
+	for control: Control in controls:
+		var rect: Rect2 = occupied_rect(control)
+		if control.visible and rect.has_area():
+			rects.append(rect.grow(PICKUP_CARD_GAP))
+	return rects
+
+
+## Where the pickup card's top left goes for a drop at `drop` on a view of `view`: the free spot nearest the one beside the
+## drop (right of it, above it), a spot being free when the card there lies inside the view and covers no HUD element
+## (`pickup_card_avoid`) and, if one exists, not the drop itself. Candidates are that ideal spot and, in each axis, the
+## places that touch an obstacle or the view's edge. If no spot clears the HUD (a view too small for the card and the HUD
+## together; the 1280 x 720 minimum never is) the card goes where it covers the least HUD area.
+func _pickup_card_spot(drop: Vector2, view: Vector2) -> Vector2:
+	var card: Vector2 = PICKUP_CARD_SIZE
+	var low: Vector2 = Vector2(PICKUP_CARD_MARGIN, PICKUP_CARD_MARGIN)
+	var high: Vector2 = (view - card - low).max(low)
+	var ideal: Vector2 = Vector2(drop.x + 40.0, drop.y - card.y - 40.0).clamp(low, high)
+	var avoid: Array[Rect2] = pickup_card_avoid()
+	var drop_halo: Rect2 = Rect2(drop - Vector2(PICKUP_DROP_HALO, PICKUP_DROP_HALO), Vector2(PICKUP_DROP_HALO, PICKUP_DROP_HALO) * 2.0)
+	var with_halo: Array[Rect2] = avoid.duplicate()
+	with_halo.append(drop_halo)
+	if _covers_nothing(ideal, with_halo):
+		return ideal
+	var xs: Array[float] = [low.x, high.x, ideal.x]
+	var ys: Array[float] = [low.y, high.y, ideal.y]
+	for rect: Rect2 in with_halo:
+		xs.append_array([rect.end.x, rect.position.x - card.x, rect.position.x, rect.end.x - card.x])
+		ys.append_array([rect.end.y, rect.position.y - card.y, rect.position.y, rect.end.y - card.y])
+	var spots: Array[Vector2] = []
+	var seen_x: Dictionary[float, bool] = {}
+	for x: float in xs:
+		var at_x: float = clampf(x, low.x, high.x)
+		if seen_x.has(at_x):
+			continue
+		seen_x[at_x] = true
+		var seen_y: Dictionary[float, bool] = {}
+		for y: float in ys:
+			var at_y: float = clampf(y, low.y, high.y)
+			if not seen_y.has(at_y):
+				seen_y[at_y] = true
+				spots.append(Vector2(at_x, at_y))
+	# the nearest spot that clears the HUD and the drop, else the nearest that clears the HUD
+	for obstacles: Array[Rect2] in [with_halo, avoid]:
+		var best: Vector2 = ideal
+		var best_distance: float = INF
+		for spot: Vector2 in spots:
+			var distance: float = spot.distance_squared_to(ideal)
+			if distance < best_distance and _covers_nothing(spot, obstacles):
+				best = spot
+				best_distance = distance
+		if best_distance < INF:
+			return best
+	# no free spot: the one that hides the least HUD (the nearest to the ideal among equals)
+	var least: Vector2 = ideal
+	var least_area: float = INF
+	var least_distance: float = INF
+	for spot: Vector2 in spots:
+		var area: float = 0.0
+		for rect: Rect2 in avoid:
+			area += Rect2(spot, card).intersection(rect).get_area()
+		var distance: float = spot.distance_squared_to(ideal)
+		if area < least_area - 0.01 or (absf(area - least_area) <= 0.01 and distance < least_distance):
+			least = spot
+			least_area = area
+			least_distance = distance
+	return least
+
+
+func _covers_nothing(spot: Vector2, obstacles: Array[Rect2]) -> bool:
+	var card: Rect2 = Rect2(spot, PICKUP_CARD_SIZE)
+	for rect: Rect2 in obstacles:
+		if card.intersects(rect):
+			return false
+	return true
 
 
 ## Converge's shared cooldown (prototype `draw_hud`): the label dims and counts the seconds down, and the
@@ -448,8 +559,9 @@ func show_run(run: GameRun) -> void:
 		_dash_label.text = "dash ready"
 	_show_converge(run)
 	_show_ultimates(run)
-	_show_pickup(run)
+	# the encounter's legend and buttons first: the pickup card is placed clear of them as they now are
 	_show_encounter(run)
+	_show_pickup(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
 

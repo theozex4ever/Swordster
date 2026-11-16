@@ -496,11 +496,15 @@ static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[Gam
 ## Plays the whole script with bare simulation steps.
 static func play_headless(name: String = CROWD) -> Dictionary:
 	var run: GameRun = GameRun.new(scenario(name))
-	while run.tick < TOTAL_TICKS:
+	# A guard of ten steps per scripted tick (hitstop and slow motion add steps that do not advance the tick): a mutation that
+	# stops the tick counter must end the script, not hang it.
+	var steps: int = 0
+	while run.tick < TOTAL_TICKS and steps < TOTAL_TICKS * 10:
 		for command: GameCommand in commands_at(run.tick, name):
 			run.apply(command)
 		run.step()
 		run.take_cues()
+		steps += 1
 	return digest(run)
 
 

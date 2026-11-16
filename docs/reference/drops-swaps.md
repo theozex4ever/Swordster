@@ -151,7 +151,14 @@ all counters. Checks: `_check_rules`.
   (`pickup_ring`, `pickup_beam`, `pickup_glow_rarity`, `pickup_glow_element`). Equipped swords are as much larger as the rarity's size
   factor with a glow in the rarity's colour (the element's for a Common one) that flares after a swap (`apply_flash`); an armed enemy
   draws its sword beside it (`EnemyVisual.apply_armed`). The HUD's pickup card is `PickupCard` (the prototype's six lines plus, new,
-  a comparison with each equipped sword), placed beside the drop and clamped inside the view above the slot cards; each slot card
+  a comparison with each equipped sword), placed at the free spot nearest the one beside the drop (right of it, above it) that lies inside
+  the view and covers no live HUD element nor the drop itself (`Hud._pickup_card_spot`; the elements are read from the HUD's own controls by
+  `Hud.pickup_card_avoid`: the build and hint lines, the health bar and value, the dash and Converge readouts, the wave line, the Pause /
+  Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the three slot cards, each as the rectangle it draws on
+  plus a 6 px margin; hidden ones reserve nothing). Not reserved, by design: the wave banner and the outcome and pause overlays (full-screen
+  text shown over everything), the touch joystick indicator and the world-space effects (range rings, floating texts). If no spot clears
+  the HUD (a view smaller than the card plus the HUD; the 1280 x 720 minimum logical view never is, checked) the card goes where it covers
+  the least HUD area and stays inside the view; each slot card
   gains a rarity tag, a border in the rarity's colour and a "key N swaps this sword" line. A new baked sound, `sfx_chime`, stands in
   for the prototype's chime.
 - **Dev encounter.** `drops` (`RunScenario.drops_encounter`; the dev button / `C` after the colossus encounter, `--encounter=drops`,

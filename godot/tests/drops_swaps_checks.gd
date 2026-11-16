@@ -20,6 +20,9 @@ const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 const CENTER: Vector2 = Vector2(1300.0, 900.0)
 const PARKED: float = 99.0
 const SWAP_KEY_CODES: Array[Key] = [KEY_1, KEY_2, KEY_3]
+## How far from its drop the pickup card's centre may be, in view pixels (the card is 448 x 214; the drops legend and the HUD above it can force it
+## a screen's third away).
+const CARD_NEAR_LIMIT: float = 500.0
 
 var _check: Callable
 var _tree: SceneTree
@@ -41,6 +44,9 @@ func run_all() -> void:
 	_ref = JSON.parse_string(file.get_as_text())
 	_ok("drops and swaps reference file parses", not _ref.is_empty())
 	_check_reference_scope()
+	if not _check_identity():
+		print("drops and swaps: a sword type's identity is wrong; the remaining checks build fixtures from the prototype's keys and are skipped")
+		return
 	_check_definitions()
 	_check_matrix()
 	_check_arming()
@@ -61,6 +67,7 @@ func run_all() -> void:
 	await _check_main_scene()
 	await _check_hud()
 	await _check_card_text_bounds()
+	await _check_card_clearance()
 	await _check_encounter()
 	await _check_visual_independence()
 	await _check_render_rates()
@@ -205,6 +212,24 @@ func _check_reference_scope() -> void:
 
 
 # --------------------------------------------------------------- definitions
+## Returns false when a sword type's internal key is not the prototype's (or the type is not equippable); every later check builds
+## its fixtures from the reference's keys, so they must not run (a renamed key would only crash them).
+func _check_identity() -> bool:
+	print("drops and swaps: the sword types' identity")
+	var kinds: Array[String] = []
+	for entry: Variant in (_ref["table"] as Dictionary)["types"]:
+		kinds.append(String((entry as Dictionary)["kind"]))
+	var wrong: Array[String] = []
+	for type_id: StringName in [SwordDefs.FANG, SwordDefs.WARDEN, SwordDefs.PIKE, SwordDefs.COLOSSUS]:
+		if not (kinds.has(String(type_id)) and SwordDefs.is_supported(type_id)):
+			wrong.append(String(type_id))
+	for key: String in ["fang", "blade", "lance", "colossus"]:
+		if not kinds.has(key) or not SwordDefs.is_supported(StringName(key)):
+			wrong.append(key)
+	_ok("the four sword types keep the prototype's internal keys (fang, blade, lance, colossus) and are all equippable", wrong.is_empty(), str(wrong))
+	return wrong.is_empty()
+
+
 func _check_definitions() -> void:
 	print("drops and swaps: the tables")
 	var table: Dictionary = _ref["table"]
@@ -1286,6 +1311,156 @@ func _check_card_text_bounds() -> void:
 	await _tree.process_frame
 
 
+## The rectangle a HUD control draws on (a label only where its text is, the rest its own rectangle at least as large as its
+## minimum size). Written apart from `Hud.occupied_rect` so a mistake in one shows against the other.
+func _drawn_rect(control: Control) -> Rect2:
+	var box: Rect2 = control.get_global_rect()
+	if control is Label:
+		var label: Label = control
+		var need: Vector2 = label.get_minimum_size()
+		var spare: Vector2 = Vector2(maxf(box.size.x - need.x, 0.0), maxf(box.size.y - need.y, 0.0))
+		var fraction_x: float = [0.0, 0.5, 1.0, 0.0][label.horizontal_alignment]
+		var fraction_y: float = [0.0, 0.5, 1.0, 0.0][label.vertical_alignment]
+		return Rect2(box.position + Vector2(spare.x * fraction_x, spare.y * fraction_y), need) if not label.text.is_empty() else Rect2()
+	return Rect2(box.position, Vector2(maxf(box.size.x, control.get_combined_minimum_size().x), maxf(box.size.y, control.get_combined_minimum_size().y)))
+
+
+## Every HUD element on screen now, found by walking the HUD's own tree rather than asking it what to avoid: each visible control
+## directly under its root except the pickup card itself and the things shown over everything or for a moment (the wave
+## banner, the outcome and pause overlays, the touch joystick indicator). Name -> rectangle.
+func _live_hud_elements(hud: Hud) -> Dictionary[String, Rect2]:
+	var shown_over_everything: Array[Control] = [hud._pickup_card, hud._stick, hud._banner_label, hud._outcome_shade, hud._outcome_title, hud._outcome_detail, hud._outcome_prompt, hud._pause_overlay]
+	var found: Dictionary[String, Rect2] = {}
+	for child: Node in hud.get_child(0).get_children():
+		var control: Control = child as Control
+		if control == null or not control.visible or shown_over_everything.has(control):
+			continue
+		var rect: Rect2 = _drawn_rect(control)
+		if rect.has_area():
+			found["%s #%d %s" % [control.get_class(), found.size(), (control as Label).text.get_slice("\n", 0).left(24) if control is Label else (control as Button).text if control is Button else ""]] = rect
+	return found
+
+
+## The pickup card never covers a live HUD element. The reviewer's cases: the card used to hide the Converge countdown for a
+## player at the world's west edge, the health value in its north-west corner and the Pause button in its north-east one. The
+## HUD is walked independently of the code that places the card (`_live_hud_elements`), in three states (the normal run with
+## the audio prompt up; the drops encounter with its three-line legend; the crowd encounter with its Shove button), the worst-
+## case card text, six window sizes, a grid of 25 player positions through the real camera clamp and 12 forced places on the
+## screen. Each must lie inside the view, touch no element and still be near its drop.
+func _check_card_clearance() -> void:
+	print("drops and swaps: the pickup card keeps clear of every live HUD element")
+	var window: Window = Window.new()
+	window.size = Vector2i(1280, 720)
+	window.content_scale_size = Vector2i(1280, 720)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	_tree.root.add_child(window)
+	var hud: Hud = Hud.new()
+	window.add_child(hud)
+	await _tree.process_frame
+	var worst: SwordSpec = SwordSpec.make(SwordDefs.COLOSSUS, 2, &"poison")
+	var run: GameRun = _run_of([_spec_array(worst), _spec_array(worst), _spec_array(worst)])
+	var half: Vector2 = GameRun.VIEW * 0.5 - Vector2(GameRun.CAMERA_OVERSCAN, GameRun.CAMERA_OVERSCAN)
+	var sizes: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1084, 720), Vector2i(1000, 563), Vector2i(1920, 1080), Vector2i(800, 1280), Vector2i(1280, 1024)]
+	var states: Array[Dictionary] = [
+		{"name": "normal run", "encounter": RunScenario.ENCOUNTER_NORMAL, "shove": false, "audio": false},
+		{"name": "drops encounter", "encounter": RunScenario.ENCOUNTER_DROPS, "shove": false, "audio": true},
+		{"name": "crowd encounter", "encounter": RunScenario.ENCOUNTER_CROWD, "shove": true, "audio": true},
+	]
+	var xs: Array[float] = [30.0, 640.0, 1300.0, 2000.0, 2570.0]
+	var ys: Array[float] = [30.0, 360.0, 900.0, 1500.0, 1770.0]
+	var cases: int = 0
+	var moved: int = 0
+	var worst_reach: float = 0.0
+	var fewest_elements: int = 1 << 20
+	var outside: Array[String] = []
+	var covering: Array[String] = []
+	var far: Array[String] = []
+	var on_drop: Array[String] = []
+	for state: Dictionary in states:
+		run.scenario.encounter = state["encounter"]
+		run.scenario.dev_shove = state["shove"]
+		hud.show_state(false, state["audio"])
+		for size: Vector2i in sizes:
+			window.size = size
+			await _tree.process_frame
+			await _tree.process_frame
+			var view: Rect2 = window.get_visible_rect()
+			var places: Array[Dictionary] = []
+			for x: float in xs:
+				for y: float in ys:
+					places.append({"world": Vector2(x, y), "label": "player at (%.0f, %.0f)" % [x, y]})
+			for fraction: Vector2 in [Vector2(0.0, 0.0), Vector2(0.5, 0.0), Vector2(1.0, 0.0), Vector2(0.0, 0.5), Vector2(0.5, 0.5), Vector2(1.0, 0.5), Vector2(0.0, 1.0), Vector2(0.5, 1.0), Vector2(1.0, 1.0), Vector2(0.25, 0.1), Vector2(0.75, 0.1), Vector2(0.1, 0.3)]:
+				places.append({"screen": Vector2(2.0, 2.0) + fraction * (view.size - Vector2(4.0, 4.0)), "label": "drop at the view's (%.2f, %.2f)" % [fraction.x, fraction.y]})
+			for place: Dictionary in places:
+				run.pickups.clear()
+				var drop_screen: Vector2
+				if place.has("world"):
+					run.position = place["world"]
+					run.camera = (place["world"] as Vector2).clamp(GameRun.WORLD.position + half, GameRun.WORLD.end - half)
+					_put(run, _spec_array(worst), 10.0, 0.0)
+					drop_screen = run.pickups[0].position - run.camera + view.size * 0.5
+				else:
+					run.position = GameRun.WORLD.get_center()
+					var pickup: PickupState = _put(run, _spec_array(worst), 10.0, 0.0)
+					run.camera = pickup.position - ((place["screen"] as Vector2) - view.size * 0.5)
+					drop_screen = place["screen"]
+				hud.show_run(run)
+				cases += 1
+				var card: Rect2 = hud.pickup_card_rect()
+				var where: String = "%s, %s, window %s, card %s" % [state["name"], place["label"], size, card]
+				if not hud.pickup_card_visible() or not view.grow(0.5).encloses(card):
+					outside.append(where)
+				var elements: Dictionary[String, Rect2] = _live_hud_elements(hud)
+				fewest_elements = mini(fewest_elements, elements.size())
+				for name: String in elements:
+					if card.intersects(elements[name]):
+						covering.append("%s covers %s %s" % [where, name, elements[name]])
+				if card.has_point(drop_screen):
+					on_drop.append(where)
+				var reach: float = card.get_center().distance_to(drop_screen)
+				worst_reach = maxf(worst_reach, reach)
+				if reach > CARD_NEAR_LIMIT:
+					far.append("%s is %.0f px from its drop" % [where, reach])
+				var margin: Vector2 = Vector2(Hud.PICKUP_CARD_MARGIN, Hud.PICKUP_CARD_MARGIN)
+				var ideal: Vector2 = (drop_screen + Vector2(40.0, -Hud.PICKUP_CARD_SIZE.y - 40.0)).clamp(margin, (view.size - Hud.PICKUP_CARD_SIZE - margin).max(margin))
+				if not card.position.is_equal_approx(ideal):
+					moved += 1
+	_ok("the card lies inside the view in all %d cases (3 HUD states x 6 window sizes x 37 places; %d outside: %s)" % [cases, outside.size(), outside.slice(0, 2)], outside.is_empty() and cases == 3 * 6 * 37)
+	_ok("and covers no live HUD element in any of them: the health value and bar, the Converge and dash readouts, the Pause, Restart, Dev, Shove and Dash buttons, the hint and build lines, the wave line, the legend, the audio prompt and the sword cards (%d covered: %s)" % [covering.size(), covering.slice(0, 2)], covering.is_empty())
+	_ok("each walk found at least 15 live elements, so nothing was skipped by mistake (fewest %d)" % fewest_elements, fewest_elements >= 15)
+	_ok("and never hides the dropped sword it describes (%d cards over their drop: %s)" % [on_drop.size(), on_drop.slice(0, 2)], on_drop.is_empty())
+	_ok("and stays near its drop: its centre within %.0f px of it in every case (farthest %.0f px; %d farther: %s)" % [CARD_NEAR_LIMIT, worst_reach, far.size(), far.slice(0, 2)], far.is_empty())
+	_ok("the card is moved off its ideal spot (right of the drop, above it) in %d of the %d cases, so the placement is really exercised" % [moved, cases], moved > cases / 8)
+	# a view too small for the card and the HUD: the documented fallback is the spot that hides the least
+	run.pickups.clear()
+	window.size = Vector2i(1280, 720)
+	await _tree.process_frame
+	await _tree.process_frame
+	run.position = GameRun.WORLD.get_center()
+	run.camera = run.position
+	_put(run, _spec_array(worst), 10.0, 0.0)
+	run.scenario.encounter = RunScenario.ENCOUNTER_DROPS
+	hud.show_run(run)
+	var tiny: Vector2 = Vector2(560.0, 340.0)
+	var avoid: Array[Rect2] = hud.pickup_card_avoid()
+	var spot: Vector2 = hud._pickup_card_spot(tiny * 0.5, tiny)
+	var spot_area: float = 0.0
+	var best_area: float = INF
+	for rect: Rect2 in avoid:
+		spot_area += Rect2(spot, Hud.PICKUP_CARD_SIZE).intersection(rect).get_area()
+	for x: int in range(10, int(tiny.x - Hud.PICKUP_CARD_SIZE.x - Hud.PICKUP_CARD_MARGIN) + 1, 10):
+		for y: int in range(10, int(tiny.y - Hud.PICKUP_CARD_SIZE.y - Hud.PICKUP_CARD_MARGIN) + 1, 10):
+			var area: float = 0.0
+			for rect: Rect2 in avoid:
+				area += Rect2(Vector2(float(x), float(y)), Hud.PICKUP_CARD_SIZE).intersection(rect).get_area()
+			best_area = minf(best_area, area)
+	_ok("with no free spot (a %s view) the card still lies inside it and covers about as little HUD as any spot on a 10 px grid (%.0f px² against %.0f)" % [tiny, spot_area, best_area],
+		spot.x >= 0.0 and spot.y >= 0.0 and spot.x + Hud.PICKUP_CARD_SIZE.x <= tiny.x + 0.5 and spot.y + Hud.PICKUP_CARD_SIZE.y <= tiny.y + 0.5 and spot_area <= best_area + 1.0, str(spot))
+	window.queue_free()
+	await _tree.process_frame
+
+
 func _check_hud() -> void:
 	print("drops and swaps: the HUD lies inside the viewport")
 	var window: Window = Window.new()
@@ -1390,6 +1565,11 @@ func _check_encounter() -> void:
 		if child is PlaceholderEnemyVisual:
 			carried_drawn = carried_drawn and (child as PlaceholderEnemyVisual).carried_draws > 0
 	_ok("each carried sword is really drawn (every armed visual has drawn it)", carried_drawn and armed_visuals == 12)
+	_ok("the encounter stands foes to kill once the dev button has led to it (%d standing)" % main.run.enemies.size(), not main.run.enemies.is_empty())
+	if main.run.enemies.is_empty():
+		main.queue_free()
+		await _tree.process_frame
+		return
 	var victim: EnemyState = main.run.enemies[0]
 	main.run.kill(victim, Vector2.RIGHT)
 	main.run.position = victim.position + Vector2(10.0, 0.0)
