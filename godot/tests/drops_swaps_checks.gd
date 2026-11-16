@@ -428,7 +428,7 @@ func _check_armed_waves() -> void:
 	var state_before: int = plain.rng.state
 	while plain.director.wave == 0 and plain.tick < 400:
 		plain.step()
-	_ok("a normal run starts its wave unarmed and without touching the gameplay stream (wave %d, queue %d, %d armed, state kept %s)" % [plain.director.wave, plain.director.queue.size(), plain.director.queue_armed.filter(func(spec: SwordSpec) -> bool: return spec != null).size(), plain.rng.state == state_before],
+	_ok("a fixture run that does not arm its waves starts its wave unarmed and without touching the gameplay stream (wave %d, queue %d, %d armed, state kept %s)" % [plain.director.wave, plain.director.queue.size(), plain.director.queue_armed.filter(func(spec: SwordSpec) -> bool: return spec != null).size(), plain.rng.state == state_before],
 		plain.director.wave == 1 and plain.director.queue_armed.size() == plain.director.queue.size() and plain.director.queue_armed.all(func(spec: SwordSpec) -> bool: return spec == null) and plain.rng.state == state_before)
 	var guaranteed: bool = true
 	var detail: String = ""
@@ -1332,7 +1332,7 @@ func _drawn_rect(control: Control) -> Rect2:
 ## directly under its root except the pickup card itself and the things shown over everything or for a moment (the wave
 ## banner, the outcome and pause overlays, the touch joystick indicator). Name -> rectangle.
 func _live_hud_elements(hud: Hud) -> Dictionary[String, Rect2]:
-	var shown_over_everything: Array[Control] = [hud._pickup_card, hud._stick, hud._banner_label, hud._outcome_shade, hud._outcome_title, hud._outcome_detail, hud._outcome_prompt, hud._pause_overlay]
+	var shown_over_everything: Array[Control] = [hud._pickup_card, hud._stick, hud._banner_label, hud._banner_sub_label, hud._outcome_shade, hud._outcome_title, hud._outcome_detail, hud._outcome_prompt, hud._pause_overlay]
 	var found: Dictionary[String, Rect2] = {}
 	for child: Node in hud.get_child(0).get_children():
 		var control: Control = child as Control
@@ -1545,7 +1545,7 @@ func _check_encounter() -> void:
 	colossus.apply(GameCommand.toggle_encounter())
 	_ok("the C key leads from the colossus encounter to the drops encounter and restarts in it (12 armed foes standing)", colossus.scenario.encounter == RunScenario.ENCOUNTER_DROPS and colossus.enemies.filter(func(e: EnemyState) -> bool: return e.armed != null).size() == 12)
 	colossus.apply(GameCommand.toggle_encounter())
-	_ok("and once more back to the normal run, unarmed", colossus.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and colossus.enemies.is_empty() and not colossus.scenario.arm_waves)
+	_ok("and once more back to the normal run, whose waves are the prototype's own and armed (issue #18 turned arming on there)", colossus.scenario.encounter == RunScenario.ENCOUNTER_NORMAL and colossus.enemies.is_empty() and colossus.scenario.arm_waves and colossus.scenario.generated_waves and colossus.scenario.wave_count == 0)
 	var main: Main = _main_with(RunScenario.colossus_encounter())
 	await _tree.process_frame
 	main._hud._encounter_button.button_down.emit()

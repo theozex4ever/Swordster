@@ -74,6 +74,8 @@ enum Kind {
 	## A swap was refused because no pickup is within reach (`position` = the player). Refusals for any other reason
 	## (paused, dead) are silent.
 	SWAP_REFUSED,
+	## The kill chain reached 10, 25, 50 or 100 (`position` = the player, `amount` = the chain).
+	CHAIN_MILESTONE,
 }
 
 var kind: Kind = Kind.DASH

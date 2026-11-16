@@ -54,3 +54,17 @@ The player's replacement of the spirit sword in a chosen sword slot by the neare
 sword drop within reach; the replaced sword becomes a sword drop and the slot
 keeps its ultimate's recharge fraction.
 _Avoid_: Equip
+
+**Wave**:
+A numbered group of enemies queued when it starts and arriving one by one, each
+first telegraphed by a spawn marker. It is complete only when its queue, its
+markers and every living enemy are gone; a break follows, then the next wave.
+A wave's number sets how many enemies it holds, which types it may hold, how
+tough they are and how good the swords they carry may be.
+_Avoid_: Round, level
+
+**Chain**:
+The count of kills in unbroken succession, each within 2.6 seconds of the last.
+It announces itself at 10, 25, 50 and 100 kills and ends when the window lapses;
+the best chain of a run is kept for its end screen.
+_Avoid_: Combo streak

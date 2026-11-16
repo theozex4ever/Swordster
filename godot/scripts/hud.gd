@@ -17,6 +17,8 @@ signal encounter_pressed
 signal shove_pressed
 
 const HP_BAR_SIZE: Vector2 = Vector2(260.0, 18.0)
+## The banner's second line sits this far above the view's centre (the title is 180 px above it).
+const BANNER_SUB_OFFSET: float = -118.0
 ## Death screen fades in after this many gameplay seconds (prototype 0.8).
 const OUTCOME_FADE_START: float = GameRun.RESTART_DELAY
 
@@ -42,6 +44,8 @@ var _converge_label: Label
 var _converge_track: ColorRect
 var _converge_bar: ColorRect
 var _banner_label: Label
+## The line under the banner (what to do in the wave that starts or the break that follows).
+var _banner_sub_label: Label
 var _outcome_shade: ColorRect
 var _outcome_title: Label
 var _outcome_detail: Label
@@ -123,6 +127,11 @@ func _ready() -> void:
 	_fill_and_center(_banner_label, VERTICAL_ALIGNMENT_CENTER)
 	_banner_label.offset_top = -180.0
 	_banner_label.offset_bottom = -180.0
+	_banner_sub_label = _make_label(root, "")
+	_banner_sub_label.add_theme_font_size_override("font_size", 22)
+	_fill_and_center(_banner_sub_label, VERTICAL_ALIGNMENT_CENTER)
+	_banner_sub_label.offset_top = BANNER_SUB_OFFSET
+	_banner_sub_label.offset_bottom = BANNER_SUB_OFFSET
 
 	_outcome_shade = _make_rect(root, Color(0.0, 0.0, 0.0, 0.0))
 	_outcome_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -368,8 +377,9 @@ static func occupied_rect(control: Control) -> Rect2:
 
 ## Every live HUD element the pickup card must stay clear of, each as the rectangle it draws on, widened by
 ## `PICKUP_CARD_GAP`: the build and hint lines, the health bar and its value, the dash and Converge readouts (text and bar), the
-## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the sword cards.
-## What is not here has no fixed place or lasts a moment: the wave banner, the outcome and pause overlays (full-screen text
+## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt, the sword cards and, while
+## it is up, the wave banner with its second line (issue #18: the card used to cover half of "WAVE CLEARED").
+## What is not here has no fixed place or lasts a moment: the outcome and pause overlays (full-screen text
 ## shown over everything by design), the touch joystick indicator, and the world-space effects (range rings, floating texts).
 ## Controls that are hidden at the moment (the legend outside an encounter, the Shove button, a missing slot) reserve nothing.
 func pickup_card_avoid() -> Array[Rect2]:
@@ -382,6 +392,8 @@ func pickup_card_avoid() -> Array[Rect2]:
 	controls.append(_encounter_label)
 	controls.append(_audio_prompt)
 	controls.append_array(_ult_cards)
+	# the banner and its second line while they are up (an empty label occupies nothing): the card steps aside for them
+	controls.append_array([_banner_label, _banner_sub_label])
 	var rects: Array[Rect2] = []
 	for control: Control in controls:
 		var rect: Rect2 = occupied_rect(control)
@@ -551,7 +563,8 @@ func show_run(run: GameRun) -> void:
 	_hp_lag.size = Vector2(HP_BAR_SIZE.x * clampf(_hp_shown / run.max_hp, 0.0, 1.0), HP_BAR_SIZE.y)
 	_hp_label.text = "%d" % int(run.hp)
 	_wave_label.text = "WAVE %d    kills %d" % [maxi(1, run.director.wave), run.kills]
-	if run.combo >= 2:
+	# The prototype shows the chain from the third kill (`combo >= 3`).
+	if run.combo >= 3:
 		_wave_label.text += "    chain %d" % run.combo
 	if run.dash_cooldown_left > 0.0:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
@@ -564,6 +577,8 @@ func show_run(run: GameRun) -> void:
 	_show_pickup(run)
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
+	_banner_sub_label.text = run.banner_sub if not run.dead else ""
+	_banner_sub_label.modulate.a = _banner_label.modulate.a
 
 	match run.outcome():
 		GameRun.Outcome.LOST:
