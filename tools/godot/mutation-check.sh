@@ -2339,11 +2339,11 @@ mutate touch-stale-contact-kept                      scripts/input/touch_pointer
 " "			if _contacts.has(touch.index):
 				pass
 "
-mutate touch-lift-keeps-stick                        scripts/input/touch_pointers.gd "		if joystick.pointer == index:
-			joystick.release()
-" "		if joystick.pointer == index:
+mutate touch-lift-keeps-stick                        scripts/input/touch_pointers.gd "		if event != null:
+			joystick.handle_event(event)
+		elif" "		if event != null:
 			pass
-"
+		elif"
 mutate touch-release-all-keeps-contacts              scripts/input/touch_pointers.gd "	_contacts.clear()
 	joystick.release()" "	joystick.release()"
 mutate touch-release-all-keeps-stick                 scripts/input/touch_pointers.gd "	_contacts.clear()

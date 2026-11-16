@@ -52,7 +52,7 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 				_end(touch.index, true)
 			_land(touch, commands)
 		elif _contacts.has(touch.index):
-			commands.append_array(_end(touch.index, touch.canceled))
+			commands.append_array(_end(touch.index, touch.canceled, touch))
 	elif event is InputEventScreenDrag:
 		var drag: InputEventScreenDrag = event
 		var contact: Contact = _contacts.get(drag.index)
@@ -93,13 +93,16 @@ func _land(touch: InputEventScreenTouch, commands: Array[GameCommand]) -> void:
 	_contacts[touch.index] = contact
 
 
-## Ends a contact. Returns the Converge a tap makes (none for a cancelled contact or a stale one).
-func _end(index: int, cancelled: bool) -> Array[GameCommand]:
+## Ends a contact. A lift or cancel that arrived as an event is the joystick's own to handle (`event`); a contact ended without
+## one (a stale press) is released outright. Returns the Converge a tap makes (none for a cancelled contact or a stale one).
+func _end(index: int, cancelled: bool, event: InputEvent = null) -> Array[GameCommand]:
 	var commands: Array[GameCommand] = []
 	var contact: Contact = _contacts[index]
 	_contacts.erase(index)
 	if contact.owner == Owner.JOYSTICK:
-		if joystick.pointer == index:
+		if event != null:
+			joystick.handle_event(event)
+		elif joystick.pointer == index:
 			joystick.release()
 		if not cancelled and _now() - contact.since <= TAP_SECONDS and contact.travel <= TAP_TRAVEL:
 			commands.append(GameCommand.converge(_world(contact.start)))
