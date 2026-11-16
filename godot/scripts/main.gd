@@ -218,7 +218,7 @@ func _blocked_rects() -> Array[Rect2]:
 
 
 func _show_touch() -> void:
-	if _touch == null or not _touch.is_active():
+	if _touch == null or not is_inside_tree() or not _touch.is_active():
 		return
 	_touch.layout(get_viewport().get_visible_rect().size, _insets(), _hud.dash_rect(), _fullscreen_supported)
 	_touch.show_run(run)

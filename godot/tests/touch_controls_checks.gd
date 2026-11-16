@@ -229,10 +229,10 @@ func _check_pointer_table() -> void:
 	_ok("one that stays longer is a hold, not a tap", t.handle_event(_touch(0, Vector2(300.0, 400.0), false)).is_empty())
 	_clock[0] = 30.0
 	t.handle_event(_touch(0, Vector2(300.0, 400.0), true))
-	t.handle_event(_drag(0, Vector2(300.0 + TouchPointers.TAP_TRAVEL, 400.0)))
+	t.handle_event(_drag(0, Vector2(300.0 + 18.0, 400.0)))
 	_ok("moving exactly 18 px still is a tap", t.handle_event(_touch(0, Vector2(300.0, 400.0), false)).size() == 1)
 	t.handle_event(_touch(0, Vector2(300.0, 400.0), true))
-	t.handle_event(_drag(0, Vector2(300.0 + TouchPointers.TAP_TRAVEL + 1.0, 400.0)))
+	t.handle_event(_drag(0, Vector2(300.0 + 19.0, 400.0)))
 	t.handle_event(_drag(0, Vector2(300.0, 400.0)))
 	_ok("moving 19 px and coming back is not (the farthest it went counts)", t.handle_event(_touch(0, Vector2(300.0, 400.0), false)).is_empty())
 	t.handle_event(_touch(0, Vector2(300.0, 400.0), true))
@@ -320,7 +320,7 @@ func _check_platform_values() -> void:
 	_ok("CSS insets (top, right, bottom, left) become viewport insets (left, top, right, bottom) scaled onto the viewport: (80, 20, 40, 60)", from_css == Vector4(80.0, 20.0, 40.0, 60.0))
 	_ok("negative or missing insets are zero", TouchLayout.insets_from_css(Vector4(-5.0, 0.0, -1.0, 3.0), 1.5) == Vector4(4.5, 0.0, 0.0, 0.0))
 	_ok("a safe-area override of four numbers parses (top, right, bottom, left)", LaunchOptions.parse_insets("12, 0,34.5,7") == PackedFloat32Array([12.0, 0.0, 34.5, 7.0]))
-	_ok("a wrong count, text or an empty value is no override, a negative one is clamped to 0", LaunchOptions.parse_insets("1,2,3").is_empty() and LaunchOptions.parse_insets("a,b,c,d").is_empty() and LaunchOptions.parse_insets("").is_empty() and LaunchOptions.parse_insets("-4,1,1,1")[0] == 0.0)
+	_ok("a wrong count, text or an empty value is no override, a negative one is clamped to 0", LaunchOptions.parse_insets("1,2,3").is_empty() and LaunchOptions.parse_insets("a,b,c,d").is_empty() and LaunchOptions.parse_insets("").is_empty() and LaunchOptions.parse_insets("-4,1,1,1") == PackedFloat32Array([0.0, 1.0, 1.0, 1.0]))
 	_ok("with no touchscreen reported (headless) and no request there are no touch controls", not TouchPlatform.touchscreen_present() or LaunchOptions.requested_touch() == "1")
 
 
@@ -337,6 +337,13 @@ func _check_activation_and_desktop() -> void:
 	main.input.pointer = Vector2(900.0, 300.0)
 	main.input.handle_event(_mouse_click(Vector2(900.0, 300.0)))
 	_ok("a mouse click is still a Converge at the cursor's world point", _converges_of(main.input, Vector2(900.0, 300.0)) == 1)
+	window.size = Vector2i(412, 915)
+	for frame: int in 3:
+		await _tree.process_frame
+	_ok("a tall desktop window keeps the project's own 1280 x 720 base: only touch play turns the base with the phone (view %s)" % window.get_visible_rect().size, window.content_scale_size == Vector2i(1280, 720))
+	window.size = Vector2i(1280, 720)
+	for frame: int in 3:
+		await _tree.process_frame
 	_send(window, _touch(0, Vector2(900.0, 300.0), true))
 	await _tree.process_frame
 	_ok("the first finger on the screen brings the controls up (and the keyboard hint goes)", main.touch_mode and main._touch.is_active() and main._touch.button_visible(TouchLayout.CONVERGE) and not hud._hint_label.visible)
@@ -626,6 +633,21 @@ func _check_ui_consumes_touches() -> void:
 	_ok("the hidden Shove button's old place is plain arena: a tap there is a Converge", not hud._shove_button.visible and main._blocked_rects().all(func(rect: Rect2) -> bool: return not rect.has_point(shove_spot)))
 	_tap(window, 0, shove_spot)
 	_ok("(and it commands Converge at that world point)", _converges(main) >= 1 or run.converge_cooldown_left > 0.0)
+	var resume_spot: Vector2 = Rect2(TouchLayout.button_rects(window.get_visible_rect().size, Vector4.ZERO, main._hud.dash_rect())[TouchLayout.RESUME]).get_center()
+	_ready_to_converge(main)
+	run.apply(GameCommand.resume())
+	var converges_here: int = _converges(main)
+	_ok("a button that is not showing (Resume while the run goes on) blocks nothing", not main._touch.button_visible(TouchLayout.RESUME) and main._blocked_rects().all(func(rect: Rect2) -> bool: return not rect.has_point(resume_spot)))
+	_tap(window, 0, resume_spot)
+	_ok("so a tap where it would be is a Converge at that world point", _converges(main) == converges_here + 1 and _near(run.swords[1].aim, _clamped(main, run.camera + resume_spot - window.get_visible_rect().size * 0.5)))
+	# the pickup card keeps clear of every touch button
+	var avoided: Array[Rect2] = hud.pickup_card_avoid()
+	var missing: Array[String] = []
+	for id: StringName in [TouchLayout.CONVERGE, TouchLayout.RANGES, TouchLayout.swap_id(0), TouchLayout.ultimate_id(2)]:
+		var rect: Rect2 = main._touch.button_rect(id)
+		if not avoided.any(func(each: Rect2) -> bool: return each.encloses(rect)):
+			missing.append(String(id))
+	_ok("the dropped-sword card is told to keep clear of the touch buttons (%s not avoided)" % [missing], missing.is_empty())
 	# every visible Button in the scene is covered by a blocked rectangle
 	var uncovered: Array[String] = []
 	for node: Node in _all_buttons(main):
@@ -738,7 +760,10 @@ func _check_release_and_suspension() -> void:
 		_ok("a tap on the arena does not resume (and commands nothing)", run.paused and _converges(main) == converges_then)
 		_ok("a large Resume button waits at the middle of the screen, the other controls dim", main._touch.button_visible(TouchLayout.RESUME) and not main._touch.button_visible(TouchLayout.RESTART) and not main._touch.button_lit(TouchLayout.CONVERGE))
 		await _tree.process_frame
-		_press_button(window, main, TouchLayout.RESUME)
+		var resume_at: Vector2 = main._touch.button_rect(TouchLayout.RESUME).get_center()
+		_send(window, _touch(5, resume_at, true))
+		_ok("a finger landing on the Resume button, which appeared after the stick's rectangles were last set, is the button's (no stick, no arena tap)", main.input.touch.owner_of(5) == TouchPointers.Owner.UI)
+		_send(window, _touch(5, resume_at, false))
 		_ok("tapping Resume resumes, and the stick does not wake by itself", not run.paused and not main._touch.button_visible(TouchLayout.RESUME) and _near(main.input.move_axis(), Vector2.ZERO), "paused %s visible %s axis %s" % [run.paused, main._touch.button_visible(TouchLayout.RESUME), main.input.move_axis()])
 		var resumed_at: Vector2 = run.position
 		_ticks(main, 30)

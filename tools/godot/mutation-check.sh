@@ -2202,6 +2202,119 @@ mutate waves-chain-text-position                scripts/presentation/effects_lay
 mutate waves-gong-silent                        scripts/audio/sfx_bank.gd "		SimCue.Kind.WAVE_STARTED:
 			play(\"wave\")" "		SimCue.Kind.WAVE_STARTED:
 			play(\"hit\")"
+# --- Touch controls (slice #20)
+mutate touch-tap-window-short                        scripts/input/touch_pointers.gd "const TAP_SECONDS: float = 0.3" "const TAP_SECONDS: float = 0.1"
+mutate touch-tap-window-long                         scripts/input/touch_pointers.gd "const TAP_SECONDS: float = 0.3" "const TAP_SECONDS: float = 0.9"
+mutate touch-tap-travel-small                        scripts/input/touch_pointers.gd "const TAP_TRAVEL: float = 18.0" "const TAP_TRAVEL: float = 10.0"
+mutate touch-tap-travel-large                        scripts/input/touch_pointers.gd "const TAP_TRAVEL: float = 18.0" "const TAP_TRAVEL: float = 30.0"
+mutate touch-tap-ignores-time                        scripts/input/touch_pointers.gd " and _now() - contact.since <= TAP_SECONDS and" " and"
+mutate touch-tap-ignores-travel                      scripts/input/touch_pointers.gd " and contact.travel <= TAP_TRAVEL:" ":"
+mutate touch-cancel-taps                             scripts/input/touch_pointers.gd "if not cancelled and _now()" "if _now()"
+mutate touch-travel-not-max                          scripts/input/touch_pointers.gd "contact.travel = maxf(contact.travel, drag.position.distance_to(contact.start))" "contact.travel = drag.position.distance_to(contact.start)"
+mutate touch-ui-landing-not-consumed                 scripts/input/touch_pointers.gd "	if _is_blocked(touch.position):
+		contact.owner = Owner.UI
+	elif" "	if false:
+		contact.owner = Owner.UI
+	elif"
+mutate touch-arena-landing-silent                    scripts/input/touch_pointers.gd "		contact.owner = Owner.ARENA
+		commands.append(GameCommand.converge(_world(touch.position)))" "		contact.owner = Owner.ARENA"
+mutate touch-arena-point-not-world                   scripts/input/touch_pointers.gd "commands.append(GameCommand.converge(_world(touch.position)))" "commands.append(GameCommand.converge(touch.position))"
+mutate touch-tap-point-lost                          scripts/input/touch_pointers.gd "commands.append(GameCommand.converge(_world(contact.start)))" "commands.append(GameCommand.converge(_world(Vector2.ZERO)))"
+mutate touch-stale-contact-kept                      scripts/input/touch_pointers.gd "			if _contacts.has(touch.index):
+				_end(touch.index, true)
+" "			if _contacts.has(touch.index):
+				pass
+"
+mutate touch-lift-keeps-stick                        scripts/input/touch_pointers.gd "		if joystick.pointer == index:
+			joystick.release()
+" "		if joystick.pointer == index:
+			pass
+"
+mutate touch-release-all-keeps-contacts              scripts/input/touch_pointers.gd "	_contacts.clear()
+	joystick.release()" "	joystick.release()"
+mutate touch-release-all-keeps-stick                 scripts/input/touch_pointers.gd "	_contacts.clear()
+	joystick.release()" "	_contacts.clear()"
+mutate touch-blocked-provider-ignored                scripts/input/touch_pointers.gd "	if blocked_provider.is_valid():
+		rects = blocked_provider.call()" "	if false:
+		rects = blocked_provider.call()"
+mutate touch-translator-bypasses-pointers            scripts/input/input_translator.gd "		commands.append_array(touch.handle_event(event))" "		joystick.handle_event(event)"
+mutate touch-translator-release-all-keeps-fingers    scripts/input/input_translator.gd "	_held.clear()
+	touch.release_all()" "	_held.clear()
+	joystick.release()"
+mutate touch-layout-swap-too-small                   scripts/input/touch_layout.gd "const SWAP_SIZE: Vector2 = Vector2(96.0, 78.0)" "const SWAP_SIZE: Vector2 = Vector2(96.0, 50.0)"
+mutate touch-layout-no-lift                          scripts/input/touch_layout.gd "var lift: float = 0.0 if view.x >= WIDE_VIEW else LIFT" "var lift: float = 0.0"
+mutate touch-layout-no-shove-room                    scripts/input/touch_layout.gd "const SHOVE_ROOM: float = 120.0" "const SHOVE_ROOM: float = 0.0"
+mutate touch-layout-ignores-insets                   scripts/input/touch_layout.gd "	anchor.position = Vector2(minf(anchor.position.x, right - MARGIN - anchor.size.x), minf(anchor.position.y, bottom - MARGIN - anchor.size.y))
+" ""
+mutate touch-zone-ignores-left-inset                 scripts/input/touch_layout.gd "	var left: float = insets.x
+	var right: float = view.x * JOYSTICK_WIDTH_SHARE" "	var left: float = 0.0
+	var right: float = view.x * JOYSTICK_WIDTH_SHARE"
+mutate touch-zone-ignores-bottom-inset               scripts/input/touch_layout.gd "	var bottom: float = view.y - insets.w
+	return Rect2(left" "	var bottom: float = view.y
+	return Rect2(left"
+mutate touch-zone-share                              scripts/input/touch_layout.gd "const JOYSTICK_WIDTH_SHARE: float = 0.55" "const JOYSTICK_WIDTH_SHARE: float = 0.7"
+mutate touch-square-window-is-portrait               scripts/input/touch_layout.gd "window_size.y > window_size.x else LANDSCAPE_BASE" "window_size.y >= window_size.x else LANDSCAPE_BASE"
+mutate touch-always-landscape-base                   scripts/input/touch_layout.gd "return PORTRAIT_BASE if window_size.y > window_size.x else LANDSCAPE_BASE" "return LANDSCAPE_BASE"
+mutate touch-css-insets-order                        scripts/input/touch_layout.gd "Vector4(maxf(css.w, 0.0) * scale, maxf(css.x, 0.0) * scale, maxf(css.y, 0.0) * scale, maxf(css.z, 0.0) * scale)" "Vector4(maxf(css.x, 0.0) * scale, maxf(css.y, 0.0) * scale, maxf(css.z, 0.0) * scale, maxf(css.w, 0.0) * scale)"
+mutate touch-css-insets-unscaled                     scripts/input/touch_layout.gd "var scale: float = maxf(logical_per_css, 0.0)" "var scale: float = 1.0"
+mutate touch-ultimate-row-reversed                   scripts/input/touch_layout.gd "var x: float = row_right - float(3 - slot) * BUTTON - float(2 - slot) * GAP" "var x: float = row_right - float(slot + 1) * BUTTON - float(slot) * GAP"
+mutate touch-converge-button-point                   scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.converge_at_nearest())" "command_requested.emit(GameCommand.converge(Vector2.ZERO))"
+mutate touch-ultimate-button-slot                    scripts/touch/touch_controls.gd "GameCommand.ultimate_at_nearest(slot)" "GameCommand.ultimate_at_nearest(0)"
+mutate touch-ultimate-button-point                   scripts/touch/touch_controls.gd "GameCommand.ultimate_at_nearest(slot)" "GameCommand.ultimate(slot, Vector2.ZERO)"
+mutate touch-swap-button-slot                        scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.swap(slot))" "command_requested.emit(GameCommand.swap(0))"
+mutate touch-ranges-button-command                   scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.toggle_ranges())" "command_requested.emit(GameCommand.dash())"
+mutate touch-resume-button-pauses                    scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.resume())" "command_requested.emit(GameCommand.pause())"
+mutate touch-restart-button-resumes                  scripts/touch/touch_controls.gd "command_requested.emit(GameCommand.restart())" "command_requested.emit(GameCommand.resume())"
+mutate touch-fullscreen-button-commands              scripts/touch/touch_controls.gd "func() -> void: fullscreen_pressed.emit())" "func() -> void: command_requested.emit(GameCommand.dash()))"
+mutate touch-hidden-buttons-block                    scripts/touch/touch_controls.gd "		if button.visible:
+			rects.append(" "		if true:
+			rects.append("
+mutate touch-inactive-layer-blocks                   scripts/touch/touch_controls.gd "	if not _active:
+		return rects
+	for id" "	for id"
+mutate touch-swaps-always-lit                        scripts/touch/touch_controls.gd "swap.modulate = LIT if live and pickup_near else DIM" "swap.modulate = LIT"
+mutate touch-ultimates-always-lit                    scripts/touch/touch_controls.gd "ultimate.modulate = LIT if live and sword.ultimate_ready() else DIM" "ultimate.modulate = LIT"
+mutate touch-converge-never-dim                      scripts/touch/touch_controls.gd "converge.modulate = LIT if live and run.converge_cooldown_left <= 0.0 else DIM" "converge.modulate = LIT"
+mutate touch-ultimate-text-lost                      scripts/touch/touch_controls.gd "ultimate.text = \"%s\\n%s\" % [Hud.ULT_KEYS[slot], status]" "ultimate.text = \"%s\" % Hud.ULT_KEYS[slot]"
+mutate touch-resume-never-shown                      scripts/touch/touch_controls.gd "_want(TouchLayout.RESUME, run.paused and not over)" "_want(TouchLayout.RESUME, false)"
+mutate touch-restart-while-alive                     scripts/touch/touch_controls.gd "_want(TouchLayout.RESTART, restartable)" "_want(TouchLayout.RESTART, true)"
+mutate touch-held-button-hides                       scripts/touch/touch_controls.gd "_buttons[id].visible = wanted or _held.get(id, false)" "_buttons[id].visible = wanted"
+mutate touch-first-touch-ignored                     scripts/main.gd "	if event is InputEventScreenTouch and not touch_mode:
+		set_touch_mode(true)
+" ""
+mutate touch-buttons-not-blocking                    scripts/main.gd "	rects.append_array(_touch.blocked_rects())
+" "	pass
+"
+mutate touch-hud-buttons-not-blocking                scripts/main.gd "	var rects: Array[Rect2] = _hud.button_rects()
+	rects.append_array" "	var rects: Array[Rect2] = []
+	rects.append_array"
+mutate touch-orientation-ignored                     scripts/main.gd "	if window.content_scale_size != base:
+		window.content_scale_size = base" "	if false:
+		window.content_scale_size = base"
+mutate touch-orientation-on-desktop                  scripts/main.gd "	if not touch_mode:
+		return
+	var window: Window = get_window()" "	var window: Window = get_window()"
+mutate touch-pickup-card-ignores-touch               scripts/main.gd "	_hud.extra_avoid_rects = _touch.blocked_rects()
+
+
+func _is_user_gesture" "	pass
+
+
+func _is_user_gesture"
+mutate touch-commands-not-routed                     scripts/main.gd "	_touch.command_requested.connect(_submit)
+" "	pass
+"
+mutate touch-hud-hidden-button-blocks                scripts/hud.gd "		if button.is_visible_in_tree():
+			rects.append(button.get_global_rect().grow(8.0))" "		if true:
+			rects.append(button.get_global_rect().grow(8.0))"
+mutate touch-hud-keeps-keyboard-hint                 scripts/hud.gd "	_hint_label.visible = not on" "	_hint_label.visible = true"
+mutate touch-hud-avoid-ignores-touch                 scripts/hud.gd "	for extra: Rect2 in extra_avoid_rects:
+		rects.append(extra.grow(PICKUP_CARD_GAP))
+" "	pass
+"
+mutate touch-safe-override-count                     scripts/launch_options.gd "	if parts.size() != 4:" "	if parts.size() != 5:"
+mutate touch-safe-override-negative                  scripts/launch_options.gd "values.append(maxf(part.strip_edges().to_float(), 0.0))" "values.append(part.strip_edges().to_float())"
+
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
 if ((survived)); then echo "$survived mutation(s) survived"; fi
