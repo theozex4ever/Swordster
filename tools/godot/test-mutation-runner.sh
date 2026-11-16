@@ -152,7 +152,7 @@ PY
     [[ "$status" == 1 ]] || problem="exit $status, wanted 1"
     grep -q '^MUTATION NOT APPLIED: speed-zero' "$log" || problem="no MUTATION NOT APPLIED line"
     grep -q '^caught ' "$log" && problem="a stale mutation was reported caught"
-    grep -q '^RESULT .* ran=1 caught=0 survived=0 inconclusive=0 not_applied=1$' "$log" || problem="RESULT line is not ran=1 caught=0 not_applied=1: $(grep '^RESULT' "$log")"
+    grep -q '^RESULT .* ran=1 caught=0 warned=0 survived=0 inconclusive=0 not_applied=1$' "$log" || problem="RESULT line is not ran=1 caught=0 not_applied=1: $(grep '^RESULT' "$log")"
     report "stale mutation (FAST=$mode): not applied, never caught, run fails" "$problem" "$log"
   done
 fi

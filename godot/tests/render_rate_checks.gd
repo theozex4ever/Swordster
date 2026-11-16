@@ -149,13 +149,17 @@ func _run_children(argument_lists: Array[PackedStringArray]) -> Array[Dictionary
 	return results
 
 
+## Everything the (ended) child wrote to its pipe. A pipe never reports end of file here, so this reads what
+## `get_length()` says is waiting, a bounded number of times, and stops when nothing is.
 func _drain(pipe: FileAccess) -> String:
 	var text: String = ""
-	while pipe != null and pipe.is_open() and not pipe.eof_reached():
-		var line: String = pipe.get_line()
-		if line.is_empty() and pipe.eof_reached():
+	if pipe == null or not pipe.is_open():
+		return text
+	for read: int in 64:
+		var waiting: int = pipe.get_length()
+		if waiting <= 0:
 			break
-		text += line + "\n"
+		text += pipe.get_buffer(waiting).get_string_from_utf8()
 	return text
 
 
