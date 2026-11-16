@@ -413,7 +413,15 @@ A check group takes part by starting its `run_all()` with
 `if not CheckFocus.includes("<file name without _checks.gd>"): return` and its
 render-rate check with `if not RenderRateScenario.probes_enabled(): return`, as the
 existing groups do. A group without those lines is not wrong, only slower: it runs
-in every step. The section's group is found by the table in the script (the early
+in every step.
+
+A check must also end when the code under test is broken, because a mutation can break exactly what it waits for: every
+loop in a check group is bounded (a tick or press counter next to the real condition), a group whose fixtures are built
+from the prototype's sword keys verifies the keys first and skips the rest with a failure when one is wrong (a renamed
+key would otherwise crash it: a script error is *inconclusive*, never *caught*), and a check never indexes what an earlier
+failing check may have left empty. A timeout or script error in the classic pass is a bug in the checks, not in the mutation.
+
+The section's group is found by the table in the script (the early
 slices) or, for a later section, by a group file whose name starts with the section's
 key (`pike` finds `pike_skewer_checks.gd`).
 
