@@ -62,6 +62,9 @@ const CRIT_KNOCK_BONUS: float = 1.3
 const CRIT_HITSTOP_FACTOR: float = 1.5
 const CRIT_SHAKE_BONUS: float = 0.1
 const COMBO_WINDOW: float = 2.6
+## The help overlay a new run starts with stays this long (prototype `help_t = 14`); H hides it, or shows it until hidden.
+const HELP_SECONDS: float = 14.0
+const HELP_FOREVER: float = 9999.0
 ## Crowd and wall rules (prototype `Game.separate` and `Game.wall_slam`).
 ## A launched enemy (stunned, faster than BOWL_MIN_SPEED, moving toward its
 ## neighbour) knocks into that neighbour; a stunned enemy hitting an arena wall
@@ -156,6 +159,9 @@ var restarts: int = 0
 ## Whether the attack ranges are shown (Tab or G). Like the prototype's flag it belongs to the
 ## session, not the run: a restart keeps it.
 var show_ranges: bool = false
+## Seconds the help overlay has left (gameplay time, so it holds still while paused and in hitstop): it starts at HELP_SECONDS and
+## fades over its last second; H toggles it. Display state only: nothing in the run reads it.
+var help_left: float = HELP_SECONDS
 
 # --- player
 var position: Vector2 = Vector2.ZERO
@@ -264,6 +270,9 @@ func apply(command: GameCommand) -> void:
 		GameCommand.Kind.TOGGLE_RANGES:
 			if not paused and not dead:
 				show_ranges = not show_ranges
+		GameCommand.Kind.TOGGLE_HELP:
+			if not paused and not dead:
+				help_left = 0.0 if help_left > 0.0 else HELP_FOREVER
 		GameCommand.Kind.TOGGLE_ENCOUNTER:
 			restart_with(_encounter_scenarios[RunScenario.ENCOUNTER_CYCLE.find(RunScenario.next_encounter(scenario.encounter))])
 
@@ -303,6 +312,7 @@ func try_ultimate(slot: int, point: Vector2) -> UltimateResult:
 	sword.begin_ultimate(self, target)
 	var cue: SimCue = SimCue.make(SimCue.Kind.ULTIMATE_STARTED, sword.position, SimMath.norm(sword.position - origin, rng, Vector2.RIGHT, true), slot)
 	cue.origin = origin
+	cue.spec = sword.spec
 	add_cue(cue)
 	return UltimateResult.STARTED
 
@@ -429,6 +439,7 @@ func step() -> void:
 		slowmo -= dt
 		dt *= slowmo_scale
 	gameplay_time += dt
+	help_left -= dt
 	if dead:
 		death_time += dt
 
@@ -698,7 +709,7 @@ func _bowl(launched: EnemyState, hit: EnemyState, normal: Vector2, sign_value: f
 		add_shake(BOWL_SHAKE)
 		add_cue(SimCue.make(SimCue.Kind.BOWLED, (launched.position + hit.position) * 0.5, SimMath.norm(launched.velocity, rng, Vector2.RIGHT, true), int(BOWL_DAMAGE)))
 		if hit.hp <= 0.0 and not hit.dead:
-			kill(hit, SimMath.norm(launched.velocity, rng))
+			kill(hit, SimMath.norm(launched.velocity, rng), true)
 
 
 # ------------------------------------------------------------------- combat
@@ -732,11 +743,14 @@ func hit_enemy(enemy: EnemyState, raw_damage: float, direction: Vector2, knock: 
 		hitstop = maxf(hitstop, stop)
 		add_shake((sword.hit_shake if sword != null else SwordDefs.FANG_SHAKE) + (CRIT_SHAKE_BONUS if crit else 0.0), d, true)
 	var hit_cue: SimCue = SimCue.make(SimCue.Kind.ENEMY_HIT, enemy.position, d, dealt, crit)
+	hit_cue.heavy = heavy
+	hit_cue.spec = sword.spec if sword != null else null
+	hit_cue.radius = enemy.radius
 	if shattered:
 		hit_cue.element = ConditionDefs.ICE
 	add_cue(hit_cue)
 	if enemy.hp <= 0.0:
-		kill(enemy, d)
+		kill(enemy, d, heavy or crit)
 	elif sword != null:
 		afflict(enemy, sword.spec.element, sword.damage, stacks)
 
@@ -776,7 +790,7 @@ func _update_conditions(dt: float) -> void:
 ## Resolves an enemy's death exactly once: counters, combo and healing motes, and the
 ## fire a burning enemy leaves behind. Every cause of death (a blow, bowling, a wall slam,
 ## damage over time) comes through here.
-func kill(enemy: EnemyState, direction: Vector2) -> void:
+func kill(enemy: EnemyState, direction: Vector2, big: bool = false) -> void:
 	if enemy.dead:
 		return
 	enemy.dead = true
@@ -788,7 +802,10 @@ func kill(enemy: EnemyState, direction: Vector2) -> void:
 		add_cue(SimCue.make(SimCue.Kind.CHAIN_MILESTONE, position, Vector2.ZERO, combo))
 	for i: int in 3:
 		motes.append(Mote.scatter(enemy.position, rng))
-	add_cue(SimCue.make(SimCue.Kind.ENEMY_KILLED, enemy.position, direction))
+	var killed: SimCue = SimCue.make(SimCue.Kind.ENEMY_KILLED, enemy.position, direction, 0, big)
+	killed.enemy_kind = enemy.kind
+	killed.radius = enemy.radius
+	add_cue(killed)
 	if enemy.conditions.is_burning():
 		_spread_fire(enemy)
 	if enemy.conditions.is_frozen():
@@ -825,7 +842,7 @@ func wall_slam(enemy: EnemyState, speed: float) -> void:
 	hitstop = maxf(hitstop, WALL_SLAM_HITSTOP)
 	add_cue(SimCue.make(SimCue.Kind.WALL_SLAM, enemy.position, Vector2.ZERO, dealt))
 	if enemy.hp <= 0.0 and not enemy.dead:
-		kill(enemy, SimMath.norm(-enemy.velocity, rng))
+		kill(enemy, SimMath.norm(-enemy.velocity, rng), true)
 
 
 ## Damage to the player (prototype `hurt_player`): ignored while invulnerable
@@ -975,6 +992,7 @@ func _reset_state() -> void:
 	dash_cooldown_left = 0.0
 	converge_cooldown_left = 0.0
 	death_time = 0.0
+	help_left = HELP_SECONDS
 	kills = 0
 	projectiles_cleared = 0
 	combo = 0

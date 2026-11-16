@@ -450,7 +450,9 @@ func _start_strike(run: GameRun) -> void:
 		_:
 			dir = SimMath.norm(aim - position, run.rng)
 			timer = SwordDefs.FANG_STRIKE_TIME
-	run.add_cue(SimCue.make(SimCue.Kind.SWORD_STRIKE, position, dir))
+	var strike_cue: SimCue = SimCue.make(SimCue.Kind.SWORD_STRIKE, position, dir)
+	strike_cue.spec = spec
+	run.add_cue(strike_cue)
 
 
 ## Warden's windup (prototype `Sword.update`, blade branch): the pivot sits 0.55 blade lengths

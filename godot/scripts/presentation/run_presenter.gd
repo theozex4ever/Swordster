@@ -13,10 +13,14 @@ var _enemy_visuals: Dictionary = {}
 ## One sword visual per dropped sword lying in the arena (the same replaceable scene as the equipped ones).
 var _pickup_visuals: Dictionary = {}
 var _effects: EffectsLayer = EffectsLayer.new()
+## The floor marks a slam leaves, the first child so it is drawn under every actor.
+var _ground: GroundMarks = GroundMarks.new()
 
 
 func _ready() -> void:
+	add_child(_ground)
 	_effects.z_index = 5
+	_effects.ground = _ground
 	add_child(_effects)
 
 
@@ -40,6 +44,7 @@ func sync(run: GameRun) -> void:
 	_sync_pickups(run)
 	_sync_enemies(run)
 	_effects.sync(run)
+	_ground.sync(run)
 
 
 func apply_cues(cues: Array[SimCue]) -> void:
@@ -58,6 +63,7 @@ func reset() -> void:
 	_enemy_visuals.clear()
 	_pickup_visuals.clear()
 	_effects.clear()
+	_ground.clear()
 
 
 func _sync_swords(run: GameRun) -> void:

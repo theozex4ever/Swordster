@@ -311,11 +311,11 @@ mutate no-motes             scripts/sim/game_run.gd  "	for i: int in 3:
 mutate dead-enemy-rehit     scripts/sim/game_run.gd  "	if enemy.dead:
 		return
 	var crit: bool" "	var crit: bool"
-mutate double-kill          scripts/sim/game_run.gd  "func kill(enemy: EnemyState, direction: Vector2) -> void:
+mutate double-kill          scripts/sim/game_run.gd  "func kill(enemy: EnemyState, direction: Vector2, big: bool = false) -> void:
 	if enemy.dead:
 		return
 	enemy.dead = true
-	kills += 1" "func kill(enemy: EnemyState, direction: Vector2) -> void:
+	kills += 1" "func kill(enemy: EnemyState, direction: Vector2, big: bool = false) -> void:
 	enemy.dead = true
 	kills += 2"
 mutate crit-round-half-up   scripts/sim/sim_math.gd  "return int(lower) if int(lower) % 2 == 0 else int(lower) + 1" "return int(lower) + 1"
@@ -391,8 +391,8 @@ mutate bowl-size-ratio      scripts/sim/game_run.gd "launched.velocity * BOWL_IM
 mutate bowl-launcher-drag   scripts/sim/game_run.gd "BOWL_SELF_DRAG: float = 0.6" "BOWL_SELF_DRAG: float = 1.0"
 mutate bowl-stun            scripts/sim/game_run.gd "BOWL_STUN: float = 0.25" "BOWL_STUN: float = 0.1"
 mutate bowl-never-kills     scripts/sim/game_run.gd "		if hit.hp <= 0.0 and not hit.dead:
-			kill(hit, SimMath.norm(launched.velocity, rng))" "		if false:
-			kill(hit, SimMath.norm(launched.velocity, rng))"
+			kill(hit, SimMath.norm(launched.velocity, rng), true)" "		if false:
+			kill(hit, SimMath.norm(launched.velocity, rng), true)"
 mutate bowl-not-reported    scripts/sim/game_run.gd "		add_cue(SimCue.make(SimCue.Kind.BOWLED, (launched.position + hit.position) * 0.5, SimMath.norm(launched.velocity, rng, Vector2.RIGHT, true), int(BOWL_DAMAGE)))" "		pass"
 mutate wall-threshold       scripts/sim/game_run.gd "WALL_SLAM_MIN_SPEED: float = 380.0" "WALL_SLAM_MIN_SPEED: float = 300.0"
 mutate wall-base-damage     scripts/sim/game_run.gd "WALL_SLAM_BASE_DAMAGE: float = 6.0" "WALL_SLAM_BASE_DAMAGE: float = 4.0"
@@ -401,8 +401,8 @@ mutate wall-stun-cap        scripts/sim/game_run.gd "WALL_SLAM_STUN_CAP: float =
 mutate wall-hitstop         scripts/sim/game_run.gd "WALL_SLAM_HITSTOP: float = 0.04" "WALL_SLAM_HITSTOP: float = 0.0"
 mutate wall-shake           scripts/sim/game_run.gd "WALL_SLAM_SHAKE: float = 0.18" "WALL_SLAM_SHAKE: float = 0.0"
 mutate wall-slam-never-kills scripts/sim/game_run.gd "	if enemy.hp <= 0.0 and not enemy.dead:
-		kill(enemy, SimMath.norm(-enemy.velocity, rng))" "	if false:
-		kill(enemy, SimMath.norm(-enemy.velocity, rng))"
+		kill(enemy, SimMath.norm(-enemy.velocity, rng), true)" "	if false:
+		kill(enemy, SimMath.norm(-enemy.velocity, rng), true)"
 mutate wall-slam-unstunned  scripts/sim/enemy_state.gd "	if slammed and stun > 0.0 and speed_before" "	if slammed and speed_before"
 mutate wall-bounce-x        scripts/sim/enemy_state.gd "velocity.x *= -0.35" "velocity.x *= -0.6"
 mutate wall-bounce-y        scripts/sim/enemy_state.gd "velocity.y *= -0.35" "velocity.y *= 0.0"
@@ -444,7 +444,9 @@ mutate render-rate-dependent scripts/main.gd "func _physics_process(_delta: floa
 
 
 func _physics_process(_delta: float) -> void:"
-mutate wall-slam-sound-lost scripts/audio/sfx_bank.gd "		SimCue.Kind.ENEMY_HIT, SimCue.Kind.WALL_SLAM:" "		SimCue.Kind.ENEMY_HIT:"
+mutate wall-slam-sound-lost scripts/audio/sfx_bank.gd "		SimCue.Kind.WALL_SLAM:
+			play(\"thud\")" "		SimCue.Kind.WALL_SLAM:
+			pass"
 
 # --- spitters, projectiles and parries (slice #10)
 mutate spitter-radius              scripts/sim/enemy_defs.gd "SPITTER_RADIUS: float = 15.0" "SPITTER_RADIUS: float = 12.0"
@@ -624,7 +626,9 @@ mutate flurry-wrong-slot           scripts/sim/game_run.gd "	var sword: SwordSta
 	if sword.phase" "	var sword: SwordState = swords[(slot + 1) % swords.size()]
 	if sword.phase"
 mutate flurry-start-cue-lost       scripts/sim/game_run.gd "	cue.origin = origin
-	add_cue(cue)" "	cue.origin = origin"
+	cue.spec = sword.spec
+	add_cue(cue)" "	cue.origin = origin
+	cue.spec = sword.spec"
 mutate flurry-victim-repeats       scripts/sim/sword_state.gd "				if enemy != struck:" "				if true:"
 mutate flurry-strikes-the-dead     scripts/sim/sword_state.gd "		if struck != null and _in_play(run, struck):" "		if struck != null and run.enemies.has(struck):"
 mutate flurry-strikes-the-removed  scripts/sim/sword_state.gd "		if struck != null and _in_play(run, struck):" "		if struck != null and not struck.dead:"
@@ -679,7 +683,9 @@ mutate hud-card-below-the-view     scripts/hud.gd "	card.offset_bottom = -16.0" 
 mutate hud-cards-anchored-top      scripts/hud.gd "	card.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)" "	card.set_anchors_preset(Control.PRESET_TOP_LEFT)"
 mutate hud-dash-below-the-view     scripts/hud.gd "	_dash_button.offset_bottom = -24.0" "	_dash_button.offset_bottom = 24.0"
 mutate hud-stretch-not-expand      project.godot "window/stretch/aspect=\"expand\"" "window/stretch/aspect=\"keep_width\""
-mutate flurry-sound-lost           scripts/audio/sfx_bank.gd "SimCue.Kind.DASH, SimCue.Kind.ULTIMATE_STARTED:" "SimCue.Kind.DASH:"
+mutate flurry-sound-lost           scripts/audio/sfx_bank.gd "		_:
+			return \"dash\"" "		_:
+			return \"\""
 mutate flurry-refusal-text-lost    scripts/presentation/effects_layer.gd "\"recharging %ds\" % cue.amount" "\"\""
 mutate flurry-presenter-phase-lost scripts/presentation/run_presenter.gd "visual.apply_pose(sword.position, sword.angle, sword.phase)" "visual.apply_pose(sword.position, sword.angle, SwordState.Phase.IDLE)"
 
@@ -765,12 +771,12 @@ mutate frozen-bonus-ends-freeze           scripts/sim/game_run.gd "	if shattered
 mutate hit-stacks-ignored                 scripts/sim/game_run.gd "afflict(enemy, sword.spec.element, sword.damage, stacks)" "afflict(enemy, sword.spec.element, sword.damage, 1)"
 mutate hit-afflicts-with-blow-damage      scripts/sim/game_run.gd "afflict(enemy, sword.spec.element, sword.damage, stacks)" "afflict(enemy, sword.spec.element, raw_damage, stacks)"
 mutate killing-blow-afflicts              scripts/sim/game_run.gd "	if enemy.hp <= 0.0:
-		kill(enemy, d)
+		kill(enemy, d, heavy or crit)
 	elif sword != null:
 		afflict(enemy, sword.spec.element, sword.damage, stacks)" "	if sword != null:
 		afflict(enemy, sword.spec.element, sword.damage, stacks)
 	if enemy.hp <= 0.0:
-		kill(enemy, d)"
+		kill(enemy, d, heavy or crit)"
 mutate afflict-ignores-fixture-flag       scripts/sim/game_run.gd "	if not scenario.conditions_enabled or enemy.dead:" "	if enemy.dead:"
 mutate freeze-cue-lost                    scripts/sim/game_run.gd "		cue.element = ConditionDefs.ICE
 		add_cue(cue)" "		cue.element = ConditionDefs.ICE"
@@ -939,7 +945,9 @@ mutate sweep-windup-not-following                   scripts/sim/sword_state.gd "
 	var amid: float" "	if sweep_pivot == Vector2.ZERO:
 		sweep_pivot = aim - to_aim * (length * SwordDefs.WARDEN_PIVOT_BACK)
 	var amid: float"
-mutate sweep-cue-lost                               scripts/sim/sword_state.gd "	run.add_cue(SimCue.make(SimCue.Kind.SWORD_STRIKE, position, dir))
+mutate sweep-cue-lost                               scripts/sim/sword_state.gd "	var strike_cue: SimCue = SimCue.make(SimCue.Kind.SWORD_STRIKE, position, dir)
+	strike_cue.spec = spec
+	run.add_cue(strike_cue)
 
 
 ## Warden's windup" "	pass
@@ -1040,10 +1048,10 @@ mutate maelstrom-burst-ring-lost                    scripts/presentation/effects
 "
 mutate maelstrom-area-ring-wrong-size               scripts/presentation/effects_layer.gd "	_add_ring(sword.ultimate_point, sword.ultimate_area_radius(), 10.0, 0.3, Color(tint, 0.95), 3.0)" "	_add_ring(sword.ultimate_point, SwordDefs.FANG_ULT_RADIUS, 10.0, 0.3, Color(tint, 0.95), 3.0)"
 mutate maelstrom-burst-sound-lost                   scripts/audio/sfx_bank.gd "		SimCue.Kind.MAELSTROM_BURST:
-			play(\"strike\")" "		SimCue.Kind.MAELSTROM_BURST:
+			play(\"slash\")" "		SimCue.Kind.MAELSTROM_BURST:
 			pass"
 mutate maelstrom-beat-sound-always                  scripts/audio/sfx_bank.gd "			if cue.amount > 0:
-				play(\"strike\")" "			play(\"strike\")"
+				play(\"slash\")" "			play(\"slash\")"
 mutate warden-visual-needle                         scripts/presentation/placeholder_sword_visual.gd "	_warden = spec.type_id == SwordDefs.WARDEN" "	_warden = false"
 # --- Pike and Skewer (slice #14)
 mutate pike-key-renamed                             scripts/sim/sword_defs.gd "const PIKE: StringName = &\"lance\"" "const PIKE: StringName = &\"pike\""
@@ -1265,10 +1273,13 @@ mutate skewer-start-draws-a-landing-ring            scripts/presentation/effects
 		_add_ring(" "	if true:
 		_add_ring("
 mutate skewer-launch-sound-lost                     scripts/audio/sfx_bank.gd "		SimCue.Kind.SKEWER_LAUNCHED:
-			play(\"strike\")" "		SimCue.Kind.SKEWER_LAUNCHED:
+			play(\"pierce\")" "		SimCue.Kind.SKEWER_LAUNCHED:
 			pass"
-mutate skewer-release-sound-always                  scripts/audio/sfx_bank.gd "			if cue.amount > 0:
-				play(\"hit\")" "			play(\"hit\")"
+mutate skewer-release-sound-always                  scripts/audio/sfx_bank.gd "		SimCue.Kind.SKEWER_LAUNCHED:
+			play(\"pierce\")" "		SimCue.Kind.SKEWER_LAUNCHED:
+			play(\"pierce\")
+		SimCue.Kind.SKEWER_RELEASED:
+			play(\"thud\")"
 mutate pike-visual-needle                           scripts/presentation/placeholder_sword_visual.gd "	_pike = spec.type_id == SwordDefs.PIKE" "	_pike = false"
 
 # The Pike's strokes are counted by the same call that draws them (`_stroke`, `_stroke_ring`), so removing the
@@ -1607,7 +1618,7 @@ mutate field-pulse-ring-when-empty                  scripts/presentation/effects
 			if cue.amount > 0:" "		SimCue.Kind.FIELD_PULSED:
 			if true:"
 mutate slam-sound-lost                              scripts/audio/sfx_bank.gd "		SimCue.Kind.COLOSSUS_SLAM:
-			play(\"hit\")" "		SimCue.Kind.COLOSSUS_SLAM:
+			play(\"boom\")" "		SimCue.Kind.COLOSSUS_SLAM:
 			pass"
 mutate colossus-visual-needle                       scripts/presentation/placeholder_sword_visual.gd "	_colossus = spec.type_id == SwordDefs.COLOSSUS" "	_colossus = false"
 mutate colossus-visual-lift-ignores-altitude        scripts/presentation/placeholder_sword_visual.gd "	_lift = _hover if _resting else _altitude if _colossus else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)" "	_lift = _hover if _resting else lerpf(_lift, LIFT_ATTACK if attacking else LIFT_IDLE, 0.25)"
@@ -1696,7 +1707,9 @@ mutate converge-cooldown-ignores-slowmo                   scripts/sim/game_run.g
 mutate converge-cooldown-never-ticks                      scripts/sim/game_run.gd "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - dt)" "	converge_cooldown_left = maxf(0.0, converge_cooldown_left - 0.0)"
 mutate converge-restart-keeps-the-cooldown                scripts/sim/game_run.gd "	converge_cooldown_left = 0.0
 	death_time = 0.0
+	help_left = HELP_SECONDS
 	kills = 0" "	death_time = 0.0
+	help_left = HELP_SECONDS
 	kills = 0"
 mutate converge-touch-aims-at-the-point                   scripts/sim/game_run.gd "try_converge(auto_aim() if command.at_nearest else command.point)" "try_converge(command.point)"
 mutate ranges-toggle-while-paused                         scripts/sim/game_run.gd "			if not paused and not dead:
@@ -1969,8 +1982,8 @@ mutate pickup-card-over-the-slot-cards         scripts/hud.gd "	controls.append_
 mutate pickup-card-over-the-text-lines             scripts/hud.gd "	controls.append_array([_build_label, _hint_label])" "	controls.append_array([])"
 mutate pickup-card-over-the-health                 scripts/hud.gd "	controls.append_array([_hp_back, _hp_label])" "	controls.append_array([])"
 mutate pickup-card-over-the-health-value           scripts/hud.gd "	controls.append_array([_hp_back, _hp_label])" "	controls.append_array([_hp_back])"
-mutate pickup-card-over-the-cooldowns              scripts/hud.gd "	controls.append_array([_dash_label, _converge_label, _converge_track])" "	controls.append_array([])"
-mutate pickup-card-over-the-converge-bar           scripts/hud.gd "	controls.append_array([_dash_label, _converge_label, _converge_track])" "	controls.append_array([_dash_label, _converge_label])"
+mutate pickup-card-over-the-cooldowns              scripts/hud.gd "	controls.append_array([_dash_label, _dash_track, _converge_label, _converge_track])" "	controls.append_array([])"
+mutate pickup-card-over-the-converge-bar           scripts/hud.gd "	controls.append_array([_dash_label, _dash_track, _converge_label, _converge_track])" "	controls.append_array([_dash_label, _dash_track, _converge_label])"
 mutate pickup-card-over-the-buttons                scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([])"
 mutate pickup-card-over-the-dev-button             scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([_pause_button, _restart_button, _shove_button, _dash_button])"
 mutate pickup-card-over-the-shove-button           scripts/hud.gd "	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])" "	controls.append_array([_pause_button, _restart_button, _encounter_button, _dash_button])"
@@ -1984,7 +1997,7 @@ mutate pickup-card-label-alignment-lost            scripts/hud.gd "		return Rect
 mutate pickup-card-fallback-ignores-overlap        scripts/hud.gd "		if area < least_area - 0.01 or (absf(area - least_area) <= 0.01 and distance < least_distance):" "		if distance < least_distance:"
 mutate pickup-card-too-narrow-for-its-text         scripts/hud.gd "const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)" "const PICKUP_CARD_SIZE: Vector2 = Vector2(360.0, 214.0)"
 mutate pickup-card-comparison-font-grows          scripts/hud.gd "		compare.add_theme_font_size_override(\"font_size\", 14)" "		compare.add_theme_font_size_override(\"font_size\", 17)"
-mutate controls-hint-runs-into-the-buttons          scripts/hud.gd "1 / 2 / 3: swap a drop\\nTab / G: ranges   P / Esc: pause" "1 / 2 / 3: swap a drop   Tab / G: ranges   P / Esc: pause   R after death\\nTab / G: ranges   P / Esc: pause"
+mutate controls-hint-runs-into-the-buttons          scripts/hud.gd "1 / 2 / 3: swap a drop\\nTab / G: ranges   H: help   P / Esc: pause" "1 / 2 / 3: swap a drop   Tab / G: ranges   H: help   P / Esc: pause   R after death\\nTab / G: ranges   H: help   P / Esc: pause"
 mutate pickup-card-comparison-lost             scripts/hud.gd "			_pickup_compare[slot].text = PickupCard.compare_to(spec, slot, equipped)
 " ""
 mutate pickup-card-name-colour-lost            scripts/hud.gd "	_pickup_lines[0].modulate = tint
@@ -2179,12 +2192,8 @@ mutate waves-banner-line-never-ends             scripts/sim/game_run.gd "			bann
 mutate waves-banner-line-dropped                scripts/sim/game_run.gd "	banner_sub = sub
 " "	banner_sub = \"\"
 "
-mutate waves-chain-readout-from-two             scripts/hud.gd "	if run.combo >= 3:
-		_wave_label.text" "	if run.combo >= 2:
-		_wave_label.text"
-mutate waves-chain-readout-from-four            scripts/hud.gd "	if run.combo >= 3:
-		_wave_label.text" "	if run.combo >= 4:
-		_wave_label.text"
+mutate waves-chain-readout-from-two             scripts/hud.gd "	var shown: bool = run.combo >= 3" "	var shown: bool = run.combo >= 2"
+mutate waves-chain-readout-from-four            scripts/hud.gd "	var shown: bool = run.combo >= 3" "	var shown: bool = run.combo >= 4"
 mutate waves-banner-line-not-shown              scripts/hud.gd "	_banner_sub_label.text = run.banner_sub if not run.dead else \"\"" "	_banner_sub_label.text = \"\""
 mutate waves-banner-line-no-fade                scripts/hud.gd "	_banner_sub_label.modulate.a = _banner_label.modulate.a" "	_banner_sub_label.modulate.a = 1.0"
 mutate waves-banner-line-under-title            scripts/hud.gd "const BANNER_SUB_OFFSET: float = -118.0" "const BANNER_SUB_OFFSET: float = -170.0"
@@ -2200,8 +2209,140 @@ mutate waves-chain-text-short-lived             scripts/presentation/effects_lay
 mutate waves-chain-text-colour                  scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 1.0, 1.0), 1.4, 56, 40.0)"
 mutate waves-chain-text-position                scripts/presentation/effects_layer.gd "_add_text(cue.position + Vector2(0.0, -60.0), \"%d CHAIN!\"" "_add_text(cue.position + Vector2(0.0, 60.0), \"%d CHAIN!\""
 mutate waves-gong-silent                        scripts/audio/sfx_bank.gd "		SimCue.Kind.WAVE_STARTED:
-			play(\"wave\")" "		SimCue.Kind.WAVE_STARTED:
-			play(\"hit\")"
+			play(\"gong\")" "		SimCue.Kind.WAVE_STARTED:
+			play(\"thud\")"
+# --- Feedback, sound and HUD (slice #19)
+mutate feedback-warden-blow-sound                 scripts/audio/sfx_bank.gd "		SwordDefs.WARDEN:
+			return \"slash\"" "		SwordDefs.WARDEN:
+			return \"tick\""
+mutate feedback-pike-blow-sound                   scripts/audio/sfx_bank.gd "		SwordDefs.PIKE:
+			return \"pierce\"" "		SwordDefs.PIKE:
+			return \"slash\""
+mutate feedback-colossus-blow-sound               scripts/audio/sfx_bank.gd "		SwordDefs.COLOSSUS:
+			return \"boom\"" "		SwordDefs.COLOSSUS:
+			return \"thud\""
+mutate feedback-heavy-hit-plays-blow-sound        scripts/audio/sfx_bank.gd "if cue.spec != null and not cue.heavy:" "if cue.spec != null:"
+mutate feedback-fang-dart-silent                  scripts/audio/sfx_bank.gd "			elif cue.spec != null and cue.spec.type_id == SwordDefs.FANG:
+				play(\"tick\")
+" ""
+mutate feedback-hit-without-thud                  scripts/audio/sfx_bank.gd "				play(\"tick\")
+			play(\"thud\")
+		SimCue.Kind.WALL_SLAM:" "				play(\"tick\")
+		SimCue.Kind.WALL_SLAM:"
+mutate feedback-colossus-strike-whoosh            scripts/audio/sfx_bank.gd "return \"heave\" if type_id == SwordDefs.COLOSSUS else \"whoosh\"" "return \"whoosh\""
+mutate feedback-strike-silent                     scripts/audio/sfx_bank.gd "			if cue.spec != null:
+				play(strike_sound(cue.spec.type_id))" "			pass"
+mutate feedback-warden-ultimate-sound             scripts/audio/sfx_bank.gd "		SwordDefs.WARDEN:
+			return \"whoosh\"
+		SwordDefs.PIKE, SwordDefs.COLOSSUS:" "		SwordDefs.WARDEN:
+			return \"dash\"
+		SwordDefs.PIKE, SwordDefs.COLOSSUS:"
+mutate feedback-colossus-ultimate-sound           scripts/audio/sfx_bank.gd "SwordDefs.PIKE, SwordDefs.COLOSSUS:
+			return \"heave\"" "SwordDefs.PIKE:
+			return \"heave\""
+mutate feedback-kill-silent                       scripts/audio/sfx_bank.gd "		SimCue.Kind.ENEMY_KILLED:
+			play(\"pop\")" "		SimCue.Kind.ENEMY_KILLED:
+			pass"
+mutate feedback-hurt-silent                       scripts/audio/sfx_bank.gd "		SimCue.Kind.PLAYER_HURT:
+			play(\"hurt\")" "		SimCue.Kind.PLAYER_HURT:
+			pass"
+mutate feedback-no-overlap-polyphony              scripts/audio/sfx_bank.gd "const POLYPHONY: int = 4" "const POLYPHONY: int = 1"
+mutate feedback-no-retrigger-gap                  scripts/audio/sfx_bank.gd "const MIN_GAP_MS: int = 40" "const MIN_GAP_MS: int = 0"
+mutate feedback-long-retrigger-gap                scripts/audio/sfx_bank.gd "const MIN_GAP_MS: int = 40" "const MIN_GAP_MS: int = 400"
+mutate feedback-beat-sound-always                 scripts/audio/sfx_bank.gd "			if cue.amount > 0:
+				play(\"slash\")" "			if true:
+				play(\"slash\")"
+mutate feedback-unlock-ignores-touch              scripts/main.gd "	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed" "	if event is InputEventScreenTouch:
+		return false"
+mutate feedback-unlock-on-release                 scripts/main.gd "	if event is InputEventMouseButton:
+		return (event as InputEventMouseButton).pressed" "	if event is InputEventMouseButton:
+		return true"
+mutate feedback-unlock-ignores-keys               scripts/main.gd "		return (event as InputEventKey).pressed" "		return false"
+mutate feedback-help-key-lost                     scripts/input/input_translator.gd "const HELP_KEYS: Array[Key] = [KEY_H]" "const HELP_KEYS: Array[Key] = [KEY_F1]"
+mutate feedback-help-length                       scripts/sim/game_run.gd "const HELP_SECONDS: float = 14.0" "const HELP_SECONDS: float = 6.0"
+mutate feedback-help-forever-ends                 scripts/sim/game_run.gd "const HELP_FOREVER: float = 9999.0" "const HELP_FOREVER: float = 5.0"
+mutate feedback-help-toggles-while-paused         scripts/sim/game_run.gd "		GameCommand.Kind.TOGGLE_HELP:
+			if not paused and not dead:" "		GameCommand.Kind.TOGGLE_HELP:
+			if true:"
+mutate feedback-help-never-ends                   scripts/sim/game_run.gd "	gameplay_time += dt
+	help_left -= dt" "	gameplay_time += dt"
+mutate feedback-help-restart-keeps                scripts/sim/game_run.gd "	help_left = HELP_SECONDS
+	kills = 0" "	kills = 0"
+mutate feedback-help-shown-dead                   scripts/hud.gd "var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way" "var shown: bool = run.help_left > 0.0 and not gives_way"
+mutate feedback-help-over-banner                  scripts/hud.gd "var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != \"\") or run.nearest_pickup() != null" "var gives_way: bool = run.nearest_pickup() != null"
+mutate feedback-help-over-card                    scripts/hud.gd "var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != \"\") or run.nearest_pickup() != null" "var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != \"\")"
+mutate feedback-help-no-fade                      scripts/hud.gd "var alpha: float = clampf(run.help_left, 0.0, 1.0) * 0.86" "var alpha: float = 0.86"
+mutate feedback-chain-small                       scripts/hud.gd "_chain_label.add_theme_font_size_override(\"font_size\", 56)" "_chain_label.add_theme_font_size_override(\"font_size\", 30)"
+mutate feedback-chain-never-fades                 scripts/hud.gd "var fresh: float = clampf(run.combo_left / GameRun.COMBO_WINDOW, 0.0, 1.0)" "var fresh: float = 1.0"
+mutate feedback-chain-wrong-colour                scripts/hud.gd "Color(0.35, 0.31, 0.43).lerp(Color(1.0, 0.82, 0.43), fresh)" "Color(0.35, 0.31, 0.43).lerp(Color(1.0, 0.2, 0.2), fresh)"
+mutate feedback-chain-bar-grows                   scripts/hud.gd "_chain_bar.offset_right = -CHAIN_RIGHT_MARGIN - CHAIN_BAR_WIDTH * (1.0 - fresh)" "_chain_bar.offset_right = -CHAIN_RIGHT_MARGIN - CHAIN_BAR_WIDTH * fresh"
+mutate feedback-chain-text-lost                   scripts/hud.gd "_chain_label.text = \"x%d\" % run.combo if shown else \"\"" "_chain_label.text = \"\""
+mutate feedback-attack-bar-inverted               scripts/hud.gd "(1.0 - clampf(sword.cooldown_left / sword.cooldown, 0.0, 1.0))" "clampf(sword.cooldown_left / sword.cooldown, 0.0, 1.0)"
+mutate feedback-attack-bar-sticks-full            scripts/hud.gd "(1.0 - clampf(sword.cooldown_left / sword.cooldown, 0.0, 1.0))" "1.0"
+mutate feedback-dash-bar-inverted                 scripts/hud.gd "DASH_BAR_WIDTH * (1.0 - clampf(run.dash_cooldown_left / GameRun.DASH_COOLDOWN, 0.0, 1.0))" "DASH_BAR_WIDTH * clampf(run.dash_cooldown_left / GameRun.DASH_COOLDOWN, 0.0, 1.0)"
+mutate feedback-banner-after-card                 scripts/hud.gd "	_banner_label.text = run.banner_title if not run.dead else \"\"
+	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
+	_banner_sub_label.text = run.banner_sub if not run.dead else \"\"
+	_banner_sub_label.modulate.a = _banner_label.modulate.a
+	_show_encounter(run)
+	_show_pickup(run)
+" "	_show_encounter(run)
+	_show_pickup(run)
+	_banner_label.text = run.banner_title if not run.dead else \"\"
+	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
+	_banner_sub_label.text = run.banner_sub if not run.dead else \"\"
+	_banner_sub_label.modulate.a = _banner_label.modulate.a
+"
+mutate feedback-dash-bar-on-label                 scripts/hud.gd "const DASH_BAR_Y: float = 146.0" "const DASH_BAR_Y: float = 126.0"
+mutate feedback-chain-bar-on-label                scripts/hud.gd "_chain_bar.offset_top = CHAIN_TOP + 80.0" "_chain_bar.offset_top = CHAIN_TOP + 40.0"
+mutate feedback-help-under-encounter-legend       scripts/hud.gd "const HELP_TOP: float = 248.0" "const HELP_TOP: float = 120.0"
+mutate feedback-hurt-flash-weak                   scripts/presentation/screen_feedback.gd "const HURT_ALPHA: float = 0.78" "const HURT_ALPHA: float = 0.2"
+mutate feedback-hurt-flash-slow                   scripts/presentation/screen_feedback.gd "const FLASH_DECAY: float = 2.5" "const FLASH_DECAY: float = 0.8"
+mutate feedback-hurt-flash-never-set              scripts/presentation/screen_feedback.gd "			hurt_flash = 1.0" "			hurt_flash = 0.0"
+mutate feedback-no-low-health-pulse               scripts/presentation/screen_feedback.gd "const LOW_HEALTH: float = 0.3" "const LOW_HEALTH: float = 0.0"
+mutate feedback-spark-count-flat                  scripts/presentation/effects_layer.gd "clampi(int(4.0 + float(cue.amount) * 0.35), 4, 26)" "4"
+mutate feedback-heavy-sparks-slow                 scripts/presentation/effects_layer.gd "Vector2(250.0, 900.0) if cue.heavy else Vector2(200.0, 650.0)" "Vector2(200.0, 650.0)"
+mutate feedback-hit-sparks-white                  scripts/presentation/effects_layer.gd "var tint: Color = element_color(cue.spec.element).lerp(Color.WHITE, 0.4) if cue.spec != null else" "var tint: Color = Color.WHITE if cue.spec != null else"
+mutate feedback-hit-number-flat                   scripts/presentation/effects_layer.gd "var size: int = 22 if cue.amount < 12 else 32 if cue.amount < 35 else 40" "var size: int = 22"
+mutate feedback-crit-number-plain                 scripts/presentation/effects_layer.gd "		size = mini(56, size + 10)" "		size = size"
+mutate feedback-hit-number-still                  scripts/presentation/effects_layer.gd "90.0 + float(cue.amount), cue.direction.x * 60.0)" "90.0 + float(cue.amount), 0.0)"
+mutate feedback-kill-dots-few                     scripts/presentation/effects_layer.gd "for i: int in 16 + (14 if cue.critical else 0):" "for i: int in 8 + (14 if cue.critical else 0):"
+mutate feedback-kill-heavy-same                   scripts/presentation/effects_layer.gd "for i: int in 16 + (14 if cue.critical else 0):" "for i: int in 16:"
+mutate feedback-kill-no-debris                    scripts/presentation/effects_layer.gd "for i: int in 6 + int(reach / 3.0):" "for i: int in 0:"
+mutate feedback-debris-weightless                 scripts/presentation/effects_layer.gd "bit[\"vz\"] = float(bit[\"vz\"]) - GRAVITY * dt" "bit[\"vz\"] = float(bit[\"vz\"])"
+mutate feedback-bits-uncapped                     scripts/presentation/effects_layer.gd "		alive = alive.slice(alive.size() - MAX_BITS)" "		pass"
+mutate feedback-hurt-sparks-few                   scripts/presentation/effects_layer.gd "_spray(cue.position, cue.direction, 14, Color(1.0, 0.43, 0.43), Vector2(200.0, 650.0))" "_spray(cue.position, cue.direction, 4, Color(1.0, 0.43, 0.43), Vector2(200.0, 650.0))"
+mutate feedback-dash-no-smoke                     scripts/presentation/effects_layer.gd "			for i: int in 10:
+				_add_bit(&\"smoke\", cue.position, -cue.direction" "			for i: int in 0:
+				_add_bit(&\"smoke\", cue.position, -cue.direction"
+mutate feedback-spawn-no-smoke                    scripts/presentation/effects_layer.gd "_puff(cue.position, 8, 120.0, 120.0," "_puff(cue.position, 0, 120.0, 120.0,"
+mutate feedback-trail-short                       scripts/presentation/effects_layer.gd "const TRAIL_POINTS: int = 9" "const TRAIL_POINTS: int = 4"
+mutate feedback-trail-in-hitstop                  scripts/presentation/effects_layer.gd "	if run.hitstop > 0.0:
+		return
+	var live: Dictionary = {}" "	var live: Dictionary = {}"
+mutate feedback-trail-speed-blind                 scripts/presentation/effects_layer.gd "clampf((sword.velocity.length() + absf(sword.fall_speed)) / 1400.0, 0.12, 1.0)" "1.0"
+mutate feedback-trail-outlives-sword              scripts/presentation/effects_layer.gd "		if not live.has(key):
+			_trails.erase(key)" "		if not live.has(key):
+			pass"
+mutate feedback-slam-no-cracks                    scripts/presentation/effects_layer.gd "			if ground != null:
+				ground.add_cracks(cue.position, _rng)" "			pass"
+mutate feedback-cracks-short-lived                scripts/presentation/ground_marks.gd "const LIFETIME: float = 7.0" "const LIFETIME: float = 3.0"
+mutate feedback-cues-lose-sword                   scripts/sim/game_run.gd "	hit_cue.spec = sword.spec if sword != null else null
+" ""
+mutate feedback-hit-cue-loses-heavy               scripts/sim/game_run.gd "	hit_cue.heavy = heavy
+" ""
+mutate feedback-kill-never-big                    scripts/sim/game_run.gd "		kill(enemy, d, heavy or crit)" "		kill(enemy, d)"
+mutate feedback-kill-cue-loses-kind               scripts/sim/game_run.gd "	killed.enemy_kind = enemy.kind
+" ""
+mutate feedback-ultimate-cue-loses-sword          scripts/sim/game_run.gd "	cue.origin = origin
+	cue.spec = sword.spec
+" "	cue.origin = origin
+"
+mutate feedback-strike-cue-loses-sword            scripts/sim/sword_state.gd "	strike_cue.spec = spec
+" ""
+mutate feedback-presenter-forgets-floor           scripts/presentation/run_presenter.gd "	_effects.ground = _ground
+" ""
 # --- Visual replacement (slice #21)
 mutate art-pivot-sign-flipped                       scripts/presentation/sprite_art.gd "	sprite.offset = -pivot" "	sprite.offset = pivot"
 mutate art-pivot-centred-instead                    scripts/presentation/sprite_art.gd "	sprite.centered = false" "	sprite.centered = true"

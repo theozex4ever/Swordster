@@ -8,7 +8,9 @@ extends CanvasLayer
 ## reports button presses by signal and owns no gameplay state: everything it
 ## shows is read from the run each tick. Each sword card also names its slot's swap key and the sword's rarity;
 ## when a dropped sword lies within reach a card beside it describes it (`PickupCard`) and compares it with the three
-## equipped swords, and says which keys claim it.
+## equipped swords, and says which keys claim it. A running chain of three or more shows as the prototype's large `x7` at the top right,
+## fading toward grey with the window that is left to extend it; H shows the help overlay (which fades out of its own accord) and the
+## sword cards also count down each sword's normal attack.
 
 signal pause_pressed
 signal restart_pressed
@@ -51,6 +53,15 @@ var _outcome_title: Label
 var _outcome_detail: Label
 var _outcome_prompt: Label
 var _hp_shown: float = GameRun.PLAYER_MAX_HP
+## The prototype's big top-right chain counter (`x7`) and the bar of the window left to extend it, the help overlay's lines
+## and the dash cooldown's bar.
+var _chain_label: Label
+var _chain_bar: ColorRect
+var _help_lines: Array[Label] = []
+var _dash_track: ColorRect
+var _dash_bar: ColorRect
+## Each sword card's bar for its normal attack's recharge, under the ultimate's.
+var _attack_bars: Array[ColorRect] = []
 ## One card per sword slot: key badge, ultimate name, status text and recharge bar.
 var _ult_cards: Array[Control] = []
 var _ult_names: Array[Label] = []
@@ -75,7 +86,26 @@ var _pickup_style: StyleBoxFlat
 ## Where the Converge cooldown sits (right of the dash one) and how wide its bar is.
 const CONVERGE_LABEL_X: float = 150.0
 const CONVERGE_BAR_WIDTH: float = 150.0
-const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 98.0)
+const DASH_BAR_WIDTH: float = 120.0
+## The cooldown bars sit under their labels (which are 26 px tall from y 118); the encounter legend below them.
+const DASH_BAR_Y: float = 146.0
+const ULT_CARD_SIZE: Vector2 = Vector2(190.0, 108.0)
+## The chain counter sits under the Pause / Restart / Dev buttons, right-aligned this far from the view's right edge.
+const CHAIN_RIGHT_MARGIN: float = 28.0
+const CHAIN_TOP: float = 116.0
+const CHAIN_BAR_WIDTH: float = 100.0
+## The prototype's help overlay, line by line (`draw_hud`); it shows for the first 14 seconds of a run and whenever H asks.
+const HELP_LINES: Array[String] = [
+	"WASD / arrows  move",
+	"SPACE / SHIFT  dash (invulnerable)",
+	"click  CONVERGE: all swords strike the cursor",
+	"Q / E / R  ULTIMATE of sword 1 / 2 / 3 (cursor-targeted; shots fire toward it)",
+	"1 / 2 / 3  swap a dropped sword into that slot",
+	"TAB or G  show sword ranges     P  pause     H  hide help",
+	"swords attack automatically and apply their element: fire / ice / poison",
+]
+const HELP_TOP: float = 248.0
+const HELP_LINE_HEIGHT: float = 22.0
 ## Wide enough for the longest comparison line ("1  Common Venom Colossus   DMG -26   SPD +0.3/s   RNG +100" needs 430 px at the
 ## card's 14 px font from the 12 px margin: `DropsSwapsChecks._check_card_text_bounds` measures all 36 swords, so a longer name fails it).
 const PICKUP_CARD_SIZE: Vector2 = Vector2(448.0, 214.0)
@@ -95,7 +125,7 @@ func _ready() -> void:
 	_build_label = _make_label(root, "Build %s (%s)" % [BuildInfo.BUILD_ID, BuildInfo.SOURCE_COMMIT.substr(0, 9)])
 	_build_label.position = Vector2(16.0, 12.0)
 
-	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: ultimates at the cursor   1 / 2 / 3: swap a drop\nTab / G: ranges   P / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag to move, Dash button")
+	_hint_label = _make_label(root, "WASD / arrows: move   Space / Shift: dash   Click: Converge   Q / E / R: ultimates at the cursor   1 / 2 / 3: swap a drop\nTab / G: ranges   H: help   P / Esc: pause   R after death: restart   C: next dev encounter   Touch: drag to move, Dash button")
 	_hint_label.position = Vector2(16.0, 40.0)
 
 	_hp_back = _make_rect(root, Color(0.0, 0.0, 0.0, 0.55))
@@ -112,11 +142,39 @@ func _ready() -> void:
 	_converge_label = _make_label(root, "converge ready")
 	_converge_label.position = Vector2(CONVERGE_LABEL_X, 118.0)
 	_converge_track = _make_rect(root, Color(0.16, 0.2, 0.28))
-	_converge_track.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_track.position = Vector2(CONVERGE_LABEL_X, DASH_BAR_Y)
 	_converge_track.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
 	_converge_bar = _make_rect(root, Color(0.78, 0.9, 1.0))
-	_converge_bar.position = Vector2(CONVERGE_LABEL_X, 142.0)
+	_converge_bar.position = Vector2(CONVERGE_LABEL_X, DASH_BAR_Y)
 	_converge_bar.size = Vector2(CONVERGE_BAR_WIDTH, 4.0)
+	_dash_track = _make_rect(root, Color(0.16, 0.2, 0.28))
+	_dash_track.position = Vector2(16.0, DASH_BAR_Y)
+	_dash_track.size = Vector2(DASH_BAR_WIDTH, 4.0)
+	_dash_bar = _make_rect(root, Color(0.47, 0.86, 1.0))
+	_dash_bar.position = Vector2(16.0, DASH_BAR_Y)
+	_dash_bar.size = Vector2(DASH_BAR_WIDTH, 4.0)
+	_chain_label = _make_label(root, "")
+	_chain_label.add_theme_font_size_override("font_size", 56)
+	_chain_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_chain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_chain_label.offset_right = -CHAIN_RIGHT_MARGIN
+	_chain_label.offset_left = -CHAIN_RIGHT_MARGIN - 200.0
+	_chain_label.offset_top = CHAIN_TOP
+	_chain_label.offset_bottom = CHAIN_TOP + 70.0
+	_chain_bar = _make_rect(root, Color(1.0, 0.82, 0.43))
+	_chain_bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_chain_bar.offset_right = -CHAIN_RIGHT_MARGIN
+	_chain_bar.offset_left = -CHAIN_RIGHT_MARGIN - CHAIN_BAR_WIDTH
+	_chain_bar.offset_top = CHAIN_TOP + 80.0
+	_chain_bar.offset_bottom = CHAIN_TOP + 83.0
+	_chain_bar.visible = false
+	for i: int in HELP_LINES.size():
+		var help_line: Label = _make_label(root, HELP_LINES[i])
+		help_line.position = Vector2(16.0, HELP_TOP + float(i) * HELP_LINE_HEIGHT)
+		help_line.add_theme_font_size_override("font_size", 16)
+		help_line.add_theme_color_override("font_color", Color(0.78, 0.78, 0.9))
+		help_line.visible = false
+		_help_lines.append(help_line)
 	_wave_label = _make_label(root, "")
 	_wave_label.add_theme_font_size_override("font_size", 26)
 	_wave_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -181,7 +239,7 @@ func _ready() -> void:
 	_shove_button.button_down.connect(func() -> void: shove_pressed.emit())
 	_shove_button.visible = false
 	_encounter_label = _make_label(root, "")
-	_encounter_label.position = Vector2(16.0, 146.0)
+	_encounter_label.position = Vector2(16.0, 158.0)
 	_encounter_label.visible = false
 
 	_pause_overlay = _make_label(root, "PAUSED\nPress P / Esc or tap Resume")
@@ -263,6 +321,13 @@ func _make_ultimate_card(parent: Control, slot: int) -> void:
 	slot_label.position = Vector2(8.0, 76.0)
 	slot_label.size = Vector2(ULT_CARD_SIZE.x - 16.0, 18.0)
 	slot_label.add_theme_font_size_override("font_size", 13)
+	var attack_track: ColorRect = _make_rect(card, Color(0.16, 0.14, 0.21))
+	attack_track.position = Vector2(8.0, 98.0)
+	attack_track.size = Vector2(ULT_CARD_SIZE.x - 16.0, 4.0)
+	var attack_bar: ColorRect = _make_rect(card, Color.WHITE)
+	attack_bar.position = Vector2(8.0, 98.0)
+	attack_bar.size = Vector2(0.0, 4.0)
+	_attack_bars.append(attack_bar)
 	_ult_rarities.append(rarity_label)
 	_ult_slots.append(slot_label)
 	_ult_borders.append(border)
@@ -377,16 +442,17 @@ static func occupied_rect(control: Control) -> Rect2:
 
 ## Every live HUD element the pickup card must stay clear of, each as the rectangle it draws on, widened by
 ## `PICKUP_CARD_GAP`: the build and hint lines, the health bar and its value, the dash and Converge readouts (text and bar), the
-## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt, the sword cards and, while
+## chain counter and its bar, the wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt, the sword cards and, while
 ## it is up, the wave banner with its second line (issue #18: the card used to cover half of "WAVE CLEARED").
-## What is not here has no fixed place or lasts a moment: the outcome and pause overlays (full-screen text
+## What is not here has no fixed place or lasts a moment: the help overlay (it gives way to the banner and to this card), the outcome and pause overlays (full-screen text
 ## shown over everything by design), the touch joystick indicator, and the world-space effects (range rings, floating texts).
 ## Controls that are hidden at the moment (the legend outside an encounter, the Shove button, a missing slot) reserve nothing.
 func pickup_card_avoid() -> Array[Rect2]:
 	var controls: Array[Control] = []
 	controls.append_array([_build_label, _hint_label])
 	controls.append_array([_hp_back, _hp_label])
-	controls.append_array([_dash_label, _converge_label, _converge_track])
+	controls.append_array([_dash_label, _dash_track, _converge_label, _converge_track])
+	controls.append_array([_chain_label, _chain_bar])
 	controls.append(_wave_label)
 	controls.append_array([_pause_button, _restart_button, _encounter_button, _shove_button, _dash_button])
 	controls.append(_encounter_label)
@@ -471,6 +537,45 @@ func _covers_nothing(spot: Vector2, obstacles: Array[Rect2]) -> bool:
 	return true
 
 
+## The prototype's chain counter: from the third kill in a row a large `x{chain}` at the top right, going from grey toward
+## gold as the window to extend it (`COMBO_WINDOW`) is fresh, with a bar of what is left of that window under it.
+func _show_chain(run: GameRun) -> void:
+	var shown: bool = run.combo >= 3
+	var fresh: float = clampf(run.combo_left / GameRun.COMBO_WINDOW, 0.0, 1.0)
+	_chain_label.text = "x%d" % run.combo if shown else ""
+	_chain_label.add_theme_color_override("font_color", Color(0.35, 0.31, 0.43).lerp(Color(1.0, 0.82, 0.43), fresh))
+	_chain_bar.visible = shown
+	_chain_bar.offset_right = -CHAIN_RIGHT_MARGIN - CHAIN_BAR_WIDTH * (1.0 - fresh)
+
+
+## What the counter says ("" while the chain is shorter than three) and how much of its window is left (0 to 1). Checks read them.
+func chain_text() -> String:
+	return _chain_label.text
+
+
+func chain_window_fraction() -> float:
+	return (_chain_bar.offset_right - _chain_bar.offset_left) / CHAIN_BAR_WIDTH if _chain_bar.visible else 0.0
+
+
+## The help overlay (prototype: while `help_t > 0` and the player lives), fading out over its last second. It gives way while the
+## wave banner is up and while a dropped sword's card is (each would sit on top of it), and comes back after them.
+func _show_help(run: GameRun) -> void:
+	var gives_way: bool = (run.banner_left > 0.0 and run.banner_title != "") or run.nearest_pickup() != null
+	var shown: bool = run.help_left > 0.0 and not run.dead and not gives_way
+	var alpha: float = clampf(run.help_left, 0.0, 1.0) * 0.86
+	for line: Label in _help_lines:
+		line.visible = shown
+		line.modulate.a = alpha
+
+
+func help_visible() -> bool:
+	return _help_lines[0].visible
+
+
+func help_alpha() -> float:
+	return _help_lines[0].modulate.a if _help_lines[0].visible else 0.0
+
+
 ## Converge's shared cooldown (prototype `draw_hud`): the label dims and counts the seconds down, and the
 ## bar under it fills as the cooldown runs out. Checks read `converge_status` and `converge_bar_fraction`.
 func _show_converge(run: GameRun) -> void:
@@ -492,6 +597,11 @@ func converge_bar_fraction() -> float:
 ## seconds left to recharge. Checks read it.
 func ultimate_status(slot: int) -> String:
 	return _ult_status[slot].text
+
+
+## How full the slot card's attack bar is (1 = the sword can strike again). Checks read it.
+func attack_bar_fraction(slot: int) -> float:
+	return _attack_bars[slot].size.x / (ULT_CARD_SIZE.x - 16.0)
 
 
 func ultimate_card_visible(slot: int) -> bool:
@@ -528,6 +638,9 @@ func _show_ultimates(run: GameRun) -> void:
 		_ult_badges[slot].color = tint if ready or active else Color(0.13, 0.12, 0.18)
 		_ult_bars[slot].color = tint
 		_ult_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 if active else sword.ultimate_charge())
+		# the sword's own attack: full when it can strike again, filling while it recharges (prototype `1 - cd / cooldown`)
+		_attack_bars[slot].color = tint.darkened(0.3)
+		_attack_bars[slot].size.x = (ULT_CARD_SIZE.x - 16.0) * (1.0 - clampf(sword.cooldown_left / sword.cooldown, 0.0, 1.0))
 		var rarity_tint: Color = SwordDefs.RARITY_COLORS[sword.spec.rarity]
 		_ult_rarities[slot].text = SwordDefs.RARITY_NAMES[sword.spec.rarity].to_upper() if sword.spec.rarity > 0 else ""
 		_ult_rarities[slot].modulate = rarity_tint
@@ -563,22 +676,23 @@ func show_run(run: GameRun) -> void:
 	_hp_lag.size = Vector2(HP_BAR_SIZE.x * clampf(_hp_shown / run.max_hp, 0.0, 1.0), HP_BAR_SIZE.y)
 	_hp_label.text = "%d" % int(run.hp)
 	_wave_label.text = "WAVE %d    kills %d" % [maxi(1, run.director.wave), run.kills]
-	# The prototype shows the chain from the third kill (`combo >= 3`).
-	if run.combo >= 3:
-		_wave_label.text += "    chain %d" % run.combo
 	if run.dash_cooldown_left > 0.0:
 		_dash_label.text = "dash %.1fs" % run.dash_cooldown_left
 	else:
 		_dash_label.text = "dash ready"
+	_dash_label.modulate = Color.WHITE if run.dash_cooldown_left <= 0.0 else Color(0.6, 0.65, 0.78)
+	_dash_bar.size.x = DASH_BAR_WIDTH * (1.0 - clampf(run.dash_cooldown_left / GameRun.DASH_COOLDOWN, 0.0, 1.0))
+	_show_chain(run)
+	_show_help(run)
 	_show_converge(run)
 	_show_ultimates(run)
-	# the encounter's legend and buttons first: the pickup card is placed clear of them as they now are
-	_show_encounter(run)
-	_show_pickup(run)
+	# the banner and the encounter's legend and buttons first: the pickup card is placed clear of them as they now are
 	_banner_label.text = run.banner_title if not run.dead else ""
 	_banner_label.modulate.a = clampf(run.banner_left, 0.0, 1.0)
 	_banner_sub_label.text = run.banner_sub if not run.dead else ""
 	_banner_sub_label.modulate.a = _banner_label.modulate.a
+	_show_encounter(run)
+	_show_pickup(run)
 
 	match run.outcome():
 		GameRun.Outcome.LOST:

@@ -1148,7 +1148,7 @@ func _check_main_scene() -> void:
 	main._input(_key(KEY_E))
 	var sword: SwordState = main.run.swords[1]
 	_ok("E with the mouse 220 px right of the view's centre starts slot two's Maelstrom centred on that world point (%s)" % [sword.ultimate_point], sword.phase == SwordState.Phase.ULTIMATE and sword.ultimate_point.distance_to(expected) <= 0.01 and main.run.swords[0].phase != SwordState.Phase.ULTIMATE)
-	_ok("it is announced and heard (dash sound, ULTIMATE_STARTED cue)", main._sfx.played.has("dash") and main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1, "%s" % [main._sfx.played])
+	_ok("it is announced and heard (a whoosh, ULTIMATE_STARTED cue)", main._sfx.played.has("whoosh") and main.run.cue_count(SimCue.Kind.ULTIMATE_STARTED) == 1, "%s" % [main._sfx.played])
 	_tick_main(main, 10)
 	await _tree.process_frame
 	_ok("the card shows ACTIVE and the pull ring and spinning arcs are drawn from the sword's own state", hud.ultimate_status(1) == "ACTIVE" and sword.phase == SwordState.Phase.ULTIMATE and sword.maelstrom_pull_range() > sword.maelstrom_reach())
@@ -1194,11 +1194,11 @@ func _check_main_scene() -> void:
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BEAT, Vector2.ZERO, Vector2.ZERO, 0))
 	var silent_beat: bool = main._sfx.played.is_empty()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BEAT, Vector2.ZERO, Vector2.ZERO, 2))
-	var struck_beat: bool = main._sfx.played.has("strike")
+	var struck_beat: bool = main._sfx.played.has("slash")
 	main._sfx.played.clear()
 	await _tree.create_timer(0.1).timeout
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.MAELSTROM_BURST, Vector2.ZERO, Vector2.ZERO, 1))
-	_ok("a beat that struck something is heard (a slash), one that struck nothing is silent, and the burst is heard", silent_beat and struck_beat and main._sfx.played.has("strike"), "%s" % [main._sfx.played])
+	_ok("a beat that struck something is heard (a slash), one that struck nothing is silent, and the burst is heard", silent_beat and struck_beat and main._sfx.played.has("slash"), "%s" % [main._sfx.played])
 	var warden_visuals: int = 0
 	for child: Node in main._presenter.get_children():
 		if child is PlaceholderSwordVisual and (child as PlaceholderSwordVisual)._warden:

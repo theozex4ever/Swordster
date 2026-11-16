@@ -1031,7 +1031,7 @@ func _check_hud() -> void:
 	var hud: Hud = main._hud
 	_tick_main(main, 2)
 	_ok("before the first wave the HUD reads WAVE 1, kills 0 (%s), the prototype's '%s' and '%s'" % [hud._wave_label.text, hud_ref["start"][0]["text"], hud_ref["start"][1]["text"]],
-		hud._wave_label.text.begins_with(String(hud_ref["start"][0]["text"])) and hud._wave_label.text.contains(String(hud_ref["start"][1]["text"])) and not hud._wave_label.text.contains("chain"))
+		hud._wave_label.text.begins_with(String(hud_ref["start"][0]["text"])) and hud._wave_label.text.contains(String(hud_ref["start"][1]["text"])) and hud.chain_text() == "")
 	var started: int = 0
 	while run.director.wave == 0 and started < 400:
 		_tick_main(main, 1)
@@ -1051,14 +1051,14 @@ func _check_hud() -> void:
 	run.combo_left = 1.3
 	_tick_main(main, 1)
 	var running: Array = hud_ref["running"]
-	_ok("the wave, kill and chain readouts say '%s' (the prototype draws '%s', '%s', '%s')" % [hud._wave_label.text, running[0]["text"], running[1]["text"], running[2]["text"]],
-		hud._wave_label.text.begins_with(String(running[0]["text"])) and hud._wave_label.text.contains(String(running[1]["text"])) and hud._wave_label.text.contains("chain 5"))
+	_ok("the wave, kill and chain readouts say '%s' and '%s' (the prototype draws '%s', '%s', '%s')" % [hud._wave_label.text, hud.chain_text(), running[0]["text"], running[1]["text"], running[2]["text"]],
+		hud._wave_label.text.begins_with(String(running[0]["text"])) and hud._wave_label.text.contains(String(running[1]["text"])) and hud.chain_text() == String(running[2]["text"]) and not hud._wave_label.text.contains("chain"))
 	run.combo = 3
 	_tick_main(main, 1)
-	_ok("a chain of three is the first to show ('%s')" % hud._wave_label.text, hud._wave_label.text.contains("chain 3"))
+	_ok("a chain of three is the first to show ('%s')" % hud.chain_text(), hud.chain_text() == "x3")
 	run.combo = 2
 	_tick_main(main, 1)
-	_ok("a chain of two shows no chain readout, as the prototype's x counter begins at three", not hud._wave_label.text.contains("chain"))
+	_ok("a chain of two shows no chain readout, as the prototype's x counter begins at three", hud.chain_text() == "")
 	# the game over statistics line
 	run.director.wave = 9
 	run.kills = 211
@@ -1201,7 +1201,7 @@ func _check_main_scene() -> void:
 		_tick_main(main, 1)
 		bound += 1
 	await _tree.process_frame
-	_ok("the wave gong sounds when wave 1 starts", main._sfx.played.has("wave"))
+	_ok("the wave gong sounds when wave 1 starts", main._sfx.played.has("gong"))
 	var markers_seen: int = 0
 	var armed_marker: int = 0
 	var drawn_before: int = 0
@@ -1236,7 +1236,7 @@ func _check_main_scene() -> void:
 	await _tree.process_frame
 	var killed: int = run.kills - ahead
 	var wave_text: String = main._hud._wave_label.text
-	_ok("the kills and the chain are on the HUD ('%s'), and the %d armed foes standing then, and every armed death so far, left their swords lying (%d lying, %d drop cues)" % [wave_text, armed_standing, run.pickups.size(), run.cue_count(SimCue.Kind.SWORD_DROPPED)], wave_text.contains("kills %d" % run.kills) and (killed < 3 or wave_text.contains("chain %d" % run.combo)) and run.pickups.size() == run.cue_count(SimCue.Kind.SWORD_DROPPED) and run.pickups.size() >= armed_standing)
+	_ok("the kills and the chain are on the HUD ('%s'), and the %d armed foes standing then, and every armed death so far, left their swords lying (%d lying, %d drop cues)" % [wave_text, armed_standing, run.pickups.size(), run.cue_count(SimCue.Kind.SWORD_DROPPED)], wave_text.contains("kills %d" % run.kills) and (killed < 3 or main._hud.chain_text() == "x%d" % run.combo) and run.pickups.size() == run.cue_count(SimCue.Kind.SWORD_DROPPED) and run.pickups.size() >= armed_standing)
 	run.director.wave = 3
 	var big_chain: GameRun = run
 	for i: int in 12:

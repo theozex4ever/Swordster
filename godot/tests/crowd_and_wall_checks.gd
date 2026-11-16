@@ -887,7 +887,7 @@ func _check_main_scene() -> void:
 	main._sfx.unlock()
 	main._sfx.played.clear()
 	main._sfx.play_cue(SimCue.make(SimCue.Kind.WALL_SLAM, Vector2.ZERO, Vector2.ZERO, 9))
-	_ok("a wall slam is heard as a thud (the hit sound)", main._sfx.played.has("hit"), "%s" % [main._sfx.played])
+	_ok("a wall slam is heard as a thud", main._sfx.played.has("thud"), "%s" % [main._sfx.played])
 	main.queue_free()
 	await _tree.process_frame
 
