@@ -1,8 +1,7 @@
 # Swordster (Godot port)
 
 Godot 4 port of Swordster, built slice by slice. Currently playable: a complete
-Fang survival loop (move, dash, three spirit swords attacking on their own, a
-telegraphed wave of eight husks, healing motes, death and restart) with **Viper
+Fang survival loop (move, dash, three spirit swords attacking on their own, telegraphed waves, healing motes, death and restart) with **Viper
 Flurry** on Q / E / R (each sword slot's ultimate, aimed at the cursor), a **crowd
 encounter** with runners and brutes, crowd bowling and wall slams, a **spitter
 encounter** with ranged foes, enemy orbs and sword parries, **elemental conditions**
@@ -11,8 +10,10 @@ arcs, with its **Maelstrom** ultimate (a **warden encounter** equips it), and **
 the sword of long piercing thrusts, with its **Skewer** ultimate (a **pike encounter** equips it), and **Colossus**,
 the sword of crushing slams, with its **Cataclysm** ultimate and the elemental ground field it leaves (a **colossus
 encounter** equips it), **Converge** (click), the prototype's **default loadout** (Fang, Warden, Colossus: the normal start) and
-**armed enemies, sword drops and swaps** (a **drops encounter**) on top of the delivery-proof arena, exported to Windows
-and Web from one Linux command. Further waves arrive in later slices; the Python/Pygame prototype in `game/` stays the behavioural reference
+**armed enemies, sword drops and swaps** (a **drops encounter**) and, in the normal run, the prototype's own **waves without end**
+(`5 + 3 w` enemies a wave from a pool that unlocks runners, brutes and spitters, foes growing 10 % tougher a wave, armed foes carrying swords of
+growing rarity, a break between waves, a chain and a kill count) on top of the delivery-proof arena, exported to Windows
+and Web from one Linux command. The Python/Pygame prototype in `game/` stays the behavioural reference
 and keeps working. Reference values, tolerances and deliberate exceptions:
 [Fang survival loop](../docs/reference/fang-survival-loop.md) (#8) and
 [runners, brutes and crowds](../docs/reference/runners-brutes-crowd.md) (#9) and
@@ -22,7 +23,8 @@ and keeps working. Reference values, tolerances and deliberate exceptions:
 [Warden and Maelstrom](../docs/reference/warden-maelstrom.md) (#13) and
 [Pike and Skewer](../docs/reference/pike-skewer.md) (#14) and
 [Colossus and Cataclysm](../docs/reference/colossus-cataclysm.md) (#15) and
-[drops and swaps](../docs/reference/drops-swaps.md) (#17).
+[drops and swaps](../docs/reference/drops-swaps.md) (#17) and
+[waves and the normal run](../docs/reference/waves.md) (#18).
 
 ### Viper Flurry (Q / E / R)
 
@@ -70,7 +72,7 @@ range (flung at 750 px/s) or when its tip reaches a wall (1100 px/s: the stunned
 wall and bowls others). To fight with it: the **pike encounter** (`Swordster.exe -- --encounter=pike`,
 `index.html?encounter=pike`, or the dev button / `C` after the warden encounter) stands you 700 px south
 of the north wall with a column of foes strung out toward it, against three Pikes (poison, ice, fire):
-aim north. This is a development fixture, not the default loadout; the normal run is unchanged.
+aim north. This is a development fixture, not the default loadout.
 
 ### Colossus and Cataclysm
 
@@ -88,7 +90,7 @@ reaches the ground), never the other way round. To fight with it: the **colossus
 (`Swordster.exe -- --encounter=colossus`, `index.html?encounter=colossus`, or the dev button / `C` after the
 pike encounter) puts a cluster east of you and a wave behind it against three Colossi (poison, ice, fire): press
 Q, E and R with the cursor on the crowd and watch all three fields. This is a development fixture, not the default
-loadout; the normal run is unchanged.
+loadout.
 
 ### Converge and the default loadout
 
@@ -122,8 +124,22 @@ the rarity as a border and tag, and each card says which key swaps its slot. To 
 (`Swordster.exe -- --encounter=drops`, `index.html?encounter=drops`, or the dev button / `C` after the colossus
 encounter) walks twelve armed foes (every enemy type, every sword type, all three rarities and elements) in from a
 ring against Fang, Warden and Colossus, followed by a wave armed by the prototype's rule (the first two foes are
-armed for sure, the first with a Pike). This is a development fixture: **the normal run is unchanged and arms no
-enemies** until the full wave generation (issue #18) turns the same arming rule on for it.
+armed for sure, the first with a Pike). This is a development fixture; the **normal run arms its waves by the same rule**
+(see [The normal run](#the-normal-run-waves-without-end)), so the drops, the card and the swap keys are part of ordinary play.
+
+### The normal run: waves without end
+
+With no `--encounter` the game is the prototype's own: after 1.6 s wave 1 arrives (eight husks, the first two armed, the
+first with a Pike), each enemy telegraphed for 0.7 s by a marker where it will stand, 0.3 s after the wave starts and then
+every `max(0.12, 0.42 - 0.02 w)` s. A wave has `5 + 3 w` enemies drawn from a pool that grows: husks always, **runners and
+brutes from wave 2, spitters from wave 3**, brutes weighing more every wave. Foes are `1 + 0.1 (w - 1)` times as tough
+(1.35 times more when armed). **Nothing caps how many arrive**: wave 30 puts 95 enemies in the arena. A wave is over only when
+its queue, its markers and every living enemy are gone: then comes **WAVE CLEARED**, 0.7 s of slow motion, the sword drops to
+claim, and 3.2 s later the next wave. Armed foes arm by kind (husk 20 %, runner 12 %, spitter 22 %, brute 75 %) and the swords
+they carry get better with the wave: Mythic below `min(25 %, 2 % + 2 % w)`, Rare below `min(55 %, 16 % + 4 % w)` (brutes carry
+better). The wave line shows the wave, your kills and, from three in a row, the chain; a chain of 10, 25, 50 and 100 is announced
+over you; healing motes (three a kill, half a point each) are the only healing. There is no end: a run is only lost (**R** restarts).
+Fixtures and the other dev encounters are unchanged.
 
 ### The crowd encounter
 
@@ -136,7 +152,7 @@ conditions → warden → pike → colossus → drops → normal; shove with the
 `Swordster.exe -- --encounter=crowd` on Windows/Linux, or open the Web build as
 `index.html?encounter=crowd`. Use `wall` instead of `crowd` for the same fixture with
 fourteen foes already pinned between the player and the east wall and no further wave
-(shove them straight into the wall). The normal run stays the husk wave.
+(shove them straight into the wall). The normal run plays the prototype's own waves.
 
 ### The spitter encounter
 
@@ -147,7 +163,7 @@ orb at 270 px/s that hurts for 8 unless you are invulnerable (a dash gives 0.24 
 strike that sweeps through an orb **parries** it: green flash, sparks and a `PARRY` tag, no
 damage numbers. Start in it with `Swordster.exe -- --encounter=spitters` or
 `index.html?encounter=spitters`, or reach it with the dev button / `C` (after the crowd).
-The prototype only brings spitters in from wave 3, so the normal run is unchanged.
+The prototype only brings spitters in from wave 3; the normal run brings them then.
 
 ### Elemental conditions and the conditions encounter
 
@@ -361,6 +377,16 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   on death, a pickup's life under pause, hitstop and slow motion, the 80 px reach and nearest / tie rules, 36 swaps
   with ready, part-spent and full recharges, ten in a row, the swapped-in sword's flight tick by tick, keys, pause,
   death and restart, plus the pickup card, slot cards, effects and a replacement-visual fight.
+- `godot/tests/waves_checks.gd` (issue #18) replays the Python prototype's captured wave cases
+  (`godot/tests/reference/waves.json`, regenerated by `tools/reference/capture_waves.py`) on the real simulation: the
+  composition pool and unlocks of waves 1 to 30, the kind a draw picks at every cumulative weight, health per wave, the
+  tick every marker appears and enemy arrives for ten waves, 384 scripted spawn positions and the twelve-refusals
+  fallback, the armed share, rarity mix, sword types and elements of nine sampled waves (as distributions, never a random
+  stream), the first wave's Pike, completion with every combination of queue, marker and standing enemy, the clear, the
+  slow motion, the break and the next wave tick for tick, pause and hitstop, death and restart, 130 kills and the chain
+  announcements, healing, nine waves played through with controlled kills, wave 30's 95 enemies standing at once, the
+  armed first wave against the prototype's, the HUD and banners (and the pickup card clear of them), and the real Main
+  scene with replaced visuals and a different cosmetic random stream.
 - `godot/tests/render_rate_checks.gd` (issue #41) is the one place the engine's frame rate is varied. The
   simulation is stepped at a fixed 60 Hz from the physics loop and the presentation only reads it, so frame-rate
   independence is a property of shared code, not of any slice. One scripted fight (`combined_fight.gd`: every sword

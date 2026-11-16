@@ -193,6 +193,8 @@ var combo: int = 0
 var best_combo: int = 0
 var combo_left: float = 0.0
 var banner_title: String = ""
+## The line under the banner's title (empty: none).
+var banner_sub: String = ""
 var banner_left: float = 0.0
 
 ## Camera centre (player plus velocity look-ahead, eased and clamped).
@@ -213,9 +215,9 @@ var _encounter_scenarios: Array[RunScenario] = []
 
 
 func _init(scenario_value: RunScenario = null) -> void:
-	scenario = scenario_value if scenario_value != null else RunScenario.new()
+	scenario = scenario_value if scenario_value != null else RunScenario.normal_run()
 	_encounter_scenarios = [
-		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.new(),
+		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.normal_run(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CROWD else RunScenario.crowd_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_SPITTERS else RunScenario.spitter_encounter(),
 		scenario if scenario.encounter == RunScenario.ENCOUNTER_CONDITIONS else RunScenario.conditions_encounter(),
@@ -457,6 +459,7 @@ func step() -> void:
 		banner_left -= dt
 		if banner_left <= 0.0:
 			banner_title = ""
+			banner_sub = ""
 	director.update(self, dt)
 	_update_camera(dt)
 
@@ -781,6 +784,8 @@ func kill(enemy: EnemyState, direction: Vector2) -> void:
 	combo += 1
 	combo_left = COMBO_WINDOW
 	best_combo = maxi(best_combo, combo)
+	if WaveDefs.CHAIN_MILESTONES.has(combo):
+		add_cue(SimCue.make(SimCue.Kind.CHAIN_MILESTONE, position, Vector2.ZERO, combo))
 	for i: int in 3:
 		motes.append(Mote.scatter(enemy.position, rng))
 	add_cue(SimCue.make(SimCue.Kind.ENEMY_KILLED, enemy.position, direction))
@@ -851,8 +856,9 @@ func add_shake(amount: float, direction: Vector2 = Vector2.ZERO, with_kick: bool
 		kick += SimMath.norm(direction, rng) * amount * 16.0
 
 
-func set_banner(title: String, seconds: float) -> void:
+func set_banner(title: String, seconds: float, sub: String = "") -> void:
 	banner_title = title
+	banner_sub = sub
 	banner_left = seconds
 
 
@@ -930,6 +936,7 @@ func snapshot() -> Dictionary:
 		"camera": camera,
 		"kills": kills,
 		"combo": combo,
+		"best_combo": best_combo,
 		"wave": director.wave,
 		"outcome": outcome(),
 		"enemy_positions": enemy_positions,
@@ -974,6 +981,7 @@ func _reset_state() -> void:
 	best_combo = 0
 	combo_left = 0.0
 	banner_title = ""
+	banner_sub = ""
 	banner_left = 0.0
 	camera = position
 	_move_input = Vector2.ZERO

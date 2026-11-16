@@ -277,6 +277,8 @@ func apply_cue(cue: SimCue) -> void:
 				for i: int in 24:
 					_add_spark(cue.position, SimMath.polar(-PI / 2.0 + _rng.randf_range(-PI, PI), _rng.randf_range(150.0, 500.0)), _rng.randf_range(0.2, 0.5), swap_tint)
 				_add_text(_run.position + Vector2(0.0, -50.0), cue.spec.display_name(), swap_tint, 1.2, 32, 50.0)
+		SimCue.Kind.CHAIN_MILESTONE:
+			_add_text(cue.position + Vector2(0.0, -60.0), "%d CHAIN!" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)
 		SimCue.Kind.SWAP_REFUSED:
 			_add_text(cue.position + Vector2(0.0, -46.0), "no sword within reach", Color(0.62, 0.6, 0.78), 0.5, 22)
 		SimCue.Kind.ULTIMATE_REFUSED:

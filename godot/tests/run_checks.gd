@@ -65,6 +65,8 @@ func _run_all() -> void:
 	await converge.run_all()
 	var drops: DropsSwapsChecks = DropsSwapsChecks.new(_check, self)
 	await drops.run_all()
+	var waves: WavesChecks = WavesChecks.new(_check, self)
+	await waves.run_all()
 	# The one place the frame rate is varied (child Godot processes): last, and skipped by --skip-probes.
 	var render_rates: RenderRateChecks = RenderRateChecks.new(_check, self)
 	render_rates.run_all()

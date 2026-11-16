@@ -357,8 +357,8 @@ mutate restart-keeps-enemies scripts/sim/game_run.gd "	enemies = []
 	for at: Vector2 in scenario.initial_husks:"
 mutate camera-no-lookahead  scripts/sim/game_run.gd  "CAMERA_LOOKAHEAD: float = 0.12" "CAMERA_LOOKAHEAD: float = 0.0"
 mutate telegraph-shortened  scripts/sim/spawn_marker.gd "TELEGRAPH: float = 0.7" "TELEGRAPH: float = 0.1"
-mutate wave-never-clears    scripts/sim/wave_director.gd "		if wave >= _wave_count:
-			survived = true" "		if wave >= _wave_count:
+mutate wave-never-clears    scripts/sim/wave_director.gd "		if _wave_count > 0 and wave >= _wave_count:
+			survived = true" "		if _wave_count > 0 and wave >= _wave_count:
 			survived = false"
 mutate dash-key-lost        scripts/input/input_translator.gd "[KEY_SPACE, KEY_SHIFT]" "[KEY_SPACE]"
 mutate r-key-always-restarts scripts/input/input_translator.gd "commands.append(GameCommand.restart_from_key())" "commands.append(GameCommand.restart())"
@@ -453,7 +453,7 @@ mutate placement-velocity-dropped scripts/sim/game_run.gd "		enemy.velocity = pl
 mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.0:
 			enemy.hp = placement.hp" "		if false:
 			enemy.hp = placement.hp"
-mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_wave_kinds)" "		queue.append_array([])"
+mutate composition-ignored  scripts/sim/wave_director.gd "			fixed_kinds.append_array(_wave_kinds)" "			fixed_kinds.append_array([])"
 mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
 mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
 mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run), carried))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run), carried))"
@@ -1887,10 +1887,10 @@ mutate placement-armed-method-lost             scripts/sim/enemy_placement.gd "f
 	armed = null"
 mutate marker-armed-lost                       scripts/sim/spawn_marker.gd "	marker.armed = armed_spec
 " ""
-mutate wave-arming-always-off                  scripts/sim/wave_director.gd "queue_armed.append(LootDefs.roll_armed(run.rng, queue[index], wave, index) if _arm_waves else null)" "queue_armed.append(null)"
+mutate wave-arming-always-off                  scripts/sim/wave_director.gd "queue_armed.append(LootDefs.roll_armed(run.rng, kind, wave, index) if _arm_waves else null)" "queue_armed.append(null)"
 mutate wave-arming-on-by-default               scripts/sim/wave_director.gd "wave, index) if _arm_waves else null)" "wave, index) if not _arm_waves else null)"
-mutate wave-arming-index-shifted               scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, queue[index], wave, index + 1)"
-mutate wave-arming-kind-lost                   scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, EnemyDefs.HUSK, wave, index)"
+mutate wave-arming-index-shifted               scripts/sim/wave_director.gd "roll_armed(run.rng, kind, wave, index)" "roll_armed(run.rng, kind, wave, index + 1)"
+mutate wave-arming-kind-lost                   scripts/sim/wave_director.gd "roll_armed(run.rng, kind, wave, index)" "roll_armed(run.rng, EnemyDefs.HUSK, wave, index)"
 mutate wave-queue-sword-dropped                scripts/sim/wave_director.gd "var carried: SwordSpec = queue_armed.pop_front()" "var carried: SwordSpec = null"
 mutate wave-marker-sword-dropped               scripts/sim/wave_director.gd "SpawnMarker.make(kind, _spawn_point(run), carried)" "SpawnMarker.make(kind, _spawn_point(run))"
 mutate wave-enemy-sword-dropped                scripts/sim/wave_director.gd "run.next_serial(), phase, cooldown, marker.armed)" "run.next_serial(), phase, cooldown)"
@@ -1962,8 +1962,10 @@ mutate drops-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCO
 mutate drops-encounter-title                   scripts/sim/run_scenario.gd "		ENCOUNTER_DROPS:
 			return \"Drops\"" "		ENCOUNTER_DROPS:
 			return \"Drop\""
-mutate drops-encounter-wave-unarmed            scripts/sim/run_scenario.gd "	scenario.arm_waves = true
-" ""
+mutate drops-encounter-wave-unarmed            scripts/sim/run_scenario.gd "	scenario.loadout = drops_fixture_loadout()
+	scenario.arm_waves = true
+" "	scenario.loadout = drops_fixture_loadout()
+"
 mutate arming-on-in-every-run                  scripts/sim/run_scenario.gd "var arm_waves: bool = false" "var arm_waves: bool = true"
 mutate drops-encounter-foes-unarmed            scripts/sim/run_scenario.gd ".armed_with(spec))" ")"
 mutate drops-encounter-all-common              scripts/sim/run_scenario.gd "int(float(i) / 4.0)" "0"
@@ -2103,6 +2105,130 @@ mutate swap-name-lost                          scripts/presentation/effects_laye
 mutate swap-refusal-text-lost                  scripts/presentation/effects_layer.gd "			_add_text(cue.position + Vector2(0.0, -46.0), \"no sword within reach\", Color(0.62, 0.6, 0.78), 0.5, 22)" "			pass"
 mutate swap-sound-lost                         scripts/audio/sfx_bank.gd "		SimCue.Kind.SWORD_SWAPPED:
 			play(\"chime\")" "		SimCue.Kind.SWORD_SWAPPED:
+			play(\"hit\")"
+# --- Waves, breaks and the normal run (slice #18)
+mutate waves-enemies-per-wave                   scripts/sim/wave_defs.gd "const ENEMIES_PER_WAVE: int = 3" "const ENEMIES_PER_WAVE: int = 4"
+mutate waves-enemies-base                       scripts/sim/wave_defs.gd "const ENEMIES_BASE: int = 5" "const ENEMIES_BASE: int = 6"
+mutate waves-husk-weight                        scripts/sim/wave_defs.gd "const HUSK_WEIGHT: float = 6.0" "const HUSK_WEIGHT: float = 5.0"
+mutate waves-runner-weight                      scripts/sim/wave_defs.gd "const RUNNER_WEIGHT: float = 2.5" "const RUNNER_WEIGHT: float = 3.0"
+mutate waves-runner-unlock-late                 scripts/sim/wave_defs.gd "const RUNNER_FIRST_WAVE: int = 2" "const RUNNER_FIRST_WAVE: int = 3"
+mutate waves-spitter-weight                     scripts/sim/wave_defs.gd "const SPITTER_WEIGHT: float = 2.0" "const SPITTER_WEIGHT: float = 2.5"
+mutate waves-spitter-unlock-early               scripts/sim/wave_defs.gd "const SPITTER_FIRST_WAVE: int = 3" "const SPITTER_FIRST_WAVE: int = 2"
+mutate waves-brute-weight-base                  scripts/sim/wave_defs.gd "const BRUTE_WEIGHT_BASE: float = 0.6" "const BRUTE_WEIGHT_BASE: float = 0.8"
+mutate waves-brute-weight-growth                scripts/sim/wave_defs.gd "const BRUTE_WEIGHT_PER_WAVE: float = 0.25" "const BRUTE_WEIGHT_PER_WAVE: float = 0.3"
+mutate waves-brute-unlock-late                  scripts/sim/wave_defs.gd "const BRUTE_FIRST_WAVE: int = 2" "const BRUTE_FIRST_WAVE: int = 3"
+mutate waves-runner-pool-gate                   scripts/sim/wave_defs.gd "	if wave >= RUNNER_FIRST_WAVE:
+" "	if wave > RUNNER_FIRST_WAVE:
+"
+mutate waves-brute-pool-gate                    scripts/sim/wave_defs.gd "	if wave >= BRUTE_FIRST_WAVE:
+" "	if wave >= BRUTE_FIRST_WAVE + 1:
+"
+mutate waves-pool-order                         scripts/sim/wave_defs.gd "	var kinds: Array[StringName] = [EnemyDefs.HUSK]
+	if wave >= RUNNER_FIRST_WAVE:
+		kinds.append(EnemyDefs.RUNNER)
+	if wave >= SPITTER_FIRST_WAVE:
+		kinds.append(EnemyDefs.SPITTER)
+	if wave >= BRUTE_FIRST_WAVE:
+		kinds.append(EnemyDefs.BRUTE)" "	var kinds: Array[StringName] = [EnemyDefs.HUSK]
+	if wave >= RUNNER_FIRST_WAVE:
+		kinds.append(EnemyDefs.RUNNER)
+	if wave >= BRUTE_FIRST_WAVE:
+		kinds.append(EnemyDefs.BRUTE)
+	if wave >= SPITTER_FIRST_WAVE:
+		kinds.append(EnemyDefs.SPITTER)"
+mutate waves-total-weight-flat                  scripts/sim/wave_defs.gd "		total += weight_of(kind, wave)" "		total += 1.0"
+mutate waves-kind-edge-exclusive                scripts/sim/wave_defs.gd "		if remaining <= 0.0:
+			return kind" "		if remaining < 0.0:
+			return kind"
+mutate waves-kind-fallback-first                scripts/sim/wave_defs.gd "	return kinds[kinds.size() - 1]" "	return kinds[0]"
+mutate waves-spawn-interval-base                scripts/sim/wave_defs.gd "const SPAWN_INTERVAL_BASE: float = 0.42" "const SPAWN_INTERVAL_BASE: float = 0.5"
+mutate waves-spawn-interval-slope               scripts/sim/wave_defs.gd "const SPAWN_INTERVAL_PER_WAVE: float = 0.02" "const SPAWN_INTERVAL_PER_WAVE: float = 0.03"
+mutate waves-spawn-interval-floor               scripts/sim/wave_defs.gd "const SPAWN_INTERVAL_MIN: float = 0.12" "const SPAWN_INTERVAL_MIN: float = 0.2"
+mutate waves-first-spawn-delay                  scripts/sim/wave_defs.gd "const FIRST_SPAWN_DELAY: float = 0.3" "const FIRST_SPAWN_DELAY: float = 0.4"
+mutate waves-hp-growth-off-by-one               scripts/sim/wave_defs.gd "1.0 + EnemyDefs.HP_PER_WAVE * float(wave - 1)" "1.0 + EnemyDefs.HP_PER_WAVE * float(wave)"
+mutate waves-spawn-min-distance                 scripts/sim/wave_defs.gd "const SPAWN_MIN_DISTANCE: float = 420.0" "const SPAWN_MIN_DISTANCE: float = 380.0"
+mutate waves-spawn-max-distance                 scripts/sim/wave_defs.gd "const SPAWN_MAX_DISTANCE: float = 720.0" "const SPAWN_MAX_DISTANCE: float = 800.0"
+mutate waves-spawn-near-limit                   scripts/sim/wave_defs.gd "const SPAWN_NEAR_LIMIT: float = 320.0" "const SPAWN_NEAR_LIMIT: float = 250.0"
+mutate waves-spawn-edge-margin                  scripts/sim/wave_defs.gd "const SPAWN_EDGE_MARGIN: float = 50.0" "const SPAWN_EDGE_MARGIN: float = 30.0"
+mutate waves-spawn-attempts                     scripts/sim/wave_defs.gd "const SPAWN_ATTEMPTS: int = 12" "const SPAWN_ATTEMPTS: int = 8"
+mutate waves-spawn-no-clamp                     scripts/sim/wave_defs.gd "		point = point.clamp(inner.position, inner.end)
+" ""
+mutate waves-spawn-accepts-near                 scripts/sim/wave_defs.gd "		if (point - player).length() > SPAWN_NEAR_LIMIT:" "		if (point - player).length() < SPAWN_NEAR_LIMIT:"
+mutate waves-wave-banner-seconds                scripts/sim/wave_defs.gd "const WAVE_BANNER_SECONDS: float = 2.4" "const WAVE_BANNER_SECONDS: float = 2.0"
+mutate waves-cleared-banner-seconds             scripts/sim/wave_defs.gd "const CLEARED_BANNER_SECONDS: float = 2.6" "const CLEARED_BANNER_SECONDS: float = 2.0"
+mutate waves-wave-banner-text                   scripts/sim/wave_defs.gd "const WAVE_BANNER_SUB: String = \"armed foes carry swords - kill them and claim one\"" "const WAVE_BANNER_SUB: String = \"armed foes carry swords\""
+mutate waves-cleared-banner-text                scripts/sim/wave_defs.gd "const CLEARED_BANNER_SUB: String = \"grab dropped swords: stand on one, press 1 / 2 / 3\"" "const CLEARED_BANNER_SUB: String = \"grab dropped swords\""
+mutate waves-chain-milestones                   scripts/sim/wave_defs.gd "const CHAIN_MILESTONES: Array[int] = [10, 25, 50, 100]" "const CHAIN_MILESTONES: Array[int] = [10, 25, 50, 75]"
+mutate waves-normal-run-ends                    scripts/sim/wave_director.gd "		if _wave_count > 0 and wave >= _wave_count:" "		if wave >= _wave_count:"
+mutate waves-complete-ignores-queue             scripts/sim/wave_director.gd "	if in_wave and queue.is_empty() and markers.is_empty() and run.enemies.is_empty():" "	if in_wave and markers.is_empty() and run.enemies.is_empty():"
+mutate waves-complete-ignores-markers           scripts/sim/wave_director.gd "	if in_wave and queue.is_empty() and markers.is_empty() and run.enemies.is_empty():" "	if in_wave and queue.is_empty() and run.enemies.is_empty():"
+mutate waves-complete-ignores-enemies           scripts/sim/wave_director.gd "	if in_wave and queue.is_empty() and markers.is_empty() and run.enemies.is_empty():" "	if in_wave and queue.is_empty() and markers.is_empty():"
+mutate waves-break-length                       scripts/sim/wave_director.gd "const CLEARED_BREAK: float = 3.2" "const CLEARED_BREAK: float = 3.0"
+mutate waves-clear-slowmo-length                scripts/sim/wave_director.gd "const CLEARED_SLOWMO: float = 0.7" "const CLEARED_SLOWMO: float = 0.5"
+mutate waves-clear-slowmo-scale                 scripts/sim/wave_director.gd "const CLEARED_SLOWMO_SCALE: float = 0.3" "const CLEARED_SLOWMO_SCALE: float = 0.5"
+mutate waves-clear-banner-lost                  scripts/sim/wave_director.gd "		run.set_banner(\"WAVE CLEARED\", WaveDefs.CLEARED_BANNER_SECONDS, WaveDefs.CLEARED_BANNER_SUB if _arm_waves else \"\")
+" ""
+mutate waves-start-banner-lost                  scripts/sim/wave_director.gd "	run.set_banner(\"WAVE %d\" % wave, WaveDefs.WAVE_BANNER_SECONDS, WaveDefs.WAVE_BANNER_SUB if _arm_waves else \"\")
+" ""
+mutate waves-start-banner-sub-unarmed           scripts/sim/wave_director.gd "WaveDefs.WAVE_BANNER_SUB if _arm_waves else \"\"" "WaveDefs.WAVE_BANNER_SUB"
+mutate waves-clear-banner-sub-unarmed           scripts/sim/wave_director.gd "WaveDefs.CLEARED_BANNER_SUB if _arm_waves else \"\"" "WaveDefs.CLEARED_BANNER_SUB"
+mutate waves-dead-keeps-spawning                scripts/sim/wave_director.gd "	if not _enabled or run.dead:" "	if not _enabled:"
+mutate waves-spawn-gap-after-first              scripts/sim/wave_director.gd "			spawn_timer = WaveDefs.spawn_interval(wave)
+" "			spawn_timer = WaveDefs.FIRST_SPAWN_DELAY
+"
+mutate waves-first-spawn-uses-gap               scripts/sim/wave_director.gd "	spawn_timer = WaveDefs.FIRST_SPAWN_DELAY
+	in_wave = true" "	spawn_timer = WaveDefs.spawn_interval(wave)
+	in_wave = true"
+mutate waves-unlocks-ignored                    scripts/sim/wave_director.gd "WaveDefs.roll_kind(run.rng, wave) if _generated" "WaveDefs.roll_kind(run.rng, 1) if _generated"
+mutate waves-arming-uses-next-wave              scripts/sim/wave_director.gd "LootDefs.roll_armed(run.rng, kind, wave, index) if _arm_waves" "LootDefs.roll_armed(run.rng, kind, wave + 1, index) if _arm_waves"
+mutate waves-arming-by-wave-size                scripts/sim/wave_director.gd "LootDefs.roll_armed(run.rng, kind, wave, index) if _arm_waves" "LootDefs.roll_armed(run.rng, kind, wave, index + 2) if _arm_waves"
+mutate waves-arming-off                         scripts/sim/wave_director.gd "LootDefs.roll_armed(run.rng, kind, wave, index) if _arm_waves else null" "null"
+mutate waves-marker-forgets-sword               scripts/sim/wave_director.gd "SpawnMarker.make(kind, _spawn_point(run), carried)" "SpawnMarker.make(kind, _spawn_point(run), null)"
+mutate waves-enemy-forgets-sword                scripts/sim/wave_director.gd "run.next_serial(), phase, cooldown, marker.armed)" "run.next_serial(), phase, cooldown, null)"
+mutate waves-enemy-health-ignores-wave          scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position, wave, factor," "EnemyState.make(marker.kind, marker.position, 1, factor,"
+mutate waves-speed-jitter-range                 scripts/sim/wave_director.gd "run.rng.randf_range(0.9, 1.12)" "run.rng.randf_range(0.9, 1.2)"
+mutate waves-generated-size                     scripts/sim/wave_director.gd "var total: int = WaveDefs.enemy_count(wave) if _generated else fixed_kinds.size()" "var total: int = WaveDefs.enemy_count(1) if _generated else fixed_kinds.size()"
+mutate waves-fixture-husk-count                 scripts/sim/wave_director.gd "_husk_count if _husk_count >= 0 else WaveDefs.enemy_count(wave)" "_husk_count if _husk_count >= 0 else WaveDefs.enemy_count(wave) + 1"
+mutate waves-marker-telegraph                   scripts/sim/spawn_marker.gd "const TELEGRAPH: float = 0.7" "const TELEGRAPH: float = 0.6"
+mutate waves-health-factor-lost                 scripts/sim/enemy_state.gd "def.hp * WaveDefs.hp_factor(wave) *" "def.hp *"
+mutate waves-default-run-not-normal             scripts/sim/game_run.gd "	scenario = scenario_value if scenario_value != null else RunScenario.normal_run()" "	scenario = scenario_value if scenario_value != null else RunScenario.new()"
+mutate waves-cycle-returns-fixture              scripts/sim/game_run.gd "		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.normal_run()," "		scenario if scenario.encounter == RunScenario.ENCOUNTER_NORMAL else RunScenario.new(),"
+mutate waves-chain-cue-lost                     scripts/sim/game_run.gd "	if WaveDefs.CHAIN_MILESTONES.has(combo):" "	if false:"
+mutate waves-chain-cue-off-by-one               scripts/sim/game_run.gd "	if WaveDefs.CHAIN_MILESTONES.has(combo):" "	if WaveDefs.CHAIN_MILESTONES.has(combo + 1):"
+mutate waves-chain-cue-amount                   scripts/sim/game_run.gd "SimCue.Kind.CHAIN_MILESTONE, position, Vector2.ZERO, combo))" "SimCue.Kind.CHAIN_MILESTONE, position, Vector2.ZERO, 0))"
+mutate waves-restart-keeps-banner-line          scripts/sim/game_run.gd "	banner_sub = \"\"
+	banner_left = 0.0
+	camera = position" "	banner_left = 0.0
+	camera = position"
+mutate waves-banner-line-never-ends             scripts/sim/game_run.gd "			banner_title = \"\"
+			banner_sub = \"\"
+	director.update(self, dt)" "			banner_title = \"\"
+	director.update(self, dt)"
+mutate waves-banner-line-dropped                scripts/sim/game_run.gd "	banner_sub = sub
+" "	banner_sub = \"\"
+"
+mutate waves-chain-readout-from-two             scripts/hud.gd "	if run.combo >= 3:
+		_wave_label.text" "	if run.combo >= 2:
+		_wave_label.text"
+mutate waves-chain-readout-from-four            scripts/hud.gd "	if run.combo >= 3:
+		_wave_label.text" "	if run.combo >= 4:
+		_wave_label.text"
+mutate waves-banner-line-not-shown              scripts/hud.gd "	_banner_sub_label.text = run.banner_sub if not run.dead else \"\"" "	_banner_sub_label.text = \"\""
+mutate waves-banner-line-no-fade                scripts/hud.gd "	_banner_sub_label.modulate.a = _banner_label.modulate.a" "	_banner_sub_label.modulate.a = 1.0"
+mutate waves-banner-line-under-title            scripts/hud.gd "const BANNER_SUB_OFFSET: float = -118.0" "const BANNER_SUB_OFFSET: float = -170.0"
+mutate waves-banner-line-off-view               scripts/hud.gd "const BANNER_SUB_OFFSET: float = -118.0" "const BANNER_SUB_OFFSET: float = 400.0"
+mutate waves-game-over-best-chain               scripts/hud.gd "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.best_combo]" "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.combo]"
+mutate waves-game-over-wave                     scripts/hud.gd "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.best_combo]" "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave) + 1, run.kills, run.best_combo]"
+mutate waves-hud-kills                          scripts/hud.gd "_wave_label.text = \"WAVE %d    kills %d\" % [maxi(1, run.director.wave), run.kills]" "_wave_label.text = \"WAVE %d    kills %d\" % [maxi(1, run.director.wave), run.best_combo]"
+mutate waves-card-ignores-banner                 scripts/hud.gd "	controls.append_array([_banner_label, _banner_sub_label])
+" ""
+mutate waves-chain-text-lost                    scripts/presentation/effects_layer.gd "			_add_text(cue.position + Vector2(0.0, -60.0), \"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "			pass"
+mutate waves-chain-text-small                   scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 30, 40.0)"
+mutate waves-chain-text-short-lived             scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 0.7, 56, 40.0)"
+mutate waves-chain-text-colour                  scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 1.0, 1.0), 1.4, 56, 40.0)"
+mutate waves-chain-text-position                scripts/presentation/effects_layer.gd "_add_text(cue.position + Vector2(0.0, -60.0), \"%d CHAIN!\"" "_add_text(cue.position + Vector2(0.0, 60.0), \"%d CHAIN!\""
+mutate waves-gong-silent                        scripts/audio/sfx_bank.gd "		SimCue.Kind.WAVE_STARTED:
+			play(\"wave\")" "		SimCue.Kind.WAVE_STARTED:
 			play(\"hit\")"
 echo
 echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((caught + warned)) caught"
