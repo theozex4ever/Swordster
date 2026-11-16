@@ -51,6 +51,7 @@ func run_all() -> void:
 	await _check_impact_effects()
 	await _check_trails_and_cracks()
 	await _check_timing_unchanged()
+	await _check_textured_look()
 
 
 # --------------------------------------------------------------- helpers
@@ -1059,4 +1060,56 @@ func _check_timing_unchanged() -> void:
 	_ok("through the real Main scene (help, chain counter, feedback, effects, sounds) a normal run's hitstop and slow-motion timeline equals the bare simulation's over %d ticks (%d held in hitstop, %d slowed)" % [ticks, stops, slows], timeline_a == timeline_b and stops > 20)
 	_ok("and it ends in the same state: tick %d, %d kills, position %s" % [bare.tick, bare.kills, bare.position], same_state and bare.kills == main.run.kills and bare.kills > 0)
 	main.queue_free()
+	await _tree.process_frame
+
+
+# --------------------------------------------------------------- the textured visual set
+## The feedback and the HUD belong to the presentation around the replaceable actor and sword views, so they must work, and change
+## nothing, with the textured set (`--visuals=textured`) exactly as with the drawn one.
+func _check_textured_look() -> void:
+	print("feedback: the same feedback with the textured visual set")
+	var scenario: RunScenario = RunScenario.normal_run()
+	scenario.seed = 91
+	var main: Main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
+	main.scenario = scenario
+	main.visuals = VisualSets.TEXTURED
+	_tree.root.add_child(main)
+	main.set_physics_process(false)
+	await _tree.process_frame
+	var plain_scenario: RunScenario = RunScenario.normal_run()
+	plain_scenario.seed = 91
+	var plain: Main = _main_with(plain_scenario)
+	await _tree.process_frame
+	main._sfx.unlock()
+	_ok("the textured set is really in use (actor %s)" % main.actor_visual.resource_path, main.actor_visual.resource_path.contains("textured") and main.sword_visual.resource_path.contains("textured"))
+	var heard: Dictionary = {}
+	var waited: int = 0
+	var tips_checked: int = 0
+	var worst_gap: float = 0.0
+	while waited < 1500:
+		main._sfx._last_ms.clear()
+		_tick_main(main, 1)
+		_tick_main(plain, 1)
+		for sound: String in main._sfx.played:
+			heard[sound] = true
+		main._sfx.played.clear()
+		waited += 1
+	var effects: EffectsLayer = main._presenter._effects
+	var same: bool = JSON.stringify(RenderRateScenario.digest(main.run)) == JSON.stringify(RenderRateScenario.digest(plain.run))
+	_ok("the run through the textured set is exactly the drawn look's: the same state after %d ticks (kills %d, tick %d)" % [waited, plain.run.kills, plain.run.tick], waited == 1500 and same and plain.run.kills > 0)
+	_ok("its swords drag ribbons, the sounds play and the HUD reads the run (%d ribbons, sounds %s, wave line '%s')" % [effects._trails.size(), heard.keys(), main._hud._wave_label.text], effects._trails.size() == 3 and heard.has("thud") and heard.has("whoosh") and main._hud._wave_label.text.begins_with("WAVE "))
+	main.run.combo = 6
+	main.run.combo_left = 1.0
+	main.run.iframes = 0.0
+	main.run.hurt_player(5, main.run.position + Vector2(20.0, 0.0))
+	main._dispatch_cues()
+	_tick_main(main, 1, false)
+	_ok("the chain counter ('%s') and the hurt flash (%.2f) show with it" % [main._hud.chain_text(), main._feedback.hurt_alpha()], main._hud.chain_text() == "x6" and main._feedback.hurt_alpha() > 0.5)
+	for slot: int in main.run.swords.size():
+		var sword: SwordState = main.run.swords[slot]
+		worst_gap = maxf(worst_gap, absf(main._hud.attack_bar_fraction(slot) - (1.0 - clampf(sword.cooldown_left / sword.cooldown, 0.0, 1.0))))
+		tips_checked += 1
+	_ok("the cards' attack bars still read each sword's own recharge (worst gap %.3f over %d swords)" % [worst_gap, tips_checked], worst_gap < 0.002 and tips_checked == 3)
+	main.queue_free()
+	plain.queue_free()
 	await _tree.process_frame

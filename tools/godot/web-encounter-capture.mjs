@@ -107,7 +107,10 @@ await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
 const scenario = process.env.SCENARIO ?? "crowd"; // crowd | wall | spitters | normal | flurry | conditions | warden | pike | colossus | converge | drops
-const query = scenario === "normal" || scenario === "converge" || scenario === "waves" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
+const encounterQuery = scenario === "normal" || scenario === "converge" || scenario === "waves" ? "" : `?encounter=${scenario === "flurry" ? "crowd" : scenario}`;
+// VISUALS=textured (issue #21) adds the visual-set page address option to whatever the scenario asks for.
+const visualsQuery = process.env.VISUALS ? `${encounterQuery ? "&" : "?"}visuals=${encodeURIComponent(process.env.VISUALS)}` : "";
+const query = encounterQuery + visualsQuery;
 await send("Page.navigate", { url: `${base}${query}` });
 if (scenario === "wall") {
   // The pinned crowd starts fighting the moment the engine runs, so react to the
