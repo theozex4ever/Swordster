@@ -1269,15 +1269,19 @@ func _check_main_scene() -> void:
 
 # --------------------------------------------------------------- visuals and cosmetic randomness
 func _check_visual_independence() -> void:
-	print("waves: replacing the visuals and the cosmetic randomness leaves the normal run unchanged")
+	print("waves: replacing the visuals and the cosmetic randomness (camera shake and effects) leaves the normal run unchanged")
 	var hosts: Array[Main] = []
 	for use_alt: bool in [false, true]:
 		var scenario: RunScenario = RunScenario.normal_run()
 		scenario.seed = 74
 		hosts.append(_main_with(scenario, "res://tests/alt_enemy.tscn" if use_alt else "", "res://tests/alt_sword.tscn" if use_alt else "", "res://tests/alt_actor.tscn" if use_alt else ""))
 	await _tree.process_frame
+	# Two cosmetic random streams, both given different seeds: the camera shake's (`Main._fx_rng`) and the effects layer's
+	# (`EffectsLayer._rng`: embers, sparks, field motes).
 	hosts[0]._fx_rng.seed = 1
 	hosts[1]._fx_rng.seed = 99999
+	hosts[0]._presenter._effects._rng.seed = 7
+	hosts[1]._presenter._effects._rng.seed = 424242
 	var results: Array[Dictionary] = []
 	for main: Main in hosts:
 		for tick_index: int in 1500:
@@ -1294,9 +1298,10 @@ func _check_visual_independence() -> void:
 		digest["queue"] = main.run.director.queue.map(func(kind: StringName) -> String: return String(kind))
 		digest["armed_queue"] = main.run.director.queue_armed.map(func(spec: SwordSpec) -> String: return "" if spec == null else SwordDefs.full_name(spec))
 		results.append(digest)
-	_ok("the same normal run, 25 s into wave 2, with a stretched, rotated enemy, sword and actor visual and a different cosmetic random stream, ends in the same state (wave %s, kills %s, %d drops)" % [results[0]["wave"], results[0]["kills"], (results[0]["pickups"] as Array).size()],
+	_ok("the same normal run, 25 s into wave 2, with a stretched, rotated enemy, sword and actor visual and different camera-shake and effects random streams, ends in the same state (wave %s, kills %s, %d drops)" % [results[0]["wave"], results[0]["kills"], (results[0]["pickups"] as Array).size()],
 		results[0] == results[1] and int(results[0]["kills"]) >= 8 and int(results[0]["wave"]) >= 1)
-	_ok("and the effects really were different: the cosmetic streams are not the gameplay one", hosts[0]._fx_rng.state != hosts[1]._fx_rng.state and hosts[0].run.rng.state == hosts[1].run.rng.state)
+	_ok("and the cosmetic randomness really was different: the camera-shake and the effects streams differ between the runs and neither is the gameplay one",
+		hosts[0]._fx_rng.state != hosts[1]._fx_rng.state and hosts[0]._presenter._effects._rng.state != hosts[1]._presenter._effects._rng.state and hosts[0].run.rng.state == hosts[1].run.rng.state)
 	for main: Main in hosts:
 		main.queue_free()
 	await _tree.process_frame

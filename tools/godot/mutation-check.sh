@@ -3,36 +3,48 @@
 # time to a scratch copy of the Godot project and requires run_checks.gd to
 # reject each one (and to accept the unmodified project first).
 #
-# A mutation only counts as caught when run_checks.gd itself rejects it: the process
-# must exit with the checks' ordinary failure status (1, from quit(1) after the
-# verdict) AND print "CHECKS FAILED" with at least one "  FAIL" line and no script
-# errors. Printing a failure verdict and then dying (signal, timeout, any other
-# status) proves nothing, so any other execution (engine crash, timeout,
-# parse/script error, no verdict at all) is INCONCLUSIVE: it is retried once, then reported and, if it
-# persists, makes the script fail instead of silently counting as detection.
+# Verdicts. A mutation is CAUGHT when the run's STANDARD OUTPUT holds at least one genuine check failure:
+# a line that starts with "  FAIL[<token>] ", where <token> is a random string made for that one run and
+# handed to run_checks.gd as `--verdict-token=<token>` (run_checks.gd's own print). Nothing else counts: not a
+# "  FAIL " line without the token (the code under test cannot make one by printing), and not anything on
+# standard error, where Godot routes push_error() and its engine errors (a mutant whose diagnostic message
+# contains a newline and "  FAIL ..." is not a failing check). Standard error is only read for crash and script
+# error detection. If the run then ended in the ordinary failure verdict (exit 1, "CHECKS FAILED", no script
+# error) the mutation is plain `caught`. If it ended any other way (a crash, script error, timeout or hang AFTER
+# the FAIL line) it is `caught-with-warning`: still a rejection by a genuine failing check, so it counts as
+# caught and never fails the run, but it is listed on its own line and in the summary as a hygiene warning (the
+# checks misbehave once they run on a broken project; fix them when convenient). A run with NO genuine FAIL
+# line that crashes, errors or times out (engine crash, timeout, parse/script error, no verdict at all) proves
+# nothing: it is INCONCLUSIVE, retried once, then reported and, if it persists, makes the script fail.
+# A project the complete run accepts is SURVIVED, and fails the run. This holds in both modes below.
+# QUICK_TIMEOUT (default 60) and FULL_TIMEOUT (default 240) are the seconds a quick or focused step and a
+# full or classic step may run before they are cut off (the runner's own regression test shortens them).
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
 #
-# Speed (issue #35). Nearly all of a full run_checks.gd run (about 45 s) is the render-rate
-# probes: sub-Godot processes at 5/20/60/240 fps in each fight group. Almost every mutation is
-# rejected by a behavioural check long before them, so each mutation is judged in up to three steps:
+# Speed (issues #35 and #41). A full run_checks.gd run is dominated by the one render-rate group
+# (render_rate_checks.gd: child Godot processes that play the combined fight at 5/20/60/240 fps) and
+# by the groups a mutation has nothing to do with. Almost every mutation is rejected by a behavioural
+# check long before the render-rate group, so each mutation is judged in up to three steps (the FAST mode,
+# the default, and what the pull-request gate runs):
 #   1. focused: the same quick run restricted to the check group of the mutation's section
 #      (`--focus=warden_maelstrom`, see godot/tests/check_focus.gd), so the most relevant
 #      checks run first and most mutations end in a second or two.
 #   2. quick: `run_checks.gd -- --fail-fast --skip-probes` stops at the first failing check
-#      and never launches a probe (a few seconds). A clean failure verdict in step 1 or 2 is
-#      CAUGHT; it is the same verdict the full run would give, because these runs only run
-#      fewer checks and any check that fails there fails there too.
-#   3. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
-#      never "CHECKS PASSED") is the project run again with the probes, still fail-fast.
-#      Only a full run that prints "CHECKS PASSED" makes a mutation SURVIVED.
-# FAST=0 restores the original behaviour (one complete, non-fail-fast run per mutation, probes
-# included) and is the STRICT definition of a caught mutation: the checks must reject the project
-# AND the complete run must then still end in the ordinary failure verdict. The CI full pass
-# (.github/workflows/mutation.yml) runs FAST=0 and is the authoritative verdict.
-# The one difference to know: a fast run stops at the first clean failing check, so a mutation
-# that fails a check cleanly and would only CRASH (or time out) in a LATER check is CAUGHT in
-# fast mode and INCONCLUSIVE in classic mode. Fast mode treats a clean failure reported through
-# run_checks.gd's verdict path as behavioural evidence; classic mode insists on the whole run.
+#      and never launches a probe (a few seconds). A failing check in step 1 or 2 is CAUGHT; it is
+#      the verdict the full run would give, because these runs only run fewer checks and any check
+#      that fails there fails there too.
+#   3. full: the project run again with the probes, still fail-fast. Only a full run that prints
+#      "CHECKS PASSED" makes a mutation SURVIVED, and only the full step's result can make one INCONCLUSIVE.
+# Steps 1 and 2 decide only by a genuine failing check. Whatever else they end with (a clean "CHECKS
+# PARTIAL", a timeout, a crash, a script error, no verdict) is not evidence, so the next step runs; a
+# mutation that hangs or crashes a focused or quick run before any check fails is still judged by the full run.
+# Each caught line ends with the step that caught it ([focused, 2.1s], [quick, ...], [full, ...]); a
+# mutation only the render-rate group rejects shows [full, ...].
+# FAST=0 is the CLASSIC mode (the weekly pass, .github/workflows/mutation.yml): one complete,
+# non-fail-fast run per mutation, probes included. It runs on after the first failing check, so it
+# is the mode that finds a check that crashes or hangs later on a broken project (the
+# caught-with-warning lines). The one difference between the modes is exactly that: a fast run
+# stops at the first failing check and never reaches a later crash, so it says plain `caught`.
 #
 # Selection (all compose; every mutation lives in the `slice #N` section it is listed under):
 #   SECTIONS=pike,warden   only those sections, plus `core` (the ungrouped mutations at the top
@@ -48,14 +60,15 @@
 #   SECTIONS=count         prints the number of mutations in the whole list and exits (the CI
 #                          summary uses it to know what a complete pass must cover).
 # Each shard ends with a `RESULT shard=… shards=… total=… selected=… filters=… mode=… ran=…
-# caught=… survived=… inconclusive=… not_applied=…` line. `total` is the size of the whole list,
+# caught=… warned=… survived=… inconclusive=… not_applied=…` line. `total` is the size of the whole list,
 # `selected` the size of the selection before sharding and `filters` names every selection
 # variable that was set (ONLY, SECTIONS, CORE; `none` when none was), so a pass that does not
 # cover the whole list can be told apart from a complete one (tools/godot/mutation-summary.sh).
-# `caught` counts only mutations that were applied and cleanly rejected;
+# `caught` counts mutations that were applied and rejected with the ordinary failure verdict and `warned`
+# the caught-with-warning ones (rejected by a genuine failing check, then a crash or timeout);
 # a mutation whose search text no longer matches is `not_applied` (reported, never caught, and it
-# fails the run); `ran` counts every mutation started, so ran = caught + survived + inconclusive
-# + not_applied unless the script died in the middle of one.
+# fails the run); `ran` counts every mutation started, so ran = caught + warned + survived +
+# inconclusive + not_applied unless the script died in the middle of one.
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 # shellcheck source=tools/godot/godot.lock
@@ -142,8 +155,8 @@ for name in "${MUTATION_NAMES[@]}"; do
   if ((selected++ % SHARDS == SHARD)); then PLAN[$name]=1; fi
 done
 
-survived=0; inconclusive=0; ran=0; caught=0; not_applied=0
-report_result() { echo "RESULT shard=$SHARD shards=$SHARDS total=${#MUTATION_NAMES[@]} selected=$selected filters=$FILTERS mode=$([[ "$FAST" == 1 ]] && echo fast || echo classic) ran=$ran caught=$caught survived=$survived inconclusive=$inconclusive not_applied=$not_applied"; }
+survived=0; inconclusive=0; ran=0; caught=0; warned=0; not_applied=0
+report_result() { echo "RESULT shard=$SHARD shards=$SHARDS total=${#MUTATION_NAMES[@]} selected=$selected filters=$FILTERS mode=$([[ "$FAST" == 1 ]] && echo fast || echo classic) ran=$ran caught=$caught warned=$warned survived=$survived inconclusive=$inconclusive not_applied=$not_applied"; }
 if ((${#PLAN[@]} == 0)); then
   echo "shard $SHARD of $SHARDS: no mutations selected ($selected selected in all)"; report_result; exit 0
 fi
@@ -151,18 +164,39 @@ fi
 SCRATCH="$(mktemp -d)"; trap 'report_result; rm -rf "$SCRATCH"' EXIT
 export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config" XDG_CACHE_HOME="$SCRATCH/home/cache"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
-"$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1
+# The import can abort in the engine (a core dump seen now and then on a busy machine, with nothing wrong in the project):
+# it is retried, and the run only goes on once the global class cache it writes exists.
+for import_attempt in 1 2 3; do
+  "$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1 || true
+  [[ -s "$SCRATCH/base/.godot/global_script_class_cache.cfg" ]] && break
+  echo "import attempt $import_attempt did not finish; retrying" >&2
+done
+[[ -s "$SCRATCH/base/.godot/global_script_class_cache.cfg" ]] || { echo "the project could not be imported in three attempts" >&2; exit 1; }
 
-# run_checks DIR MODE: classic = the complete run (every failure reported, probes included);
-# quick = fail-fast and no probes; full = fail-fast with the probes.
-run_checks() { # dir mode [focus group]
-  local extra=()
+QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-240}"
+[[ "$QUICK_TIMEOUT" =~ ^[1-9][0-9]*$ && "$FULL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "QUICK_TIMEOUT and FULL_TIMEOUT must be positive integers" >&2; exit 2; }
+
+# execute DIR MODE [FOCUS] [SECONDS] runs the checks once and judges the run (see `judge`). classic = the complete run
+# (every failure reported, probes included); quick = fail-fast and no probes; full = fail-fast with the probes.
+# A fresh random token is made for every run and handed to run_checks.gd, which marks its failing checks with it:
+# only standard output is searched for them (standard error goes to its own file, read for crash detection).
+# It sets LOG (standard output), STATUS and, through `judge`, VERDICT and DETAIL.
+VERDICT_TOKEN=""
+execute() { # dir mode [focus group] [timeout seconds]
+  local extra=() errfile="$SCRATCH/stderr.log" limit
+  limit="${4:-$([[ "$2" == quick ]] && echo "$QUICK_TIMEOUT" || echo "$FULL_TIMEOUT")}"
+  VERDICT_TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   case "$2" in
     quick) extra=(-- --fail-fast --skip-probes) ;;
     full) extra=(-- --fail-fast) ;;
+    *) extra=(--) ;;
   esac
+  extra+=("--verdict-token=$VERDICT_TOKEN")
   [[ -z "${3:-}" ]] || extra+=("--focus=$3")
-  timeout 120 "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>&1
+  # A quick run is a few seconds, so a hang in one is cut off sooner; the others run probes.
+  STATUS=0
+  LOG="$(timeout "$limit" "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>"$errfile")" || STATUS=$?
+  judge "$STATUS" "$LOG" "$2" "$(<"$errfile")"
 }
 
 # The check group a section belongs to, named like its file without `_checks.gd`: "none" for
@@ -180,21 +214,43 @@ focus_group() {
   done
 }
 
-# judge STATUS LOG MODE sets VERDICT to CAUGHT, SURVIVED, PARTIAL (a clean quick run: nothing
-# failed, but the probes did not run) or INCONCLUSIVE, and DETAIL to say why.
+# judge STATUS LOG MODE [ERRORS] sets VERDICT to CAUGHT, WARNED, SURVIVED, PARTIAL (a clean quick run:
+# nothing failed, but the probes did not run) or INCONCLUSIVE, and DETAIL to say why. LOG is the run's STANDARD
+# OUTPUT and ERRORS its standard error.
+# A genuine check failure is a line of LOG that starts with "  FAIL[$VERDICT_TOKEN] ": run_checks.gd's own
+# print, carrying this run's random token. A tokenless "  FAIL " line, a FAIL inside an engine error message and
+# anything the engine wrote to standard error are not failing checks. A run with at least one genuine
+# failure is CAUGHT: the checks rejected the project. If it then ended any way other than the ordinary
+# failure verdict (a crash, script error, timeout or hang after the FAIL line) it is WARNED
+# (caught-with-warning): still a rejection, listed apart as a hygiene warning because the
+# checks themselves misbehave once they run on a broken project. A run with no genuine failure
+# that crashes, errors or times out proves nothing and is INCONCLUSIVE.
 judge() {
-  local status="$1" log="$2" mode="$3"
+  local status="$1" log="$2" mode="$3" errors="${4:-}" how="" genuine=0 script_error=0
   VERDICT=INCONCLUSIVE; DETAIL=""
+  # The token is hexadecimal (or at least alphanumeric), so it is safe inside the pattern.
+  if [[ "$VERDICT_TOKEN" =~ ^[0-9A-Za-z]+$ ]] && grep -q "^  FAIL\[$VERDICT_TOKEN\] " <<<"$log"; then genuine=1; fi
+  if grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log
+$errors"; then script_error=1; fi
   if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
     VERDICT=SURVIVED
-  elif [[ "$mode" == quick ]] && grep -q '^CHECKS PARTIAL' <<<"$log" && ((status == 0)) \
-       && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+  elif [[ "$mode" == quick ]] && grep -q '^CHECKS PARTIAL' <<<"$log" && ((status == 0)) && ((script_error == 0)) && ((genuine == 0)); then
     VERDICT=PARTIAL
-  elif ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && grep -q '^  FAIL ' <<<"$log" \
-       && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
-    VERDICT=CAUGHT; DETAIL="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"
+  elif ((genuine)); then
+    DETAIL="$(grep -m1 "^  FAIL\[$VERDICT_TOKEN\] " <<<"$log" | sed 's/^  FAIL\[[^]]*\] /  FAIL /' | cut -c1-90)"
+    if ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && ((script_error == 0)); then
+      VERDICT=CAUGHT
+    else
+      VERDICT=WARNED
+      if ((status == 124)); then how="timed out"
+      elif ((status > 128)); then how="killed by signal $((status - 128))"
+      elif ((status != 1)); then how="exit $status"
+      elif ! grep -q '^CHECKS FAILED' <<<"$log"; then how="no failure verdict"
+      else how="script error"; fi
+      DETAIL="$DETAIL; then $how"
+    fi
   else
-    DETAIL="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log" | cut -c1-70)"
+    DETAIL="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log$errors" | cut -c1-70)"
   fi
 }
 
@@ -203,11 +259,11 @@ judge() {
 # mutation gets past the quick run, so it is done at the first such mutation.
 baseline_full=0
 check_baseline() { # mode
-  local out status=0
-  out="$(run_checks "$SCRATCH/base" "$1")" || status=$?
-  judge "$status" "$out" "$1"
+  local out
+  # The unmodified project gets the full limit even for the quick run: it is checked once, and a short QUICK_TIMEOUT is for mutants.
+  execute "$SCRATCH/base" "$1" "" "$FULL_TIMEOUT"; out="$LOG"
   if [[ "$1" == quick && "$VERDICT" != PARTIAL ]] || [[ "$1" != quick && "$VERDICT" != SURVIVED ]]; then
-    echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; exit 1
+    echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; tail -n 20 "$SCRATCH/stderr.log"; exit 1
   fi
   echo "baseline: $(grep -m1 '^CHECKS \(PASSED\|PARTIAL\)' <<<"$out") ($1 run)"
 }
@@ -241,26 +297,26 @@ PY
     not_applied=$((not_applied + 1))
     return 0
   fi
-  local verdict="" detail="" attempt status log focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
+  local verdict="" detail="" attempt stage focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
   for attempt in 1 2; do
     if [[ "$FAST" == 1 ]]; then
-      VERDICT=PARTIAL
-      if [[ -n "$focus" ]]; then
-        status=0; log="$(run_checks "$dir" quick "$focus")" || status=$?
-        judge "$status" "$log" quick
+      # Only a genuine failing check ends the focused and the quick step; anything else (a clean partial
+      # run, a timeout, a crash, no verdict) is no evidence and falls through. Only the full step decides
+      # the rest: SURVIVED, or INCONCLUSIVE.
+      stage=focused
+      if [[ -n "$focus" ]]; then execute "$dir" quick "$focus"; fi
+      if [[ -z "$focus" || ( "$VERDICT" != CAUGHT && "$VERDICT" != WARNED ) ]]; then
+        stage=quick
+        execute "$dir" quick
       fi
-      if [[ "$VERDICT" == PARTIAL ]]; then
-        status=0; log="$(run_checks "$dir" quick)" || status=$?
-        judge "$status" "$log" quick
-      fi
-      if [[ "$VERDICT" == PARTIAL ]]; then
+      if [[ "$VERDICT" != CAUGHT && "$VERDICT" != WARNED ]]; then
+        stage=full
         ((baseline_full)) || { check_baseline full; baseline_full=1; }
-        status=0; log="$(run_checks "$dir" full)" || status=$?
-        judge "$status" "$log" full
+        execute "$dir" full
       fi
     else
-      status=0; log="$(run_checks "$dir" classic)" || status=$?
-      judge "$status" "$log" classic
+      stage=classic
+      execute "$dir" classic
     fi
     verdict="$VERDICT"; detail="$DETAIL"
     [[ "$verdict" != INCONCLUSIVE ]] && break
@@ -269,7 +325,8 @@ PY
   rm -rf "$dir"
   local took; took="$(awk -v a="$began" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1fs", b - a }')"
   case "$verdict" in
-    CAUGHT)       echo "caught    $name   ($detail)   [$took]"; caught=$((caught + 1)) ;;
+    CAUGHT)       echo "caught    $name   ($detail)   [$stage, $took]"; caught=$((caught + 1)) ;;
+    WARNED)       echo "caught-with-warning $name   ($detail)   [$stage, $took]"; warned=$((warned + 1)) ;;
     SURVIVED)     echo "SURVIVED  $name   <-- checks failed to detect this bug   [$took]"; survived=$((survived + 1)) ;;
     INCONCLUSIVE) echo "INCONCLUSIVE $name   <-- $detail   [$took]"; inconclusive=$((inconclusive + 1)) ;;
   esac
@@ -2488,10 +2545,120 @@ mutate art-attack-lift-equals-idle                  scripts/presentation/sword_s
 mutate art-actor-orientation-lost                   art/placeholder/actor_settings.tres "orientation_degrees = -90" "orientation_degrees = 0"
 mutate art-actor-pivot-on-its-centre                art/placeholder/actor_settings.tres "pivot = Vector2(32, 44)" "pivot = Vector2(32, 40)"
 mutate art-actor-never-fades                        scripts/presentation/actor_sprite_settings.gd "@export_range(0.0, 1.0) var invulnerable_alpha: float = 0.45" "@export_range(0.0, 1.0) var invulnerable_alpha: float = 1.0"
+# --- Render rates, the combined fight and the state digest (slice #41)
+# Presentation-side bugs the fight must show at some frame rate: each adds, per rendered frame, something the bare simulation never does.
+mutate render-enemies-chase-per-frame           scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for enemy: EnemyState in run.enemies:
+		enemy.position += (run.position - enemy.position).normalized() * enemy.speed * delta
+
+
+func _notification(what: int) -> void:"
+mutate render-dash-cooldown-per-frame           scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if run.dash_cooldown_left > 0.0:
+		run.dash_cooldown_left += delta
+
+
+func _notification(what: int) -> void:"
+# The round-2 reviewer's fault: a transient difference (an active dash's invulnerability is cut per rendered frame, and has
+# run out on its own before the next 50-tick checkpoint): only the per-tick fingerprint chain sees it.
+mutate render-dash-iframes-drained-per-frame    scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if run.dash_left > 0.0:
+		run.iframes -= delta
+
+
+func _notification(what: int) -> void:"
+mutate render-draws-gameplay-random-per-frame   scripts/main.gd "func _notification(what: int) -> void:" "func _process(_delta: float) -> void:
+	run.rng.randf()
+
+
+func _notification(what: int) -> void:"
+mutate render-sword-cooldown-per-frame          scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for sword: SwordState in run.swords:
+		sword.cooldown_left += delta
+
+
+func _notification(what: int) -> void:"
+mutate render-wave-break-per-frame              scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	if not run.director.in_wave:
+		run.director.break_left -= delta
+
+
+func _notification(what: int) -> void:"
+mutate render-converge-cooldown-per-frame       scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	run.converge_cooldown_left = maxf(0.0, run.converge_cooldown_left - delta)
+
+
+func _notification(what: int) -> void:"
+mutate render-condition-timer-per-frame         scripts/main.gd "func _notification(what: int) -> void:" "func _process(delta: float) -> void:
+	for enemy: EnemyState in run.enemies:
+		enemy.conditions.burn = maxf(0.0, enemy.conditions.burn - delta)
+
+
+func _notification(what: int) -> void:"
+# The probe's own bookkeeping: a child that ends badly must fail the check even if its output is fine.
+mutate render-probe-exits-badly                 tests/frame_rate_probe.gd "	print(\"PROBE \" + JSON.stringify(result))
+	quit(0)" "	print(\"PROBE \" + JSON.stringify(result))
+	quit(3)"
+mutate launch-probe-exits-badly                 tests/frame_rate_probe.gd "\"standing\": picked.initial_enemies.size()}))
+	quit(0)" "\"standing\": picked.initial_enemies.size()}))
+	quit(3)"
+# The digest itself.
+mutate digest-excludes-dash-cooldown            scripts/sim/game_run.gd "	\"show_ranges\": \"a session toggle" "	\"dash_cooldown_left\": \"left out by mistake\",
+	\"show_ranges\": \"a session toggle"
+mutate digest-excludes-director                 scripts/sim/game_run.gd "	\"show_ranges\": \"a session toggle" "	\"director\": \"left out by mistake\",
+	\"show_ranges\": \"a session toggle"
+mutate digest-skips-private-members             scripts/sim/state_digest.gd "		members[name] = _value(object.get(name))" "		if not name.begins_with(\"_\"):
+			members[name] = _value(object.get(name))"
+mutate digest-forgets-random-state              scripts/sim/state_digest.gd "\"state\": str(generator.state)}" "\"state\": \"\"}"
+mutate digest-skips-nested-objects              scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\"" "	if object is SwordState:
+		return {}
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\""
+mutate digest-skips-conditions                  scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\"" "	if object is EnemyConditions:
+		return {}
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return {\"seed\""
+# The same walk folded into the per-tick fingerprint, and the chain built from it.
+mutate fingerprint-skips-private-members        scripts/sim/state_digest.gd "		accumulator = mix(accumulator, _fold(object.get(name)))" "		if not name.begins_with(\"_\"):
+			accumulator = mix(accumulator, _fold(object.get(name)))"
+mutate fingerprint-forgets-random-state         scripts/sim/state_digest.gd "		return mix(mix(2, generator.seed), generator.state)" "		return mix(2, generator.seed)"
+mutate fingerprint-skips-conditions             scripts/sim/state_digest.gd "	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return mix(" "	if object is EnemyConditions:
+		return 0
+	if object is RandomNumberGenerator:
+		var generator: RandomNumberGenerator = object
+		return mix("
+mutate fingerprint-ignores-floats               scripts/sim/state_digest.gd "		TYPE_FLOAT, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_COLOR:" "		TYPE_FLOAT:
+			return 0
+		TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_COLOR:"
+mutate fight-chain-never-advances               tests/combined_fight.gd "		_chain = StateDigest.mix(_chain, run.state_fingerprint())" "		_chain = 0"
+mutate fight-chain-only-at-checkpoints          tests/combined_fight.gd "		_chain = StateDigest.mix(_chain, run.state_fingerprint())" "		if run.tick % CHECKPOINT_EVERY == 0:
+			_chain = StateDigest.mix(_chain, run.state_fingerprint())"
+mutate digest-rounds-away-small-differences     scripts/sim/state_digest.gd "	return \"%.6f\" % value" "	return \"%.0f\" % value"
+# The fight must keep exercising what it is meant to.
+mutate fight-stalkers-stand-still               tests/combined_fight.gd "		placements.append(stalker)" "		stalker.speed_scale = 0.0
+		placements.append(stalker)"
+mutate fight-waves-unarmed                      tests/combined_fight.gd "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	return scenario" "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	scenario.arm_waves = false
+	return scenario"
+mutate fight-waves-never-start                  tests/combined_fight.gd "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	return scenario" "	scenario.first_wave_delay = WAVES_FIRST_DELAY
+	scenario.waves_enabled = false
+	return scenario"
+mutate fight-no-wave-segment                    tests/combined_fight.gd "	return scenario() if segment == 0 else waves_scenario()" "	return scenario()"
 echo
-echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $caught caught"
+echo "shard $SHARD of $SHARDS: $ran mutation(s) run, $((caught + warned)) caught"
+if ((warned)); then echo "$warned mutation(s) were caught WITH A WARNING (a genuine FAIL line, then a crash, script error or timeout: a hygiene warning, not a failure; see the caught-with-warning lines)"; fi
 if ((survived)); then echo "$survived mutation(s) survived"; fi
-if ((inconclusive)); then echo "$inconclusive mutation(s) were inconclusive (crash, timeout or script error instead of a check verdict)"; fi
+if ((inconclusive)); then echo "$inconclusive mutation(s) were inconclusive (crash, timeout or script error and no failing check)"; fi
 if ((not_applied)); then echo "$not_applied mutation(s) were NOT APPLIED (stale search text: nothing was tested)"; fi
-((caught == ran && survived + inconclusive + not_applied == 0)) || exit 1
+((caught + warned == ran && survived + inconclusive + not_applied == 0)) || exit 1
 echo "all mutations were caught as behavioural rejections by the headless checks (0 inconclusive, 0 not applied)"

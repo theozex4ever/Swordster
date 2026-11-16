@@ -1,25 +1,19 @@
 extends SceneTree
-## Plays `RenderRateScenario` through the real Main scene under the engine's own
-## fixed-step loop and prints one `PROBE {json}` line. The checks start this
-## script in a child Godot process at several `--fixed-fps` values (frames per
-## second of the engine's clock): at 20 fps the engine runs three 1/60 s ticks
-## per frame, at 240 fps one tick every four frames, and the digest must not
-## notice. `--probe=rate` plays the crowd fight, `--probe=rate-spitters` the
-## orbs-and-parries fight, `--probe=rate-flurry` the Viper Flurry fight, `--probe=rate-conditions`
-## the fight of burning, poisoned and freezing packs, `--probe=rate-warden` the fight of sweeping
-## Wardens and Maelstroms, `--probe=rate-pike` the fight of thrusting Pikes and Skewers slamming
-## columns into walls, `--probe=rate-colossus` the fight of crushing Colossi and Cataclysms leaving elemental fields,
-## `--probe=rate-converge` the default loadout commanded by Converge and its ultimates, `--probe=rate-drops` the fight of armed foes dying, dropping swords and the swaps that put them into the slots. With `--probe=launch` it instead reports which
-## scenario a Main scene picks when it is given none (the launch-option path).
+## Plays `CombinedFight` through the real Main scene under the engine's own
+## fixed-step loop and prints one `PROBE {json}` line. The checks (render_rate_checks.gd) start this script in a
+## child Godot process at several `--fixed-fps` values (frames per second of the engine's clock): at 20 fps the
+## engine runs three 1/60 s ticks per frame, at 240 fps one tick every four frames, and the digest must not notice.
+## `--probe=rate` plays the combined fight. With `--probe=launch` it instead reports which scenario a Main scene
+## picks when it is given none (the launch-option path).
 ##
 ##   godot --headless --path godot --fixed-fps 20 --script res://tests/frame_rate_probe.gd -- --probe=rate
 
-const FRAME_LIMIT: int = 8000
+const FRAME_LIMIT: int = 24000
 
 var _main: Main
-var _script_name: String = RenderRateScenario.CROWD
 var _frames: int = 0
-var _last_issued_tick: int = -1
+var _reported: bool = false
+var _fight: CombinedFight = CombinedFight.new()
 
 
 func _initialize() -> void:
@@ -28,24 +22,8 @@ func _initialize() -> void:
 		if argument.begins_with("--probe="):
 			mode = argument.trim_prefix("--probe=")
 	_main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
-	if mode == "rate-spitters":
-		_script_name = RenderRateScenario.SPITTERS
-	if mode == "rate-flurry":
-		_script_name = RenderRateScenario.FLURRY
-	if mode == "rate-conditions":
-		_script_name = RenderRateScenario.CONDITIONS
-	if mode == "rate-warden":
-		_script_name = RenderRateScenario.WARDEN
-	if mode == "rate-pike":
-		_script_name = RenderRateScenario.PIKE
-	if mode == "rate-colossus":
-		_script_name = RenderRateScenario.COLOSSUS
-	if mode == "rate-converge":
-		_script_name = RenderRateScenario.CONVERGE
-	if mode == "rate-drops":
-		_script_name = RenderRateScenario.DROPS
-	if mode == "rate" or mode == "rate-spitters" or mode == "rate-flurry" or mode == "rate-conditions" or mode == "rate-warden" or mode == "rate-pike" or mode == "rate-colossus" or mode == "rate-converge" or mode == "rate-drops":
-		_main.scenario = RenderRateScenario.scenario(_script_name)
+	if mode == "rate":
+		_main.scenario = CombinedFight.segment_scenario(0)
 	root.add_child(_main)
 	if mode == "launch":
 		_report_launch.call_deferred()
@@ -55,15 +33,15 @@ func _initialize() -> void:
 
 
 ## Emitted before every engine physics iteration, ahead of Main's own step, so
-## a command lands before the same tick whatever the frame rate.
+## a command lands before the same tick whatever the frame rate. The fight issues the commands, takes its
+## checkpoints and, between its segments, restarts the run into the next scenario (the presenter is reset the way
+## Main resets it on any restart).
 func _before_tick() -> void:
-	var run: GameRun = _main.run
-	if run.tick == _last_issued_tick:
-		return
-	_last_issued_tick = run.tick
-	for command: GameCommand in RenderRateScenario.commands_at(run.tick, _script_name):
-		run.apply(command)
-	if run.tick >= RenderRateScenario.TOTAL_TICKS:
+	var restarts: int = _main.run.restarts
+	_fight.before_tick(_main.run)
+	if _main.run.restarts != restarts:
+		_main._presenter.reset()
+	if _fight.finished:
 		_report()
 
 
@@ -75,12 +53,15 @@ func _count_frame() -> void:
 
 
 func _report() -> void:
-	var result: Dictionary = RenderRateScenario.digest(_main.run)
+	if _reported:
+		return
+	_reported = true
+	var result: Dictionary = _fight.result()
 	result["frames"] = _frames
 	result["visuals"] = _main._presenter.visual_count()
 	result["enemies"] = _main.run.enemies.size()
-	if _script_name == RenderRateScenario.DROPS:
-		result["pickup_visuals"] = _main._presenter.pickup_visual_count()
+	result["pickups"] = _main.run.pickups.size()
+	result["pickup_visuals"] = _main._presenter.pickup_visual_count()
 	print("PROBE " + JSON.stringify(result))
 	quit(0)
 

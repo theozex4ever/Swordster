@@ -3,16 +3,21 @@
 # (mutation-summary.sh). They pin behaviour that must not drift:
 #   1. a mutation whose search text is stale is reported NOT APPLIED, never caught, and fails
 #      the run (it used to count as caught through ran - survived - inconclusive);
-#   2. a mutation that fails a check cleanly and would only crash in a LATER check is
-#      CAUGHT in the fast mode (it stops at the first clean failure) and INCONCLUSIVE in the
-#      strict classic mode, which CI runs: the documented difference between the modes;
+#   2. a mutation whose run has at least one genuine `  FAIL[<token>] ` check line (the random per-run token the checker hands
+#      run_checks.gd; a tokenless FAIL line or one on standard error, e.g. an engine diagnostic, is NOT genuine) is CAUGHT even if a crash,
+#      script error or timeout follows (the fast mode never reaches the later crash and says plain
+#      "caught"; the classic mode runs on and says `caught-with-warning`, a hygiene warning that does
+#      not fail the run); a run with NO FAIL line that crashes, errors or times out is INCONCLUSIVE
+#      in both modes and fails the run. `judge` (the verdict function) is also checked on synthetic logs;
 #   3. the shard summary succeeds only when the matrix job succeeded and every shard has a
 #      clean result file AND together they cover the whole mutation list (shard count, per-shard
-#      counts and filters checked against the list itself): one aborted shard, a missing,
-#      duplicate or extra file, a cancelled job, a filtered or short run all fail it;
-#   4. a focused run never prints "CHECKS PASSED".
-# Needs the pinned Godot in the cache for 1, 2 and 4: ./build-godot.sh --bootstrap-only.
-#   tools/godot/test-mutation-runner.sh [summary|stale|crash|focus ...]   (default: all)
+#      counts, mode and filters checked against the list itself): one aborted shard, a missing,
+#      duplicate or extra file, a cancelled job, a filtered or short run all fail it; caught-with-warning
+#      mutations are listed and never fail it;
+#   4. a focused run never prints "CHECKS PASSED";
+#   5. a focused or quick step that times out or crashes without a failing check falls through to the full step, which decides.
+# Needs the pinned Godot in the cache for 1, 2 and 4 (the judge cases and the summary need none): ./build-godot.sh --bootstrap-only.
+#   tools/godot/test-mutation-runner.sh [summary|stale|crash|spoof|judge|focus|fallthrough ...]   (default: all)
 set -Eeuo pipefail
 REPO="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 # shellcheck source=tools/godot/godot.lock
@@ -21,7 +26,7 @@ REAL_CACHE="${SWORDSTER_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/swordster}"
 GODOT_BIN="$REAL_CACHE/godot-$GODOT_VERSION/editor/godot"
 ROOT="$(mktemp -d)"; trap 'rm -rf "$ROOT"' EXIT
 failures=0
-want=("$@"); ((${#want[@]})) || want=(summary stale crash focus)
+want=("$@"); ((${#want[@]})) || want=(summary stale crash spoof judge focus fallthrough)
 wants() { local t; for t in "${want[@]}"; do [[ "$t" == "$1" ]] && return 0; done; return 1; }
 report() { # name PASS|detail log
   if [[ "$2" == PASS ]]; then printf '%-62s PASS\n' "$1"
@@ -36,7 +41,7 @@ sandbox() { # name -> a copy of the tools and the Godot project that mutation-ch
 }
 checker() { # sandbox mode log -> runs ONLY=speed-zero, prints the exit status
   local status=0
-  env -i HOME="$1/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" ONLY=speed-zero FAST="$2" \
+  env -i HOME="$1/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" SWORDSTER_PROBE_CHILDREN="${SWORDSTER_PROBE_CHILDREN:-4}" ONLY=speed-zero FAST="$2" \
     "$1/repo/tools/godot/mutation-check.sh" >"$3" 2>&1 || status=$?
   echo "$status"
 }
@@ -48,8 +53,8 @@ if wants summary; then
   # checker): every `mutate NAME ...` line of the script, like the checker's own parser.
   FULL="$(grep -cE '^mutate[[:space:]]+[^[:space:]]' "$REPO/tools/godot/mutation-check.sh")"
   expect() { echo $(((FULL - $1 + SHARDS - 1) / SHARDS)); } # shard -> its share of the list
-  result_line() { # shard shards ran caught survived inconclusive not_applied [filters] [selected] [total]
-    echo "RESULT shard=$1 shards=$2 total=${10:-$FULL} selected=${9:-$FULL} filters=${8:-none} mode=classic ran=$3 caught=$4 survived=$5 inconclusive=$6 not_applied=$7 exit=0"
+  result_line() { # shard shards ran caught survived inconclusive not_applied [filters] [selected] [total] [warned] [mode]
+    echo "RESULT shard=$1 shards=$2 total=${10:-$FULL} selected=${9:-$FULL} filters=${8:-none} mode=${12:-classic} ran=$3 caught=$4 warned=${11:-0} survived=$5 inconclusive=$6 not_applied=$7 exit=0"
   }
   results() { # dir -> twelve clean classic results that together cover the whole list
     mkdir -p "$1"
@@ -57,13 +62,13 @@ if wants summary; then
       n="$(expect "$s")"; result_line "$s" "$SHARDS" "$n" "$n" 0 0 0 > "$1/result-$s.txt"
     done
   }
-  judge_set() { # name want-exit matrix-result dir
+  judge_set() { # name want-exit matrix-result dir [mode the workflow ran]
     local status=0 out="$ROOT/summary-$1.log"
-    GITHUB_STEP_SUMMARY="$ROOT/summary-$1.md" MATRIX_RESULT="$3" SHARDS=$SHARDS "$REPO/tools/godot/mutation-summary.sh" "$4" >"$out" 2>&1 || status=$?
+    GITHUB_STEP_SUMMARY="$ROOT/summary-$1.md" MATRIX_RESULT="$3" SHARDS=$SHARDS MODE="${5:-classic}" "$REPO/tools/godot/mutation-summary.sh" "$4" >"$out" 2>&1 || status=$?
     if [[ "$status" == "$2" ]]; then report "summary: $1" PASS; else report "summary: $1" "exit $status, wanted $2" "$out"; fi
   }
   d="$ROOT/s-pass"; results "$d";                                              judge_set "all twelve shards pass" 0 success "$d"
-  grep -q "all $SHARDS shards succeeded: $FULL of $FULL mutations caught, $FULL of $FULL expected" "$ROOT/summary-all twelve shards pass.log" \
+  grep -q "all $SHARDS shards succeeded: $FULL of $FULL mutations caught (0 with a warning), $FULL of $FULL expected" "$ROOT/summary-all twelve shards pass.log" \
     && report "summary: the verdict line shows the coverage of the full list" PASS \
     || report "summary: the verdict line shows the coverage of the full list" "no '$FULL of $FULL expected' line" "$ROOT/summary-all twelve shards pass.log"
   d="$ROOT/s-aborted"; results "$d"; sed -i 's/exit=0/exit=1/' "$d/result-7.txt"
@@ -79,7 +84,22 @@ if wants summary; then
   judge_set "a mutation not applied" 1 success "$d"
   d="$ROOT/s-inconclusive"; results "$d"; n="$(expect 0)"; result_line 0 $SHARDS "$n" $((n - 1)) 0 1 0 > "$d/result-0.txt"
   judge_set "an inconclusive mutation" 1 success "$d"
-  d="$ROOT/s-fast"; results "$d"; sed -i 's/mode=classic/mode=fast/' "$d/result-4.txt"; judge_set "a shard that ran in fast mode" 1 success "$d"
+  d="$ROOT/s-fast"; results "$d"; sed -i 's/mode=classic/mode=fast/' "$d/result-4.txt"; judge_set "one shard that ran in fast mode in a classic pass" 1 success "$d"
+  d="$ROOT/s-fast-all"; results "$d"; sed -i 's/mode=classic/mode=fast/' "$d"/result-*.txt; judge_set "a classic pass whose every shard ran fast" 1 success "$d"
+  judge_set "a fast pass whose every shard ran fast" 0 success "$d" fast
+  judge_set "a fast pass whose shards ran classic" 1 success "$ROOT/s-pass" fast
+  # caught-with-warning: listed, never failing; but caught + warned must still account for every mutation run.
+  d="$ROOT/s-warned"; results "$d"; n="$(expect 2)"; result_line 2 $SHARDS "$n" $((n - 2)) 0 0 0 none "$FULL" "$FULL" 2 > "$d/result-2.txt"
+  printf '%s\n' "caught    speed-zero   (  FAIL x)   [focused, 2.0s]" "caught-with-warning pike-thrust-never-ends   (  FAIL a; then timed out)   [full, 130.0s]" "caught-with-warning cataclysm-field-never-ends   (  FAIL b; then killed by signal 6)   [full, 9.0s]" > "$d/shard-2.log"
+  judge_set "two caught-with-warning mutations in one shard" 0 success "$d"
+  grep -q "2 mutation(s) caught with a warning" "$ROOT/summary-two caught-with-warning mutations in one shard.md" && grep -q -- "- pike-thrust-never-ends" "$ROOT/summary-two caught-with-warning mutations in one shard.md" \
+    && grep -q -- "- cataclysm-field-never-ends" "$ROOT/summary-two caught-with-warning mutations in one shard.md" \
+    && report "summary: the warnings are named in the summary" PASS || report "summary: the warnings are named in the summary" "not listed" "$ROOT/summary-two caught-with-warning mutations in one shard.md"
+  d="$ROOT/s-warned-fast"; results "$d"; sed -i 's/mode=classic/mode=fast/' "$d"/result-*.txt; n="$(expect 2)"; result_line 2 $SHARDS "$n" $((n - 2)) 0 0 0 none "$FULL" "$FULL" 2 fast > "$d/result-2.txt"
+  judge_set "caught-with-warning mutations in a fast pass" 0 success "$d" fast
+  d="$ROOT/s-warned-short"; results "$d"; n="$(expect 2)"; result_line 2 $SHARDS "$n" $((n - 2)) 0 0 0 none "$FULL" "$FULL" 1 > "$d/result-2.txt"
+  judge_set "caught + caught-with-warning fall short of the mutations run" 1 success "$d"
+  d="$ROOT/s-warned-missing"; results "$d"; sed -i 's/ warned=0//' "$d/result-2.txt"; judge_set "a result without the warned field" 1 success "$d"
   d="$ROOT/s-wrong-shard"; results "$d"; cp "$d/result-1.txt" "$d/result-6.txt"; judge_set "a result file that belongs to another shard" 1 success "$d"
 
   # The pass must cover the whole list: none of these may certify an incomplete one.
@@ -109,22 +129,46 @@ if wants summary; then
   d="$ROOT/s-total"; results "$d"; sed -i "s/ total=$FULL / total=$((FULL - 1)) /" "$d/result-1.txt"; judge_set "a shard that counts a shorter mutation list" 1 success "$d"
   d="$ROOT/s-selected"; results "$d"; sed -i "s/ selected=$FULL / selected=$((FULL - 1)) /" "$d/result-1.txt"; judge_set "a shard that selected fewer mutations than the list" 1 success "$d"
   d="$ROOT/s-zero-ran"; results "$d"; result_line 3 $SHARDS 0 0 0 0 0 > "$d/result-3.txt"; judge_set "a shard that ran nothing" 1 success "$d"
-  # The shard count of the workflow matrix is checked when the summary is told where the workflow is.
-  for len in 12 10; do
-    wf="$ROOT/matrix-$len.yml"; list="$(seq -s ', ' 0 $((len - 1)))"; printf 'jobs:\n  mutation:\n    strategy:\n      matrix:\n        shard: [%s]\n' "$list" > "$wf"
-    d="$ROOT/s-matrix-$len"; results "$d"; status=0; out="$ROOT/summary-matrix-$len.log"
-    WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-matrix-$len.md" MATRIX_RESULT=success SHARDS=$SHARDS "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
-    want=0; ((len == SHARDS)) || want=1
-    if [[ "$status" == "$want" ]]; then report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" PASS; else report "summary: workflow matrix of $len shards, SHARDS=$SHARDS" "exit $status, wanted $want" "$out"; fi
+  # The workflows generate their matrix from the same `shards` input they hand the checker and the summary, so the
+  # only thing to pin is that every caller passes a mode and a positive shard count to the reusable pass.
+  for wf in "$REPO/.github/workflows/mutation-gate.yml" "$REPO/.github/workflows/mutation.yml"; do
+    mode="$(sed -n 's/^      mode: \([a-z]*\)$/\1/p' "$wf")"; shards="$(sed -n 's/^      shards: \([0-9]*\)$/\1/p' "$wf")"
+    if [[ ( "$mode" == fast || "$mode" == classic ) && "$shards" =~ ^[1-9][0-9]*$ ]]; then report "workflow ${wf##*/}: mode $mode, $shards shards" PASS; else report "workflow ${wf##*/}: mode and shards" "mode='$mode' shards='$shards'"; fi
   done
-  # The real workflow file must agree with the SHARDS of its own env block (whatever it is: the clean results are
-  # generated for that many shards).
-  wf="$REPO/.github/workflows/mutation.yml"; d="$ROOT/s-real-workflow"; status=0; out="$ROOT/summary-real-workflow.log"
-  workflow_shards="$(sed -n 's/^  SHARDS: \([0-9]*\)$/\1/p' "$wf")"
-  SHARDS="$workflow_shards"; results "$d"
-  WORKFLOW_FILE="$wf" GITHUB_STEP_SUMMARY="$ROOT/summary-real-workflow.md" MATRIX_RESULT=success SHARDS="$workflow_shards" "$REPO/tools/godot/mutation-summary.sh" "$d" >"$out" 2>&1 || status=$?
-  SHARDS=12
-  if [[ "$status" == 0 ]]; then report "summary: the real workflow's SHARDS matches its matrix" PASS; else report "summary: the real workflow's SHARDS matches its matrix" "exit $status" "$out"; fi
+  # The gate is a REQUIRED check, so its workflow triggers on every pull request (no path filter: a skipped workflow would leave a
+  # required check pending for ever) and decides inside whether the expensive work is needed.
+  gate_log="$ROOT/gate-workflow.log"
+  if python3 -I - "$REPO/.github/workflows/mutation-gate.yml" "$REPO/.github/workflows/mutation-pass.yml" >"$gate_log" 2>&1 <<'PY'
+import re, sys
+gate, reusable = (open(p).read() for p in sys.argv[1:3])
+on = re.search(r"^on:\n((?:(?:  .*)?\n)+)", gate, re.M).group(1)
+assert "paths" not in on, "the gate's trigger has a path filter (paths / paths-ignore): a docs-only pull request would never report the required check"
+assert re.search(r"^  pull_request:", on, re.M), "the gate no longer triggers on pull requests"
+assert "mutation-gate-paths.sh" in gate and "skip: ${{ needs.changes.outputs.docs_only == 'true' }}" in gate, "the gate does not decide docs-only inside the workflow"
+# `all shards` must always run and report: it is `if: always()` and the skip path succeeds without judging.
+summary = reusable[reusable.index("  summary:"):]
+assert "name: all shards" in summary and "if: always()" in summary, "the aggregate job must always run"
+assert summary.count("if: ${{ !inputs.skip }}") == 3 and "if: ${{ inputs.skip }}" in summary, "the aggregate job must judge unless skipped, and say so when skipped"
+assert "if: ${{ !inputs.skip }}" in reusable[reusable.index("  mutation:"):reusable.index("  summary:")], "the shards must be skipped when inputs.skip"
+print("ok")
+PY
+  then report "workflow mutation-gate.yml: every pull request triggers it, docs-only skips the shards, all shards always reports" PASS
+  else report "workflow mutation-gate.yml: every pull request triggers it, docs-only skips the shards, all shards always reports" "see log" "$gate_log"; fi
+  # Which changes skip the expensive work.
+  paths_is() { # name want file...
+    local name="$1" want="$2"; shift 2
+    local got; got="$(printf '%s\n' "$@" | bash "$REPO/tools/godot/mutation-gate-paths.sh")"
+    if [[ "$got" == "docs_only=$want" ]]; then report "gate paths: $name" PASS; else report "gate paths: $name" "got '$got', wanted docs_only=$want"; fi
+  }
+  paths_is "documentation and root Markdown only skip" true docs/reference/waves.md docs/reference/waves/shot.png GLOSSARY.md AGENTS.md .github/ISSUE_TEMPLATE/bug.md .github/CONTRIBUTING.md LICENSE
+  paths_is "a docs-only change skips" true docs/adr/0001-x.md
+  for file in build-godot.sh game/main.py .github/workflows/build.yml .github/workflows/mutation-gate.yml .github/workflows/mutation-pass.yml .github/workflows/mutation.yml \
+              godot/scripts/main.gd godot/README.md godot/tests/render_rate_checks.gd tools/godot/mutation-check.sh tools/reference/capture_waves.py tools/new-thing.sh godot/project.godot README.txt .github/dependabot.yml; do
+    paths_is "$file gates" false "$file"
+  done
+  paths_is "one gating file among documentation gates" false docs/a.md godot/scripts/main.gd GLOSSARY.md
+  paths_is "a nested Markdown file outside docs gates" false tools/notes/README.md
+  paths_is "an empty file list (the API failed) gates" false
 fi
 
 # ---- 1. stale mutation text
@@ -144,12 +188,12 @@ PY
     [[ "$status" == 1 ]] || problem="exit $status, wanted 1"
     grep -q '^MUTATION NOT APPLIED: speed-zero' "$log" || problem="no MUTATION NOT APPLIED line"
     grep -q '^caught ' "$log" && problem="a stale mutation was reported caught"
-    grep -q '^RESULT .* ran=1 caught=0 survived=0 inconclusive=0 not_applied=1$' "$log" || problem="RESULT line is not ran=1 caught=0 not_applied=1: $(grep '^RESULT' "$log")"
+    grep -q '^RESULT .* ran=1 caught=0 warned=0 survived=0 inconclusive=0 not_applied=1$' "$log" || problem="RESULT line is not ran=1 caught=0 not_applied=1: $(grep '^RESULT' "$log")"
     report "stale mutation (FAST=$mode): not applied, never caught, run fails" "$problem" "$log"
   done
 fi
 
-# ---- 2. clean failure first, crash in a later check
+# ---- 2. a genuine FAIL line decides; a crash with no FAIL line proves nothing
 if wants crash; then
   need_godot
   sb="$(sandbox crash)"
@@ -159,24 +203,134 @@ if wants crash; then
   # ever reaches. The unmutated project is unaffected (the tripwire needs a speed of zero), so
   # the baseline passes.
   python3 -I - "$sb/repo/godot/scripts/sim/game_run.gd" <<'PY'
-import sys
+import re, sys
 path = sys.argv[1]
 text = open(path).read()
-old = "func kill(enemy: EnemyState, direction: Vector2) -> void:\n"
-assert text.count(old) == 1
-open(path, "w").write(text.replace(old, old + "\tvar tripwire_speed: float = PLAYER_SPEED\n\tif tripwire_speed < 1.0 and scenario.seed == 41:\n\t\tOS.crash(\"test tripwire: a kill after the movement failure\")\n"))
+# Whatever parameters kill() has today (it gained `big: bool = false`; a later slice may add more): anchor on its name and first
+# parameter only, and insert the tripwire right after the signature line.
+pattern = re.compile(r"^func kill\(enemy: EnemyState[^\n]*\) -> void:\n", re.M)
+assert len(pattern.findall(text)) == 1, "expected exactly one func kill(enemy: EnemyState, ...) in game_run.gd"
+tripwire = "\tvar tripwire_speed: float = PLAYER_SPEED\n\tif tripwire_speed < 1.0 and scenario.seed == 41:\n\t\tOS.crash(\"test tripwire: a kill after the movement failure\")\n"
+open(path, "w").write(pattern.sub(lambda m: m.group(0) + tripwire, text, count=1))
 PY
   log="$ROOT/crash-fast.log"; status="$(checker "$sb" 1 "$log")"; problem=PASS
   [[ "$status" == 0 ]] || problem="exit $status, wanted 0"
   grep -q '^caught    speed-zero' "$log" || problem="fast mode did not call the clean failure caught"
-  grep -q '^RESULT .* mode=fast ran=1 caught=1 survived=0 inconclusive=0 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
-  report "crash after a clean failure, FAST=1: caught" "$problem" "$log"
+  grep -q '^RESULT .* mode=fast ran=1 caught=1 warned=0 survived=0 inconclusive=0 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
+  report "crash after a clean failure, FAST=1: caught (the crash is never reached)" "$problem" "$log"
   log="$ROOT/crash-classic.log"; status="$(checker "$sb" 0 "$log")"; problem=PASS
-  [[ "$status" == 1 ]] || problem="exit $status, wanted 1"
-  grep -q '^INCONCLUSIVE speed-zero' "$log" || problem="classic mode did not call the crash inconclusive"
-  grep -q '^caught ' "$log" && problem="classic mode called the crash caught"
-  grep -q '^RESULT .* mode=classic ran=1 caught=0 survived=0 inconclusive=1 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
-  report "crash after a clean failure, FAST=0: inconclusive" "$problem" "$log"
+  [[ "$status" == 0 ]] || problem="exit $status, wanted 0 (a warning does not fail the run)"
+  grep -q '^caught-with-warning speed-zero' "$log" || problem="classic mode did not call the crash after a failure caught-with-warning"
+  grep -q '^INCONCLUSIVE ' "$log" && problem="classic mode called the crash after a failure inconclusive"
+  grep -q '^RESULT .* mode=classic ran=1 caught=0 warned=1 survived=0 inconclusive=0 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
+  report "crash after a clean failure, FAST=0: caught-with-warning, run passes" "$problem" "$log"
+
+  # A crash BEFORE any check fails: no FAIL line, so no behavioural evidence, in both modes.
+  sb="$(sandbox crash-no-fail)"
+  python3 -I - "$sb/repo/godot/tests/run_checks.gd" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "func _run_all() -> void:\n"
+assert text.count(old) == 1
+open(path, "w").write(text.replace(old, old + "\tif GameRun.PLAYER_SPEED < 1.0:\n\t\tOS.crash(\"test tripwire: a crash before any check\")\n"))
+PY
+  for mode in 1 0; do
+    log="$ROOT/crash-nofail-$mode.log"; status="$(checker "$sb" "$mode" "$log")"; problem=PASS
+    [[ "$status" == 1 ]] || problem="exit $status, wanted 1"
+    grep -q '^INCONCLUSIVE speed-zero' "$log" || problem="a crash with no failing check was not called inconclusive"
+    grep -Eq '^caught' "$log" && problem="a crash with no failing check was called caught"
+    grep -q '^RESULT .* ran=1 caught=0 warned=0 survived=0 inconclusive=1 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
+    report "crash with no failing check (FAST=$mode): inconclusive, run fails" "$problem" "$log"
+  done
+fi
+
+# ---- 2a. a diagnostic that merely looks like a failing check proves nothing
+if wants spoof; then
+  need_godot
+  sb="$(sandbox spoof)"
+  # The reviewer's spoof: with the player's speed at zero the very first check of the run is replaced by an engine diagnostic
+  # whose message contains a newline and "  FAIL diagnostic only" (push_error goes to standard error), plus the same line
+  # printed on standard output without the run's token; then the process exits 3. No check failed, so this proves nothing.
+  python3 -I - "$sb/repo/godot/tests/run_checks.gd" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "func _run_all() -> void:\n"
+assert text.count(old) == 1
+open(path, "w").write(text.replace(old, old + "\tif GameRun.PLAYER_SPEED < 1.0:\n\t\tpush_error(\"not a check\\n  FAIL diagnostic only\")\n\t\tprint(\"not a check\\n  FAIL diagnostic only\")\n\t\tquit(3)\n\t\treturn\n"))
+PY
+  for mode in 1 0; do
+    log="$ROOT/spoof-$mode.log"; status="$(checker "$sb" "$mode" "$log")"; problem=PASS
+    [[ "$status" == 1 ]] || problem="exit $status, wanted 1"
+    grep -q '^INCONCLUSIVE speed-zero' "$log" || problem="a diagnostic that looks like a failing check was not called inconclusive"
+    grep -Eq '^caught' "$log" && problem="a diagnostic that looks like a failing check was called caught"
+    grep -q '^RESULT .* ran=1 caught=0 warned=0 survived=0 inconclusive=1 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
+    report "a spoofed FAIL diagnostic (FAST=$mode): inconclusive, run fails" "$problem" "$log"
+  done
+fi
+
+# ---- 5. a step that proves nothing falls through to the next one
+if wants fallthrough; then
+  need_godot
+  sb="$(sandbox fallthrough)"
+  # With the player's speed at zero every run that skips the probes (the focused and the quick step) hangs before any
+  # check; the full run is untouched and its movement checks fail. The short timeouts keep the test fast. The hang used to end
+  # the mutation INCONCLUSIVE without a full attempt; it must now be CAUGHT by the full step.
+  python3 -I - "$sb/repo/godot/tests/run_checks.gd" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "func _run_all() -> void:\n"
+assert text.count(old) == 1
+open(path, "w").write(text.replace(old, old + "\tif GameRun.PLAYER_SPEED < 1.0 and _skip_probes:\n\t\tOS.delay_msec(600000)\n"))
+PY
+  log="$ROOT/fallthrough.log"; status=0
+  env -i HOME="$sb/home" PATH="$PATH" SWORDSTER_CACHE_DIR="$REAL_CACHE" SWORDSTER_PROBE_CHILDREN="${SWORDSTER_PROBE_CHILDREN:-4}" ONLY=speed-zero FAST=1 QUICK_TIMEOUT=6 FULL_TIMEOUT=120 \
+    "$sb/repo/tools/godot/mutation-check.sh" >"$log" 2>&1 || status=$?
+  problem=PASS
+  [[ "$status" == 0 ]] || problem="exit $status, wanted 0"
+  grep -q '^caught    speed-zero.*\[full, ' "$log" || problem="the quick step's timeout did not fall through to a full step that caught it"
+  grep -q '^INCONCLUSIVE ' "$log" && problem="a quick-step timeout ended inconclusive without the full step deciding"
+  grep -q '^RESULT .* mode=fast ran=1 caught=1 warned=0 survived=0 inconclusive=0 not_applied=0$' "$log" || problem="RESULT: $(grep '^RESULT' "$log")"
+  report "a timeout in the quick and focused steps falls through to the full step" "$problem" "$log"
+fi
+
+# ---- 2b. the verdict function on synthetic logs (no engine needed)
+if wants judge; then
+  eval "$(sed -n '/^judge() {/,/^}/p' "$REPO/tools/godot/mutation-check.sh")"
+  VERDICT_TOKEN=3f9ac1d2e0b74a58
+  verdict_is() { # name want status mode log...
+    local name="$1" want="$2" status="$3" mode="$4"; shift 4
+    judge "$status" "$(printf '%s\n' "$@")" "$mode"
+    if [[ "$VERDICT" == "$want" ]]; then report "judge: $name" PASS; else report "judge: $name" "got $VERDICT ($DETAIL), wanted $want"; fi
+  }
+  fail="  FAIL[$VERDICT_TOKEN] moving right gains x only"
+  verdict_is "clean failure verdict" CAUGHT 1 classic "$fail" "CHECKS FAILED: 1 of 5"
+  verdict_is "failure, then a timeout" WARNED 124 classic "$fail"
+  verdict_is "failure, then the engine aborts (signal 6)" WARNED 134 classic "$fail"
+  verdict_is "failure, then a segfault (signal 11)" WARNED 139 full "$fail" "CHECKS FAILED: 1 of 5"
+  verdict_is "failure, a script error, then the verdict" WARNED 1 classic "$fail" "SCRIPT ERROR: Invalid access" "CHECKS FAILED: 1 of 5"
+  verdict_is "failure, then exit 1 without a verdict" WARNED 1 classic "$fail"
+  verdict_is "failure, then an odd exit status" WARNED 3 classic "$fail" "CHECKS FAILED: 1 of 5"
+  verdict_is "failure in a quick run, then a crash" WARNED 139 quick "$fail"
+  verdict_is "a crash with no failure line" INCONCLUSIVE 139 classic "  ok   something" "ERROR: crash handler"
+  verdict_is "a timeout with no failure line" INCONCLUSIVE 124 classic "  ok   something"
+  verdict_is "a script error with no failure line" INCONCLUSIVE 1 classic "SCRIPT ERROR: Invalid access" "CHECKS FAILED: 1 of 5"
+  verdict_is "FAIL inside an engine error message is not a failing check" INCONCLUSIVE 134 classic "ERROR: lost the node   FAIL in the middle of a line" "  ok   x"
+  verdict_is "a tokenless FAIL line is not a failing check" INCONCLUSIVE 3 classic "not a check" "  FAIL diagnostic only"
+  verdict_is "a FAIL line with another run's token is not a failing check" INCONCLUSIVE 1 classic "  FAIL[0000deadbeef] x" "CHECKS FAILED: 1 of 5"
+  verdict_is "a FAIL line that does not start the line is not a failing check" INCONCLUSIVE 1 classic "x  FAIL[$VERDICT_TOKEN] y" "CHECKS FAILED: 1 of 5"
+  verdict_is "a verdict line without any FAIL line" INCONCLUSIVE 1 classic "CHECKS FAILED: 1 of 5"
+  verdict_is "no output at all" INCONCLUSIVE 0 classic ""
+  verdict_is "the unmutated suite" SURVIVED 0 classic "  ok   x" "CHECKS PASSED: 5"
+  verdict_is "a clean quick run" PARTIAL 0 quick "  ok   x" "CHECKS PARTIAL: 5 (--skip-probes: the render-rate probes did not run)"
+  verdict_is "a quick run with a script error is not partial" INCONCLUSIVE 0 quick "SCRIPT ERROR: x" "CHECKS PARTIAL: 5"
+  # Standard error is never searched for failures; it is only read to notice a script error.
+  judge 1 "$(printf '%s\n' "  ok   x" "CHECKS FAILED: 1 of 5")" classic "$(printf '%s\n' "not a check" "  FAIL[$VERDICT_TOKEN] spoofed on standard error")"
+  if [[ "$VERDICT" == INCONCLUSIVE ]]; then report "judge: a token line on standard error is not a failing check" PASS; else report "judge: a token line on standard error is not a failing check" "got $VERDICT ($DETAIL)"; fi
+  judge 0 "$(printf '%s\n' "  ok   x" "CHECKS PARTIAL: 5")" quick "SCRIPT ERROR: on standard error"
+  if [[ "$VERDICT" == INCONCLUSIVE ]]; then report "judge: a script error on standard error is not a clean partial run" PASS; else report "judge: a script error on standard error is not a clean partial run" "got $VERDICT ($DETAIL)"; fi
 fi
 
 # ---- 4. a focused run is partial evidence

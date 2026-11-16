@@ -11,7 +11,6 @@ extends RefCounted
 ## EVERY tick, not just outcomes. Tolerances and deliberate exceptions: docs/reference/pike-skewer.md.
 
 const REFERENCE_PATH: String = "res://tests/reference/pike_skewer.json"
-const PROBE_SCRIPT: String = "res://tests/frame_rate_probe.gd"
 
 ## Same-algorithm comparisons at the prototype's 60 FPS step.
 const POSITION_TOL: float = 0.05  # px
@@ -21,7 +20,6 @@ const ANGLE_TOL: float = 0.002
 const DIR_TOL: float = 0.0001
 const HP_TOL: float = 0.001
 const TICK_TOL: int = 1
-const PROBE_FRAME_RATES: Array[int] = [5, 20, 60, 240]
 const CENTER: Vector2 = Vector2(1300.0, 900.0)
 ## The health the capture gave its stationary probes and posts (a placement's health is not its maximum).
 const PROBE_HP: float = 900.0
@@ -74,7 +72,6 @@ func run_all() -> void:
 	await _check_main_scene()
 	await _check_hud()
 	await _check_visual_independence()
-	await _check_render_rates()
 
 
 # --------------------------------------------------------------- helpers
@@ -1328,48 +1325,3 @@ func _check_visual_independence() -> void:
 	for main: Main in hosts:
 		main.queue_free()
 	await _tree.process_frame
-
-
-# -------------------------------------------------------- render rates
-func _check_render_rates() -> void:
-	if not RenderRateScenario.probes_enabled():
-		return
-	print("pike: identical outcomes at low and high render rates")
-	var headless: Dictionary = RenderRateScenario.play_headless(RenderRateScenario.PIKE)
-	var expected_digest: Dictionary = JSON.parse_string(JSON.stringify(headless))
-	_ok("the scripted fight does something worth comparing (Skewers %d, refused %d, released %d, wall slams %d, hits %d, kills %d, parries %d, alive %s)" % [int(headless["ultimate_cues"]), int(headless["refused_cues"]), int(headless["skewer_release_cues"]), int(headless["slam_cues"]), int(headless["hit_cues"]), int(headless["kills"]), int(headless["parry_cues"]), not bool(headless["dead"])],
-		int(headless["ultimate_cues"]) == 6 and int(headless["refused_cues"]) == 2 and int(headless["skewer_release_cues"]) == 6 and int(headless["slam_cues"]) >= 8 and int(headless["hit_cues"]) >= 40 and int(headless["kills"]) >= 3 and int(headless["parry_cues"]) >= 1 and not bool(headless["dead"]))
-	var executable: String = OS.get_executable_path()
-	var project: String = ProjectSettings.globalize_path("res://")
-	var frames: Dictionary[int, int] = {}
-	for rate: int in PROBE_FRAME_RATES:
-		var output: Array = []
-		var arguments: PackedStringArray = ["--headless", "--path", project, "--fixed-fps", str(rate), "--script", PROBE_SCRIPT, "--", "--probe=rate-pike"]
-		var code: int = OS.execute(executable, arguments, output, true)
-		var line: String = _probe_line(output)
-		_ok("the engine played the pike fight at %d fps (exit %d)" % [rate, code], code == 0 and not line.is_empty(), "%s" % [output])
-		if line.is_empty():
-			continue
-		var result: Dictionary = JSON.parse_string(line)
-		frames[rate] = int(result["frames"])
-		var comparable: Dictionary = result.duplicate()
-		for key: String in ["frames", "visuals", "enemies"]:
-			comparable.erase(key)
-		_ok("at %d fps the real Main scene ends the fight exactly like the bare simulation: same thrusts, Skewers, carries, slams, kills, positions, phases and recharges" % rate, comparable == expected_digest, _first_difference(comparable, expected_digest))
-	_ok("the rates really differed: the engine drew %s frames for the same %d ticks" % [frames, RenderRateScenario.TOTAL_TICKS],
-		frames.size() == PROBE_FRAME_RATES.size() and frames[5] < frames[20] and frames[20] < frames[60] and frames[60] < frames[240])
-
-
-func _probe_line(output: Array) -> String:
-	for chunk: Variant in output:
-		for line: String in String(chunk).split("\n"):
-			if line.begins_with("PROBE {"):
-				return line.trim_prefix("PROBE ")
-	return ""
-
-
-func _first_difference(a: Dictionary, b: Dictionary) -> String:
-	for key: Variant in a:
-		if JSON.stringify(a[key]) != JSON.stringify(b.get(key)):
-			return "%s: %s vs %s" % [key, a[key], b.get(key)]
-	return ""

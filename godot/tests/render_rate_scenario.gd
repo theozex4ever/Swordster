@@ -1,8 +1,12 @@
 class_name RenderRateScenario
 extends RefCounted
-## Scripted fights shared by the render-rate checks: the same scenario, the same
-## commands at the same simulation ticks, observed through a digest that must
-## come out identical however the frames around those ticks are cut. Three
+## Scripted fights, each a slice's own fixture: the same scenario, the same commands at the
+## same simulation ticks, observed through a digest. The slices' checks play them to prove
+## that replacement visuals change nothing (and `converge_checks.gd` fights one), and `digest()` is the summary of
+## selected values those comparisons use (a hand-picked list, NOT the whole run state). The frame-rate comparison is ONE
+## combined fight (`combined_fight.gd`, played by `render_rate_checks.gd`) compared through `GameRun.state_digest()`, the
+## whole run state by reflection; since issue #41
+## these per-slice scripts are no longer played at several frame rates. Three
 ## scripts: "crowd" (issue #9: a shoved crowd against the wall), "spitters"
 ## (issue #10: orbs fired, parried and dodged) and "flurry" (issue #12: Viper
 ## Flurry commanded from every sword slot, repeated and refused) and "conditions"
@@ -16,13 +20,10 @@ extends RefCounted
 ## by Converge at near, far and empty points and by their ultimates, with refusals by the cooldown and by busy swords).
 ## and "drops" (issue #17: eight armed foes standing a few steps from the player die and
 ## drop their swords, which Cataclysm and Viper Flurry recharges and a run of swaps put into all three slots, with
-## refused swaps before anything lies and a drop left lying). The probe (`frame_rate_probe.gd`)
-## plays one through the real Main scene under the engine's own fixed-step loop
-## at different frame rates; the checks also play it with bare `GameRun.step()`
-## calls.
+## refused swaps before anything lies and a drop left lying).
 ##
-## Playing them is the slowest part of the checks, so every group's render-rate check starts with
-## `if not RenderRateScenario.probes_enabled(): return` (see run_checks.gd's switches).
+## `probes_enabled()` is what the render-rate group (render_rate_checks.gd) asks first, so the mutation
+## checker's quick steps skip it (see run_checks.gd's switches).
 
 const REFERENCE_PATH: String = "res://tests/reference/crowd_and_walls.json"
 const CROWD: String = "crowd"
@@ -491,21 +492,6 @@ static func commands_at(completed_ticks: int, name: String = CROWD) -> Array[Gam
 	if completed_ticks == DASH_TICK:
 		commands.append(GameCommand.dash())
 	return commands
-
-
-## Plays the whole script with bare simulation steps.
-static func play_headless(name: String = CROWD) -> Dictionary:
-	var run: GameRun = GameRun.new(scenario(name))
-	# A guard of ten steps per scripted tick (hitstop and slow motion add steps that do not advance the tick): a mutation that
-	# stops the tick counter must end the script, not hang it.
-	var steps: int = 0
-	while run.tick < TOTAL_TICKS and steps < TOTAL_TICKS * 10:
-		for command: GameCommand in commands_at(run.tick, name):
-			run.apply(command)
-		run.step()
-		run.take_cues()
-		steps += 1
-	return digest(run)
 
 
 ## Everything that must not depend on frame rate, as plain values.

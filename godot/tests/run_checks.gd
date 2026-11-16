@@ -10,10 +10,14 @@ extends SceneTree
 ## The mutation checker (tools/godot/mutation-check.sh) adds two switches after `--`:
 ##   --fail-fast    stop at the first failing check: print its "  FAIL" line, then the usual
 ##                  "CHECKS FAILED: <failed> of <run>" verdict, and exit 1 like a complete run.
-##                  Later checks are neither run nor counted, and the render-rate probes that
-##                  have not started yet are skipped.
-##   --skip-probes  skip the render-rate probes (RenderRateScenario.probes_enabled()). A run
-##                  without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
+##                  Later checks are neither run nor counted, and the render-rate group (child
+##                  Godot processes) is skipped if it has not started yet.
+##   --skip-probes  skip the render-rate group (render_rate_checks.gd, RenderRateScenario.probes_enabled()).
+##                  A run without failures then prints "CHECKS PARTIAL: <n>", never "CHECKS PASSED".
+##   --verdict-token=<t>  print every failing check as `  FAIL[<t>] ...` instead of `  FAIL ...`. The mutation
+##                  checker passes a random token per run and counts ONLY lines carrying it, so a line that merely
+##                  looks like a failing check (an engine error message, or output of the code under test)
+##                  can never make a mutation count as caught.
 ##   --focus=<g>    run only the check group(s) named <g> (see CheckFocus), after run_checks.gd's
 ##                  own checks; the mutation checker tries the group a mutation belongs to first.
 ##                  ANY --focus (even --focus=none or one naming every group) leaves groups or
@@ -28,12 +32,17 @@ var _failed: int = 0
 var _fail_fast: bool = false
 var _skip_probes: bool = false
 var _stopped: bool = false
+## The `FAIL` marker of a failing check's line: `FAIL`, or `FAIL[<token>]` with --verdict-token.
+var _fail_marker: String = "FAIL"
 
 
 func _initialize() -> void:
 	var switches: PackedStringArray = OS.get_cmdline_user_args()
 	_fail_fast = switches.has("--fail-fast")
 	_skip_probes = switches.has("--skip-probes")
+	for switch: String in switches:
+		if switch.begins_with("--verdict-token=") and switch.length() > "--verdict-token=".length():
+			_fail_marker = "FAIL[%s]" % switch.trim_prefix("--verdict-token=")
 	_run_all.call_deferred()
 
 
@@ -71,6 +80,9 @@ func _run_all() -> void:
 	await waves.run_all()
 	var feedback: FeedbackHudChecks = FeedbackHudChecks.new(_check, self)
 	await feedback.run_all()
+	# The one place the frame rate is varied (child Godot processes): last, and skipped by --skip-probes.
+	var render_rates: RenderRateChecks = RenderRateChecks.new(_check, self)
+	render_rates.run_all()
 	if _failed == 0 and _total > 0:
 		print(_passed_line())
 		quit(0)
@@ -88,7 +100,7 @@ func _check(label: String, condition: bool, detail: String = "") -> void:
 		print("  ok   %s" % label)
 	else:
 		_failed += 1
-		print("  FAIL %s %s" % [label, detail])
+		print("  %s %s %s" % [_fail_marker, label, detail])
 		if _fail_fast:
 			_stop_at_first_failure()
 
