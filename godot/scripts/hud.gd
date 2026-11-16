@@ -377,8 +377,9 @@ static func occupied_rect(control: Control) -> Rect2:
 
 ## Every live HUD element the pickup card must stay clear of, each as the rectangle it draws on, widened by
 ## `PICKUP_CARD_GAP`: the build and hint lines, the health bar and its value, the dash and Converge readouts (text and bar), the
-## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt and the sword cards.
-## What is not here has no fixed place or lasts a moment: the wave banner, the outcome and pause overlays (full-screen text
+## wave line, the Pause / Restart / Dev / Shove / Dash buttons, the encounter legend, the audio prompt, the sword cards and, while
+## it is up, the wave banner with its second line (issue #18: the card used to cover half of "WAVE CLEARED").
+## What is not here has no fixed place or lasts a moment: the outcome and pause overlays (full-screen text
 ## shown over everything by design), the touch joystick indicator, and the world-space effects (range rings, floating texts).
 ## Controls that are hidden at the moment (the legend outside an encounter, the Shove button, a missing slot) reserve nothing.
 func pickup_card_avoid() -> Array[Rect2]:
@@ -391,6 +392,8 @@ func pickup_card_avoid() -> Array[Rect2]:
 	controls.append(_encounter_label)
 	controls.append(_audio_prompt)
 	controls.append_array(_ult_cards)
+	# the banner and its second line while they are up (an empty label occupies nothing): the card steps aside for them
+	controls.append_array([_banner_label, _banner_sub_label])
 	var rects: Array[Rect2] = []
 	for control: Control in controls:
 		var rect: Rect2 = occupied_rect(control)

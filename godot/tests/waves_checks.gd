@@ -1121,6 +1121,45 @@ func _check_banner_clearance() -> void:
 					covered.append("%s: banner %s over %s" % [size, rect, other])
 	_ok("the banner and its second line lie inside the view at six window sizes (%d texts, %d outside: %s)" % [checked, outside.size(), outside.slice(0, 2)], outside.is_empty() and checked == 12)
 	_ok("and cover no live HUD element: health, readouts, buttons, the wave line, the sword cards (%d covered: %s; at least %d live elements walked)" % [covered.size(), covered.slice(0, 2), fewest], covered.is_empty() and fewest >= 12)
+	# the pickup card steps aside for the banner: with a drop in reach and the banner up, the card covers neither of its lines
+	var worst: SwordSpec = SwordSpec.make(SwordDefs.COLOSSUS, 2, &"poison")
+	var card_run: GameRun = _rig(6)
+	card_run.set_banner("WAVE CLEARED", 2.6, WaveDefs.CLEARED_BANNER_SUB)
+	var half: Vector2 = GameRun.VIEW * 0.5 - Vector2(GameRun.CAMERA_OVERSCAN, GameRun.CAMERA_OVERSCAN)
+	var cases: int = 0
+	var over_banner: Array[String] = []
+	var card_outside: Array[String] = []
+	var moved_for_banner: int = 0
+	for size: Vector2i in [Vector2i(1280, 720), Vector2i(1000, 563), Vector2i(1920, 1080), Vector2i(800, 1280)]:
+		window.size = size
+		hud.show_state(false, false)
+		await _tree.process_frame
+		await _tree.process_frame
+		var view: Rect2 = window.get_visible_rect()
+		var places: Array[Vector2] = []
+		for x: float in [30.0, 640.0, 1300.0, 2000.0, 2570.0]:
+			for y: float in [30.0, 360.0, 900.0, 1500.0, 1770.0]:
+				places.append(Vector2(x, y))
+		for place: Vector2 in places:
+			card_run.pickups.clear()
+			card_run.position = place
+			card_run.camera = place.clamp(GameRun.WORLD.position + half, GameRun.WORLD.end - half)
+			card_run.pickups.append(PickupState.make(worst, place + Vector2(10.0, 0.0), 1))
+			hud.show_run(card_run)
+			cases += 1
+			var card: Rect2 = hud.pickup_card_rect()
+			var drop_screen: Vector2 = card_run.pickups[0].position - card_run.camera + view.size * 0.5
+			var shown: Array[Rect2] = [_text_rect(hud._banner_label), _text_rect(hud._banner_sub_label)]
+			for rect: Rect2 in shown:
+				if card.intersects(rect):
+					over_banner.append("%s: card %s over the banner line %s (player %s)" % [size, card, rect, place])
+			if not view.grow(0.5).encloses(card):
+				card_outside.append("%s: card %s (player %s)" % [size, card, place])
+			var ideal: Vector2 = (drop_screen + Vector2(40.0, -Hud.PICKUP_CARD_SIZE.y - 40.0)).clamp(Vector2(Hud.PICKUP_CARD_MARGIN, Hud.PICKUP_CARD_MARGIN), (view.size - Hud.PICKUP_CARD_SIZE - Vector2(Hud.PICKUP_CARD_MARGIN, Hud.PICKUP_CARD_MARGIN)).max(Vector2(Hud.PICKUP_CARD_MARGIN, Hud.PICKUP_CARD_MARGIN)))
+			if not card.position.is_equal_approx(ideal):
+				moved_for_banner += 1
+	_ok("with the banner up and a drop in reach the pickup card covers neither of its lines in %d cases (4 window sizes x 25 places; %d over it: %s) and stays inside the view (%d outside)" % [cases, over_banner.size(), over_banner.slice(0, 2), card_outside.size()], over_banner.is_empty() and card_outside.is_empty() and cases == 100)
+	_ok("the card really does move for the banner: it is off its ideal spot in %d of %d cases" % [moved_for_banner, cases], moved_for_banner > 10)
 	window.queue_free()
 	await _tree.process_frame
 

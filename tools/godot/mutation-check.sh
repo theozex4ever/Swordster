@@ -2190,6 +2190,8 @@ mutate waves-banner-line-off-view               scripts/hud.gd "const BANNER_SUB
 mutate waves-game-over-best-chain               scripts/hud.gd "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.best_combo]" "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.combo]"
 mutate waves-game-over-wave                     scripts/hud.gd "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave), run.kills, run.best_combo]" "_outcome_detail.text = \"wave %d   kills %d   best chain %d\" % [maxi(1, run.director.wave) + 1, run.kills, run.best_combo]"
 mutate waves-hud-kills                          scripts/hud.gd "_wave_label.text = \"WAVE %d    kills %d\" % [maxi(1, run.director.wave), run.kills]" "_wave_label.text = \"WAVE %d    kills %d\" % [maxi(1, run.director.wave), run.best_combo]"
+mutate waves-card-ignores-banner                 scripts/hud.gd "	controls.append_array([_banner_label, _banner_sub_label])
+" ""
 mutate waves-chain-text-lost                    scripts/presentation/effects_layer.gd "			_add_text(cue.position + Vector2(0.0, -60.0), \"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "			pass"
 mutate waves-chain-text-small                   scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 30, 40.0)"
 mutate waves-chain-text-short-lived             scripts/presentation/effects_layer.gd "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 1.4, 56, 40.0)" "\"%d CHAIN!\" % cue.amount, Color(1.0, 0.78, 0.35), 0.7, 56, 40.0)"
