@@ -154,10 +154,13 @@ foes were armed.
 ## Validation
 
 Linux, Godot 4.7.2-stable. Branch `feat/18-waves-rewards`, started from `origin/main` `44e077b` (drops, swaps and the arming rule
-behind `arm_waves`). Tooling issue #41 (one combined render-rate probe, a full FAST pass as a PR CI job) had **not merged** when
-this slice was done, so the group adds **no render-rate probe of its own**: the frame-rate independence of the wave machine is
-checked in the group by running the same normal run with different visuals and cosmetic randomness (below); when #41 lands, wave,
-break and arming coverage belongs in its combined fight (`combined_fight.gd`), per its README.
+behind `arm_waves`). Frame-rate independence is not proven here: the group adds **no render-rate probe of its own**, and its visual-independence
+check (the same normal run with replaced visuals and different camera-shake and effects random streams, below) steps the
+simulation with fixed ticks, so it is evidence that presentation changes nothing, not that the frame rate changes nothing. That
+is the job of the combined fight of tooling issue #41 (`godot/tests/combined_fight.gd`, played by `render_rate_checks.gd`
+through the real Main scene at 5, 20, 60 and 240 fps): its second segment is the normal run through a wave transition (spawn
+markers, arrival, an armed enemy's drop, the clear with its slow motion, the break, the next wave), compared tick by tick with
+the bare simulation, so the wave machine is covered there.
 
 | What | Result |
 |---|---|

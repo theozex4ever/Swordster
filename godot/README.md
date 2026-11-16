@@ -318,8 +318,9 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   sandboxed builds, minutes of runtime) is a tooling self-test run by hand when
   the script changes. The mutation checker (`tools/godot/mutation-check.sh`, which
   tests the checks themselves, not the build) has its own workflows: `mutation-gate.yml`
-  runs the full pass in the fast mode on every pull request that touches the game or its
-  tooling and on every push to `main` (blocking, 8 shards), and `mutation.yml` runs the
+  runs the full pass in the fast mode on every pull request except one that changes only docs and
+  repository-level Markdown (a deny list: a build dependency such as `build-godot.sh`, `game/` or `build.yml` gates it by
+  default) and on every push to `main` (blocking, 8 shards), and `mutation.yml` runs the
   strict classic pass weekly and on manual dispatch (both call `mutation-pass.yml`, which
   shards the list and judges the shards). See *Mutation checks* under *Checks*.
 - **Where the build is:** open the run (Actions → *Build*, or `gh run list
@@ -386,24 +387,40 @@ reports as an annotation (see *Exit codes*). The job also fails if the produced
   slow motion, the break and the next wave tick for tick, pause and hitstop, death and restart, 130 kills and the chain
   announcements, healing, nine waves played through with controlled kills, wave 30's 95 enemies standing at once, the
   armed first wave against the prototype's, the HUD and banners (and the pickup card clear of them), and the real Main
-  scene with replaced visuals and a different cosmetic random stream.
+  scene with replaced visuals and different camera-shake and effects random streams.
 - `godot/tests/render_rate_checks.gd` (issue #41) is the one place the engine's frame rate is varied. The
   simulation is stepped at a fixed 60 Hz from the physics loop and the presentation only reads it, so frame-rate
-  independence is a property of shared code, not of any slice. One scripted fight (`combined_fight.gd`: every sword
-  type, every ultimate, Converge, every enemy type, all three conditions, fields, orbs and parries, a bowled crowd
-  and wall slams, drops and swaps; it fails if it stops exercising any of them) is played with bare
-  `GameRun.step()` calls and through the real Main scene in child Godot processes at 5, 20, 60 and 240 fps (started
-  together, at most four at a time, each batch under a deadline), and the end states must be identical. It also checks the
-  `--encounter=` launch options, which are only read at engine start. It replaced nine per-slice probes that
-  each replayed their own slice's fight at four rates and made up about 70% of a suite run (about 64 s of a 90 s suite
-  on an idle machine, now 6 to 7 s of 32 s: about 20%).
-  **Adding frame-rate coverage for a new mechanic never means a new probe.** `combined_fight.gd` has one place for
-  it: put the new foes in `scenario()`, the new commands in the `script()` list (one `_step(tick, kind, slot, aim)` each),
-  and a minimum count of the new cue (or digest key) in `REQUIRED_CUES`, so the fight fails if it ever stops
-  exercising the mechanic. The digest already covers the whole run state and the probe compares it at every rate, so
-  nothing else changes; keep `TOTAL_TICKS` past the last step and the player alive (the check says what is missing).
-  Tune the step ticks with the fight's own recharges in mind (a press at a tick the sword is still recharging is
-  refused, which counts as an ultimate not started).
+  independence is a property of shared code, not of any slice. One scripted fight (`combined_fight.gd`) is played with
+  bare `GameRun.step()` calls and through the real Main scene in child Godot processes at 5, 20, 60 and 240 fps (started
+  together, at most four at a time, each batch under a deadline). Segment 0 is the mechanics: every sword type, every
+  ultimate, Converge, every enemy type (standing packs, and four stalkers that really walk across the arena: the fight
+  records how far each type walked and fails if one did not), all three conditions, fields, orbs and parries, a bowled
+  crowd and wall slams, drops and swaps. Segment 1 restarts into the normal run and plays a wave transition: spawn
+  markers, arrival, an armed enemy's drop, the clear with its slow motion and banner, the break and the next wave. The
+  fight fails if it stops exercising any of that (`REQUIRED_CUES`, `REQUIRED_WAVE_CUES`, `REQUIRED_TRAVEL` and the
+  wave observations). What is compared is `GameRun.state_digest()`: the **whole run state by reflection** (every
+  script variable of the run and of every object it reaches: the player with its dash, cooldowns and iframes,
+  each sword's full state, each enemy with its conditions, projectiles, fields, pickups, motes, the wave director with
+  its queue and markers, Converge's cooldown, counters and clocks, and the gameplay random generator's seed and
+  state). It is hashed every 50 ticks and kept in full at the end of each segment; every checkpoint must be equal at
+  every rate. The group also checks the digest itself: it pins the few members it leaves out (`GameRun.STATE_DIGEST_EXCLUDED`,
+  each with a reason), and changes every plain value of the run, and of one instance of every class it reaches, to
+  require that the digest notices. It also checks the `--encounter=` launch options, which are only read at engine
+  start, and requires every child process to end with exit status 0 **and** valid output. It replaced nine per-slice probes
+  that each replayed their own slice's fight at four rates and made up about 70% of a suite run (about 64 s of a 90 s
+  suite on an idle machine; the group is now about 8 s).
+  **Adding frame-rate coverage for a new mechanic never means a new probe.** Four small edits in `combined_fight.gd`,
+  in this order: (1) put the new foes in `scenario()` (segment 0) or the wave rules in `waves_scenario()` (segment 1);
+  (2) put the new commands in the `script()` list (one `_step(tick, kind, slot, aim)` each; `commands_at` plays it
+  for segment 0 only); (3) add a minimum count of the new cue to `REQUIRED_CUES` (or `REQUIRED_WAVE_CUES`), and a counter
+  to `counters_of()` if the cue is not there yet, so the fight fails if it ever stops exercising the mechanic; (4) nothing
+  for the digest: a member of any class the run holds is in `GameRun.state_digest()` by reflection the day it is
+  declared. Only state that must stay out of it (a static input, a queue the presentation drains) is added to
+  `GameRun.STATE_DIGEST_EXCLUDED` with its reason and to `EXPECTED_EXCLUDED` in `render_rate_checks.gd`, which is a
+  reviewed decision. A new CLASS of state is picked up when the run holds an instance, but add it to `EXPECTED_CLASSES`
+  too, so the digest check keeps proving it is reached. Keep `FIGHT_TICKS` / `WAVES_TICKS` past the last step and the
+  player alive (the check says what is missing). Tune the step ticks with the fight's own recharges in mind (a press at
+  a tick the sword is still recharging is refused, which counts as an ultimate not started).
 - `tools/godot/mutation-check.sh` applies deliberate bugs (zero speed, ignored
   pause, stale restart, ...) to a scratch copy and requires the checks themselves to
   reject each one: a genuine failing check is the only evidence that counts, and a crash or timeout
@@ -422,7 +439,7 @@ Each mutation gets one of these verdicts:
 
 | Verdict | Meaning | Effect on the run |
 | --- | --- | --- |
-| `caught` | the output holds at least one genuine failing check (a line that starts with `  FAIL `, printed by `run_checks.gd`; a `FAIL` inside an engine error message does not count) and the run ended in the ordinary failure verdict | none |
+| `caught` | the standard output holds at least one genuine failing check (a line that starts with `  FAIL[<token>] `, printed by `run_checks.gd` with the random token the checker made for that run and passed as `--verdict-token=`; a `FAIL` line without the token, inside an engine error message or on standard error, such as a `push_error` whose text contains a newline and `  FAIL`, does not count) and the run ended in the ordinary failure verdict | none |
 | `caught-with-warning` | a genuine failing check, **then** a crash, script error, timeout or hang | none: still a rejection by a failing check, listed on its own line and in the CI summary as a hygiene warning |
 | `INCONCLUSIVE` | no failing check, and a crash, script error, timeout or no verdict at all: nothing was proved (retried once first) | fails the run |
 | `SURVIVED` | the complete suite accepts the broken project | fails the run |
@@ -435,17 +452,19 @@ list of checks worth hardening.
 
 How it is fast. Nearly all of a complete `run_checks.gd` run is the groups the mutation has nothing to do
 with, and the render-rate group (child Godot processes, see *Checks*). So each mutation is judged in steps
-(the **fast** mode, the default, and the pull-request gate), each only when the one before found nothing:
+(the **fast** mode, the default, and the pull-request gate), each only when the one before found no genuine failing check:
 
 1. **Focused**: `run_checks.gd -- --fail-fast --skip-probes --focus=<group>` runs the
    checks of the mutation's own section (`warden_maelstrom` for the Warden section;
    `core` runs only `run_checks.gd`'s own checks) and stops at the first failing one.
    Most mutations end here, in about two seconds.
 2. **Quick**: the same without `--focus`, over every group.
-3. **Full**: the same with the render-rate group. Only a complete `CHECKS PASSED` here makes a
-   mutation a survivor.
+3. **Full**: the same with the render-rate group. Only this step decides what is not a rejection: a complete
+   `CHECKS PASSED` makes a mutation a survivor, and a crash, timeout or no verdict with no failing check makes it
+   `INCONCLUSIVE`.
 
-Steps 1 and 2 end in `CHECKS PARTIAL` (never `CHECKS PASSED`, which the build
+Steps 1 and 2 decide only by a genuine failing check: whatever else they end with (a clean partial run, but also a
+timeout, a crash or a script error with no failing check) is no evidence, and the next step runs. They end in `CHECKS PARTIAL` (never `CHECKS PASSED`, which the build
 requires) when nothing failed; so does any run with a `--focus`, even `--focus=none`
 or one naming every group. They run a subset of the full run's checks, so a
 failure there is a failure of the full run too. Each `caught` line ends with the step that caught it
@@ -486,6 +505,7 @@ Selection (all of these compose):
 | `ONLY=name,name` | only the named mutations (an unknown name is refused); combined with `SECTIONS`, only those inside the chosen sections. |
 | `SHARD=i SHARDS=n` | every n-th mutation of the selection starting at `i`, so `n` copies run in parallel over the same list. |
 | `FAST=0` | the strict classic mode described above (default `FAST=1`). |
+| `QUICK_TIMEOUT=60 FULL_TIMEOUT=120` | seconds a focused or quick step, and a full or classic run, may take (the runner's regression test shortens them). |
 
 A new section needs no registration: append its `mutate` lines under a
 `# --- <title> (slice #N)` header and it becomes selectable.
@@ -502,7 +522,8 @@ Procedure for a slice (what an implementer does, and what CI does):
    whole section for each fix.
 3. **Do not run the full pass yourself.** The pull request's *Mutation gate* job (`mutation-gate.yml`) is the full
    pass: every mutation of the list in the fast mode, split over 8 shards, in about 7 minutes of wall time (measured: 7 min on the pull request that introduced it). It runs on
-   every pull request that touches `godot/`, `tools/godot/`, `tools/reference/` or a mutation workflow, and on every
+   every pull request except one that changes only `docs/**`, repository-root Markdown or issue templates (a `paths-ignore`
+   deny list, so any file not named there, build dependencies included, gates the pull request), and on every
    push to `main`, and it is **blocking**: its *all shards* job fails unless every shard ran and recorded exit status 0,
    the shards together covered the whole list (the summary derives the expected share of each shard from the list itself:
    a missing, duplicate, extra, filtered or short shard fails it, and so does a shard that ran in the wrong mode), and every

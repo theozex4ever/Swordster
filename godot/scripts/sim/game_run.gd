@@ -214,6 +214,17 @@ var _next_pickup_serial: int = 0
 var _encounter_scenarios: Array[RunScenario] = []
 
 
+## The members `state_digest()` leaves out, each with the reason. Every other script variable of the run, and of every
+## object it reaches, is in the digest by reflection (see StateDigest), so a member added anywhere is covered the day
+## it is declared. Extending this list is a reviewed decision: `render_rate_checks.gd` pins its exact content.
+const STATE_DIGEST_EXCLUDED: Dictionary[String, String] = {
+	"scenario": "the run's static input (a restart may replace it); its effect is in the state it produced",
+	"_encounter_scenarios": "static inputs the encounter toggle cycles through",
+	"_cues": "the queue presentation drains; `_cue_counts` counts every cue whether or not it was drained",
+	"show_ranges": "a session toggle of the presentation (Tab / G), not run state",
+}
+
+
 func _init(scenario_value: RunScenario = null) -> void:
 	scenario = scenario_value if scenario_value != null else RunScenario.normal_run()
 	_encounter_scenarios = [
@@ -896,6 +907,14 @@ func outcome() -> Outcome:
 ## Whether the R key would restart right now.
 func can_restart_from_key() -> bool:
 	return dead and death_time > RESTART_DELAY
+
+
+## Everything that decides how the run goes on, as plain values (reflection over every member, see StateDigest and
+## STATE_DIGEST_EXCLUDED): the player with its dash, cooldowns and iframes, every sword's full state, every enemy with its
+## conditions, projectiles, fields, pickups, motes, the wave director (queue, markers, timers), Converge's cooldown, the
+## counters, the clocks, and the gameplay random generator's seed and state.
+func state_digest() -> Dictionary:
+	return StateDigest.of(self, STATE_DIGEST_EXCLUDED)
 
 
 ## Observation adapter for checks: plain values only.

@@ -12,7 +12,8 @@ const FRAME_LIMIT: int = 24000
 
 var _main: Main
 var _frames: int = 0
-var _last_issued_tick: int = -1
+var _reported: bool = false
+var _fight: CombinedFight = CombinedFight.new()
 
 
 func _initialize() -> void:
@@ -22,7 +23,7 @@ func _initialize() -> void:
 			mode = argument.trim_prefix("--probe=")
 	_main = (load("res://scenes/main.tscn") as PackedScene).instantiate() as Main
 	if mode == "rate":
-		_main.scenario = CombinedFight.scenario()
+		_main.scenario = CombinedFight.segment_scenario(0)
 	root.add_child(_main)
 	if mode == "launch":
 		_report_launch.call_deferred()
@@ -32,15 +33,15 @@ func _initialize() -> void:
 
 
 ## Emitted before every engine physics iteration, ahead of Main's own step, so
-## a command lands before the same tick whatever the frame rate.
+## a command lands before the same tick whatever the frame rate. The fight issues the commands, takes its
+## checkpoints and, between its segments, restarts the run into the next scenario (the presenter is reset the way
+## Main resets it on any restart).
 func _before_tick() -> void:
-	var run: GameRun = _main.run
-	if run.tick == _last_issued_tick:
-		return
-	_last_issued_tick = run.tick
-	for command: GameCommand in CombinedFight.commands_at(run.tick):
-		run.apply(command)
-	if run.tick >= CombinedFight.TOTAL_TICKS:
+	var restarts: int = _main.run.restarts
+	_fight.before_tick(_main.run)
+	if _main.run.restarts != restarts:
+		_main._presenter.reset()
+	if _fight.finished:
 		_report()
 
 
@@ -52,10 +53,14 @@ func _count_frame() -> void:
 
 
 func _report() -> void:
-	var result: Dictionary = RenderRateScenario.digest(_main.run)
+	if _reported:
+		return
+	_reported = true
+	var result: Dictionary = _fight.result()
 	result["frames"] = _frames
 	result["visuals"] = _main._presenter.visual_count()
 	result["enemies"] = _main.run.enemies.size()
+	result["pickups"] = _main.run.pickups.size()
 	result["pickup_visuals"] = _main._presenter.pickup_visual_count()
 	print("PROBE " + JSON.stringify(result))
 	quit(0)

@@ -3,17 +3,22 @@
 # time to a scratch copy of the Godot project and requires run_checks.gd to
 # reject each one (and to accept the unmodified project first).
 #
-# Verdicts. A mutation is CAUGHT when the run's output holds at least one genuine check failure:
-# a line that starts with "  FAIL " (run_checks.gd's own print; a FAIL inside an engine error
-# message does not count). If the run then ended in the ordinary failure verdict (exit 1,
-# "CHECKS FAILED", no script error) the mutation is plain `caught`. If it ended any other way
-# (a crash, script error, timeout or hang AFTER the FAIL line) it is `caught-with-warning`: still
-# a rejection by a genuine failing check, so it counts as caught and never fails the run, but it is
-# listed on its own line and in the summary as a hygiene warning (the checks misbehave once they
-# run on a broken project; fix them when convenient). A run with NO "  FAIL " line that crashes,
-# errors or times out (engine crash, timeout, parse/script error, no verdict at all) proves nothing:
-# it is INCONCLUSIVE, retried once, then reported and, if it persists, makes the script fail.
+# Verdicts. A mutation is CAUGHT when the run's STANDARD OUTPUT holds at least one genuine check failure:
+# a line that starts with "  FAIL[<token>] ", where <token> is a random string made for that one run and
+# handed to run_checks.gd as `--verdict-token=<token>` (run_checks.gd's own print). Nothing else counts: not a
+# "  FAIL " line without the token (the code under test cannot make one by printing), and not anything on
+# standard error, where Godot routes push_error() and its engine errors (a mutant whose diagnostic message
+# contains a newline and "  FAIL ..." is not a failing check). Standard error is only read for crash and script
+# error detection. If the run then ended in the ordinary failure verdict (exit 1, "CHECKS FAILED", no script
+# error) the mutation is plain `caught`. If it ended any other way (a crash, script error, timeout or hang AFTER
+# the FAIL line) it is `caught-with-warning`: still a rejection by a genuine failing check, so it counts as
+# caught and never fails the run, but it is listed on its own line and in the summary as a hygiene warning (the
+# checks misbehave once they run on a broken project; fix them when convenient). A run with NO genuine FAIL
+# line that crashes, errors or times out (engine crash, timeout, parse/script error, no verdict at all) proves
+# nothing: it is INCONCLUSIVE, retried once, then reported and, if it persists, makes the script fail.
 # A project the complete run accepts is SURVIVED, and fails the run. This holds in both modes below.
+# QUICK_TIMEOUT (default 60) and FULL_TIMEOUT (default 120) are the seconds a quick or focused step and a
+# full or classic step may run before they are cut off (the runner's own regression test shortens them).
 # Needs the pinned Godot in the cache: run ./build-godot.sh --bootstrap-only first.
 #
 # Speed (issues #35 and #41). A full run_checks.gd run is dominated by the one render-rate group
@@ -28,9 +33,11 @@
 #      and never launches a probe (a few seconds). A failing check in step 1 or 2 is CAUGHT; it is
 #      the verdict the full run would give, because these runs only run fewer checks and any check
 #      that fails there fails there too.
-#   3. full: only when the quick run passes everything it ran (it prints "CHECKS PARTIAL",
-#      never "CHECKS PASSED") is the project run again with the probes, still fail-fast.
-#      Only a full run that prints "CHECKS PASSED" makes a mutation SURVIVED.
+#   3. full: the project run again with the probes, still fail-fast. Only a full run that prints
+#      "CHECKS PASSED" makes a mutation SURVIVED, and only the full step's result can make one INCONCLUSIVE.
+# Steps 1 and 2 decide only by a genuine failing check. Whatever else they end with (a clean "CHECKS
+# PARTIAL", a timeout, a crash, a script error, no verdict) is not evidence, so the next step runs; a
+# mutation that hangs or crashes a focused or quick run before any check fails is still judged by the full run.
 # Each caught line ends with the step that caught it ([focused, 2.1s], [quick, ...], [full, ...]); a
 # mutation only the render-rate group rejects shows [full, ...].
 # FAST=0 is the CLASSIC mode (the weekly pass, .github/workflows/mutation.yml): one complete,
@@ -159,17 +166,29 @@ export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
 "$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1
 
-# run_checks DIR MODE: classic = the complete run (every failure reported, probes included);
-# quick = fail-fast and no probes; full = fail-fast with the probes.
-run_checks() { # dir mode [focus group]
-  local extra=()
+QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-120}"
+[[ "$QUICK_TIMEOUT" =~ ^[1-9][0-9]*$ && "$FULL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "QUICK_TIMEOUT and FULL_TIMEOUT must be positive integers" >&2; exit 2; }
+
+# execute DIR MODE [FOCUS] runs the checks once and judges the run (see `judge`). classic = the complete run
+# (every failure reported, probes included); quick = fail-fast and no probes; full = fail-fast with the probes.
+# A fresh random token is made for every run and handed to run_checks.gd, which marks its failing checks with it:
+# only standard output is searched for them (standard error goes to its own file, read for crash detection).
+# It sets LOG (standard output), STATUS and, through `judge`, VERDICT and DETAIL.
+VERDICT_TOKEN=""
+execute() { # dir mode [focus group]
+  local extra=() errfile="$SCRATCH/stderr.log"
+  VERDICT_TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   case "$2" in
     quick) extra=(-- --fail-fast --skip-probes) ;;
     full) extra=(-- --fail-fast) ;;
+    *) extra=(--) ;;
   esac
+  extra+=("--verdict-token=$VERDICT_TOKEN")
   [[ -z "${3:-}" ]] || extra+=("--focus=$3")
   # A quick run is a few seconds, so a hang in one is cut off sooner; the others run probes.
-  timeout "$([[ "$2" == quick ]] && echo 60 || echo 120)" "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>&1
+  STATUS=0
+  LOG="$(timeout "$([[ "$2" == quick ]] && echo "$QUICK_TIMEOUT" || echo "$FULL_TIMEOUT")" "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>"$errfile")" || STATUS=$?
+  judge "$STATUS" "$LOG" "$2" "$(<"$errfile")"
 }
 
 # The check group a section belongs to, named like its file without `_checks.gd`: "none" for
@@ -187,26 +206,31 @@ focus_group() {
   done
 }
 
-# judge STATUS LOG MODE sets VERDICT to CAUGHT, WARNED, SURVIVED, PARTIAL (a clean quick run:
-# nothing failed, but the probes did not run) or INCONCLUSIVE, and DETAIL to say why.
-# A genuine check failure is a line that starts with "  FAIL " (run_checks.gd's own print, never a
-# FAIL inside an engine error message, which does not start that way). A run with at least one is
-# CAUGHT: the checks rejected the project. If it then ended any way other than the ordinary
+# judge STATUS LOG MODE [ERRORS] sets VERDICT to CAUGHT, WARNED, SURVIVED, PARTIAL (a clean quick run:
+# nothing failed, but the probes did not run) or INCONCLUSIVE, and DETAIL to say why. LOG is the run's STANDARD
+# OUTPUT and ERRORS its standard error.
+# A genuine check failure is a line of LOG that starts with "  FAIL[$VERDICT_TOKEN] ": run_checks.gd's own
+# print, carrying this run's random token. A tokenless "  FAIL " line, a FAIL inside an engine error message and
+# anything the engine wrote to standard error are not failing checks. A run with at least one genuine
+# failure is CAUGHT: the checks rejected the project. If it then ended any way other than the ordinary
 # failure verdict (a crash, script error, timeout or hang after the FAIL line) it is WARNED
 # (caught-with-warning): still a rejection, listed apart as a hygiene warning because the
-# checks themselves misbehave once they run on a broken project. A run with no FAIL line that
-# crashes, errors or times out proves nothing and is INCONCLUSIVE.
+# checks themselves misbehave once they run on a broken project. A run with no genuine failure
+# that crashes, errors or times out proves nothing and is INCONCLUSIVE.
 judge() {
-  local status="$1" log="$2" mode="$3" how=""
+  local status="$1" log="$2" mode="$3" errors="${4:-}" how="" genuine=0 script_error=0
   VERDICT=INCONCLUSIVE; DETAIL=""
+  # The token is hexadecimal (or at least alphanumeric), so it is safe inside the pattern.
+  if [[ "$VERDICT_TOKEN" =~ ^[0-9A-Za-z]+$ ]] && grep -q "^  FAIL\[$VERDICT_TOKEN\] " <<<"$log"; then genuine=1; fi
+  if grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log
+$errors"; then script_error=1; fi
   if grep -q '^CHECKS PASSED' <<<"$log" && ((status == 0)); then
     VERDICT=SURVIVED
-  elif [[ "$mode" == quick ]] && grep -q '^CHECKS PARTIAL' <<<"$log" && ((status == 0)) \
-       && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+  elif [[ "$mode" == quick ]] && grep -q '^CHECKS PARTIAL' <<<"$log" && ((status == 0)) && ((script_error == 0)) && ((genuine == 0)); then
     VERDICT=PARTIAL
-  elif grep -q '^  FAIL ' <<<"$log"; then
-    DETAIL="$(grep -m1 '^  FAIL ' <<<"$log" | cut -c1-90)"
-    if ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && ! grep -Eq 'SCRIPT ERROR|Parse Error|Failed to load script' <<<"$log"; then
+  elif ((genuine)); then
+    DETAIL="$(grep -m1 "^  FAIL\[$VERDICT_TOKEN\] " <<<"$log" | sed 's/^  FAIL\[[^]]*\] /  FAIL /' | cut -c1-90)"
+    if ((status == 1)) && grep -q '^CHECKS FAILED' <<<"$log" && ((script_error == 0)); then
       VERDICT=CAUGHT
     else
       VERDICT=WARNED
@@ -218,7 +242,7 @@ judge() {
       DETAIL="$DETAIL; then $how"
     fi
   else
-    DETAIL="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log" | cut -c1-70)"
+    DETAIL="exit $status, no behavioural verdict: $(tail -n 1 <<<"$log$errors" | cut -c1-70)"
   fi
 }
 
@@ -227,11 +251,10 @@ judge() {
 # mutation gets past the quick run, so it is done at the first such mutation.
 baseline_full=0
 check_baseline() { # mode
-  local out status=0
-  out="$(run_checks "$SCRATCH/base" "$1")" || status=$?
-  judge "$status" "$out" "$1"
+  local out
+  execute "$SCRATCH/base" "$1"; out="$LOG"
   if [[ "$1" == quick && "$VERDICT" != PARTIAL ]] || [[ "$1" != quick && "$VERDICT" != SURVIVED ]]; then
-    echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; exit 1
+    echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; tail -n 20 "$SCRATCH/stderr.log"; exit 1
   fi
   echo "baseline: $(grep -m1 '^CHECKS \(PASSED\|PARTIAL\)' <<<"$out") ($1 run)"
 }
@@ -265,29 +288,26 @@ PY
     not_applied=$((not_applied + 1))
     return 0
   fi
-  local verdict="" detail="" attempt status log stage focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
+  local verdict="" detail="" attempt stage focus="${FOCUS_CACHE[${SECTION_OF[$name]}]-}"
   for attempt in 1 2; do
     if [[ "$FAST" == 1 ]]; then
-      VERDICT=PARTIAL; stage=focused
-      if [[ -n "$focus" ]]; then
-        status=0; log="$(run_checks "$dir" quick "$focus")" || status=$?
-        judge "$status" "$log" quick
-      fi
-      if [[ "$VERDICT" == PARTIAL ]]; then
+      # Only a genuine failing check ends the focused and the quick step; anything else (a clean partial
+      # run, a timeout, a crash, no verdict) is no evidence and falls through. Only the full step decides
+      # the rest: SURVIVED, or INCONCLUSIVE.
+      stage=focused
+      if [[ -n "$focus" ]]; then execute "$dir" quick "$focus"; fi
+      if [[ -z "$focus" || ( "$VERDICT" != CAUGHT && "$VERDICT" != WARNED ) ]]; then
         stage=quick
-        status=0; log="$(run_checks "$dir" quick)" || status=$?
-        judge "$status" "$log" quick
+        execute "$dir" quick
       fi
-      if [[ "$VERDICT" == PARTIAL ]]; then
+      if [[ "$VERDICT" != CAUGHT && "$VERDICT" != WARNED ]]; then
         stage=full
         ((baseline_full)) || { check_baseline full; baseline_full=1; }
-        status=0; log="$(run_checks "$dir" full)" || status=$?
-        judge "$status" "$log" full
+        execute "$dir" full
       fi
     else
       stage=classic
-      status=0; log="$(run_checks "$dir" classic)" || status=$?
-      judge "$status" "$log" classic
+      execute "$dir" classic
     fi
     verdict="$VERDICT"; detail="$DETAIL"
     [[ "$verdict" != INCONCLUSIVE ]] && break

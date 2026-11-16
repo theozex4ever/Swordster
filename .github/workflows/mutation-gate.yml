@@ -4,7 +4,11 @@ name: Mutation gate
 # rejected by a genuine failing check. The FULL list runs in FAST mode (the checker's focused /
 # quick / full steps, so a mutation costs a second or two and the whole pass a few minutes of
 # wall time over the shards) on
-#   - every pull request that touches godot/, tools/godot/, tools/reference/ or a mutation workflow, and
+#   - every pull request, EXCEPT one that changes only files that cannot affect the game or its checks (the
+#     `paths-ignore` list below: the docs, repository-level Markdown and issue templates). The filter is a deny
+#     list on purpose: a file that is not named there (the build script, the Python behavioural reference
+#     `game/`, `.github/workflows/build.yml`, this workflow and mutation-pass.yml, a tool added tomorrow) gates the
+#     pull request by default, so a new dependency can never slip past the gate; and
 #   - every push to main (no path filter: main always has a verdict for its head).
 # It is blocking: the "all shards" job fails unless every shard ran, the shards together covered
 # the whole list, and every mutation was caught (see tools/godot/mutation-summary.sh). A mutation
@@ -13,11 +17,12 @@ name: Mutation gate
 # run in mutation.yml. See "Mutation checks" in godot/README.md.
 on:
   pull_request:
-    paths:
-      - "godot/**"
-      - "tools/godot/**"
-      - "tools/reference/**"
-      - ".github/workflows/mutation*.yml"
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/*.md"
+      - "LICENSE*"
   push:
     branches: [main]
 

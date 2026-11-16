@@ -2,9 +2,10 @@ class_name RenderRateScenario
 extends RefCounted
 ## Scripted fights, each a slice's own fixture: the same scenario, the same commands at the
 ## same simulation ticks, observed through a digest. The slices' checks play them to prove
-## that replacement visuals change nothing (and `converge_checks.gd` fights one), and `digest()`
-## is what the render-rate check compares at different frame rates. Since issue #41 that
-## comparison is ONE combined fight (`combined_fight.gd`, played by `render_rate_checks.gd`);
+## that replacement visuals change nothing (and `converge_checks.gd` fights one), and `digest()` is the summary of
+## selected values those comparisons use (a hand-picked list, NOT the whole run state). The frame-rate comparison is ONE
+## combined fight (`combined_fight.gd`, played by `render_rate_checks.gd`) compared through `GameRun.state_digest()`, the
+## whole run state by reflection; since issue #41
 ## these per-slice scripts are no longer played at several frame rates. Three
 ## scripts: "crowd" (issue #9: a shoved crowd against the wall), "spitters"
 ## (issue #10: orbs fired, parried and dodged) and "flurry" (issue #12: Viper
