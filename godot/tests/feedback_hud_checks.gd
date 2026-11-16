@@ -49,8 +49,10 @@ func run_all() -> void:
 	await _check_layout()
 	await _check_hurt_flash()
 	await _check_impact_effects()
+	await _check_particle_ceiling()
 	await _check_trails_and_cracks()
 	await _check_timing_unchanged()
+	await _check_dense_feedback_leaves_the_run_alone()
 	await _check_textured_look()
 
 
@@ -875,6 +877,101 @@ func _check_hurt_flash() -> void:
 	_tick_main(main, 1)
 	_ok("and it stops when health is back", feedback.hurt_alpha() == 0.0)
 	main.queue_free()
+	await _tree.process_frame
+
+
+# --------------------------------------------------------------- particle ceiling, feedback-independent simulation
+## The particle ceiling holds the moment bits are inserted, not on the next update. Worst case from the PR #47 review: 95 simultaneous heavy
+## kill bursts (30 dots and 14 pieces of debris each) put 4,180 bits in the layer before the old late trim cut them to 500.
+func _check_particle_ceiling() -> void:
+	print("feedback: the particle ceiling holds at insertion")
+	var main: Main = _main_with(_quiet_scenario(52))
+	await _tree.process_frame
+	var effects: EffectsLayer = main._presenter._effects
+	effects._run = main.run
+	effects.clear()
+	const BURSTS: int = 95
+	var peak: int = 0
+	var bits_offered: int = 0
+	var whole_while_room: bool = true
+	for i: int in BURSTS:
+		var heavy_kill: SimCue = SimCue.make(SimCue.Kind.ENEMY_KILLED, Vector2(100.0 + 10.0 * float(i), 600.0), Vector2.RIGHT, 0, true)
+		heavy_kill.enemy_kind = EnemyDefs.BRUTE
+		heavy_kill.radius = 24.0
+		heavy_kill.heavy = true
+		var before: int = effects._bits.size()
+		effects.apply_cue(heavy_kill)
+		peak = maxi(peak, effects._bits.size())
+		bits_offered += 44
+		whole_while_room = whole_while_room and (before + 44 > EffectsLayer.MAX_BITS or effects._bits.size() == before + 44)
+	var oldest_x: float = INF
+	var newest_x: float = -INF
+	for bit: Dictionary in effects._bits:
+		oldest_x = minf(oldest_x, Vector2(bit["pos"]).x)
+		newest_x = maxf(newest_x, Vector2(bit["pos"]).x)
+	_ok("%d heavy kill bursts (%d bits offered) leave exactly the advertised ceiling of %d bits straight after insertion, with no update in between (%d live, peak %d)" % [BURSTS, bits_offered, EffectsLayer.MAX_BITS, effects._bits.size(), peak], bits_offered == 4180 and EffectsLayer.MAX_BITS == 500 and effects._bits.size() == 500 and peak == 500)
+	_ok("the ceiling keeps the newest bits and drops the oldest, and every burst is taken whole while there is room (x %.0f to %.0f live; the first burst was at x 100 and the last at x %.0f)" % [oldest_x, newest_x, 100.0 + 10.0 * float(BURSTS - 1)], oldest_x >= 100.0 + 10.0 * float(BURSTS - 13) and is_equal_approx(newest_x, 100.0 + 10.0 * float(BURSTS - 1)) and whole_while_room)
+	effects.sync(main.run)
+	_ok("and one update later it still holds (%d bits)" % effects._bits.size(), effects._bits.size() <= EffectsLayer.MAX_BITS and effects._bits.size() > EffectsLayer.MAX_BITS - 80)
+	# every other source of bits goes through the same door: slams, dashes and spawns on top of a full layer
+	effects.clear()
+	for i: int in 40:
+		effects.apply_cue(SimCue.make(SimCue.Kind.DASH, Vector2(500.0, 500.0), Vector2.RIGHT))
+		effects.apply_cue(SimCue.make(SimCue.Kind.ENEMY_SPAWNED, Vector2(500.0, 500.0)))
+		peak = maxi(peak, effects._bits.size())
+	_ok("dashes and spawns flooded onto the layer never take it past the ceiling (%d live)" % effects._bits.size(), effects._bits.size() == EffectsLayer.MAX_BITS and peak <= EffectsLayer.MAX_BITS)
+	main.queue_free()
+	await _tree.process_frame
+
+
+## Feedback is presentation only (ADR 0003): the same run with no feedback at all (the bare simulation), with the real Main scene's normal
+## feedback, and with the effects layer flooded every tick with the worst-case burst, ends in one and the same simulation state.
+func _check_dense_feedback_leaves_the_run_alone() -> void:
+	print("feedback: off, normal and dense feedback leave the simulation identical")
+	var ticks: int = 1200
+	var scenario_off: RunScenario = RunScenario.normal_run()
+	scenario_off.seed = 83
+	var off: GameRun = GameRun.new(scenario_off)
+	var scenario_normal: RunScenario = RunScenario.normal_run()
+	scenario_normal.seed = 83
+	var normal: Main = _main_with(scenario_normal)
+	var scenario_dense: RunScenario = RunScenario.normal_run()
+	scenario_dense.seed = 83
+	var dense: Main = _main_with(scenario_dense)
+	await _tree.process_frame
+	normal._sfx.unlock()
+	dense._sfx.unlock()
+	var dense_effects: EffectsLayer = dense._presenter._effects
+	var flood: SimCue = SimCue.make(SimCue.Kind.ENEMY_KILLED, Vector2(640.0, 360.0), Vector2.RIGHT, 0, true)
+	flood.enemy_kind = EnemyDefs.BRUTE
+	flood.radius = 24.0
+	flood.heavy = true
+	var trace_off: Array[String] = []
+	var trace_normal: Array[String] = []
+	var trace_dense: Array[String] = []
+	var worst_dense_bits: int = 0
+	for i: int in ticks:
+		off.iframes = HEALED_FULL
+		off.step()
+		off.take_cues()
+		if i % 3 == 0:
+			for burst: int in 95:
+				dense_effects.apply_cue(flood)
+			worst_dense_bits = maxi(worst_dense_bits, dense_effects._bits.size())
+		_tick_main(normal, 1)
+		_tick_main(dense, 1)
+		worst_dense_bits = maxi(worst_dense_bits, dense_effects._bits.size())
+		if i % 50 == 0:
+			trace_off.append("%d/%d/%s/%.4f" % [off.tick, off.kills, off.position, off.hitstop])
+			trace_normal.append("%d/%d/%s/%.4f" % [normal.run.tick, normal.run.kills, normal.run.position, normal.run.hitstop])
+			trace_dense.append("%d/%d/%s/%.4f" % [dense.run.tick, dense.run.kills, dense.run.position, dense.run.hitstop])
+	var digest_off: String = JSON.stringify(RenderRateScenario.digest(off))
+	var digest_normal: String = JSON.stringify(RenderRateScenario.digest(normal.run))
+	var digest_dense: String = JSON.stringify(RenderRateScenario.digest(dense.run))
+	_ok("the run's trace is the same with feedback off, normal and dense over %d ticks (%d kills, tick %d)" % [ticks, off.kills, off.tick], trace_off == trace_normal and trace_off == trace_dense and off.kills > 0)
+	_ok("and its final simulation digest is identical in all three (%d characters) while the dense layer held its ceiling (%d bits at most)" % [digest_off.length(), worst_dense_bits], digest_off == digest_normal and digest_off == digest_dense and worst_dense_bits == EffectsLayer.MAX_BITS)
+	normal.queue_free()
+	dense.queue_free()
 	await _tree.process_frame
 
 

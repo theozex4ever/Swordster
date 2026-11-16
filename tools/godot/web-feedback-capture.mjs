@@ -7,8 +7,8 @@
 // Audio: a script injected before the page loads wraps AudioContext and AudioBufferSourceNode so the page's own audio can be observed
 // from outside: the context's state before and after the first click (autoplay policy "user-gesture-required" is forced, so headless
 // Chromium behaves like a normal browser), its reported latency, and every sound started (time on the context's clock). Written to
-// <out-dir>/audio-report.json. What headless can prove: the unlock transition happens on the first click, sounds start after it and
-// not before, the output latency the browser reports, and that starts are scheduled promptly after the game frame that caused them.
+// <out-dir>/audio-report.json. What headless can prove: the first user gesture is recorded with its timestamp on the page clock, sounds start after it and
+// none before it (counted against that timestamp, not against the context state), the output latency the browser reports, and that starts are scheduled promptly after the game frame that caused them.
 // What it cannot: that the samples are audible (the sink is muted/fake) or how they sound on a real device (issue #6 / #22).
 //
 //   node tools/godot/web-feedback-capture.mjs <chrome-headless-shell> <web-bundle-dir> <out-dir>
@@ -79,7 +79,14 @@ const evaluate = async (expression) => (await send("Runtime.evaluate", { express
 
 // Observe the page's own audio from the outside, before any of its scripts run.
 await send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
-  const log = window.__audio = { contexts: [], starts: [], states: [], workletMessages: 0 };
+  const log = window.__audio = { contexts: [], starts: [], states: [], workletMessages: 0, firstGesture: null };
+  // The first user gesture the browser delivered (a trusted press or key down; moves and releases are not gestures), stamped with the
+  // event's own time on the same clock as every sound start (performance.now()). Captured on window before the game sees the event.
+  for (const type of ["pointerdown", "mousedown", "touchstart", "keydown"]) {
+    window.addEventListener(type, (e) => {
+      if (e.isTrusted && log.firstGesture === null) log.firstGesture = { type, at: e.timeStamp, seenAt: performance.now() };
+    }, true);
+  }
   const Native = window.AudioContext || window.webkitAudioContext;
   if (!Native) return;
   const Wrapped = function (...args) {
@@ -157,10 +164,25 @@ await sleep(800);
 await shot(name("restarted"));
 report.afterRestart = JSON.parse(await snapshot());
 
-// Latency of the browser's own context, and how soon sounds started after the first gesture.
+// How many sounds started before and after the first user gesture, by the gesture's recorded timestamp (page clock, ms), and how soon
+// the first one followed it. `startsWhileContextNotRunning` is kept apart on purpose: headless Chromium may report the context as
+// running before any gesture, so it says nothing about the game's own gate.
 const starts = JSON.parse(await evaluate("JSON.stringify(window.__audio.starts)"));
+const firstGesture = JSON.parse(await evaluate("JSON.stringify(window.__audio.firstGesture)"));
 report.soundsStarted = starts.length;
-report.startedBeforeFirstClick = starts.filter((s) => s.state !== "running").length;
+report.firstGesture = firstGesture;
+if (firstGesture) {
+  const before = starts.filter((s) => s.at < firstGesture.at);
+  const after = starts.filter((s) => s.at >= firstGesture.at);
+  report.startedBeforeFirstGesture = before.length;
+  report.startedAfterFirstGesture = after.length;
+  report.startedWithinSecondOfGesture = after.filter((s) => s.at - firstGesture.at <= 1000).length;
+  report.firstStartAfterGestureMs = after.length ? Math.round((after[0].at - firstGesture.at) * 10) / 10 : null;
+} else {
+  report.startedBeforeFirstGesture = report.startedAfterFirstGesture = report.firstStartAfterGestureMs = null;
+  report.error = "no trusted user gesture was observed";
+}
+report.startsWhileContextNotRunning = starts.filter((s) => s.state !== "running").length;
 report.firstStartContextTime = starts[0]?.contextTime ?? null;
 report.consoleErrors = consoleLines.filter((l) => /error|exception/i.test(l)).slice(0, 10);
 writeFileSync(join(outDir, "audio-report.json"), JSON.stringify(report, null, 2));
