@@ -169,14 +169,15 @@ cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
 QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-120}"
 [[ "$QUICK_TIMEOUT" =~ ^[1-9][0-9]*$ && "$FULL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "QUICK_TIMEOUT and FULL_TIMEOUT must be positive integers" >&2; exit 2; }
 
-# execute DIR MODE [FOCUS] runs the checks once and judges the run (see `judge`). classic = the complete run
+# execute DIR MODE [FOCUS] [SECONDS] runs the checks once and judges the run (see `judge`). classic = the complete run
 # (every failure reported, probes included); quick = fail-fast and no probes; full = fail-fast with the probes.
 # A fresh random token is made for every run and handed to run_checks.gd, which marks its failing checks with it:
 # only standard output is searched for them (standard error goes to its own file, read for crash detection).
 # It sets LOG (standard output), STATUS and, through `judge`, VERDICT and DETAIL.
 VERDICT_TOKEN=""
-execute() { # dir mode [focus group]
-  local extra=() errfile="$SCRATCH/stderr.log"
+execute() { # dir mode [focus group] [timeout seconds]
+  local extra=() errfile="$SCRATCH/stderr.log" limit
+  limit="${4:-$([[ "$2" == quick ]] && echo "$QUICK_TIMEOUT" || echo "$FULL_TIMEOUT")}"
   VERDICT_TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   case "$2" in
     quick) extra=(-- --fail-fast --skip-probes) ;;
@@ -187,7 +188,7 @@ execute() { # dir mode [focus group]
   [[ -z "${3:-}" ]] || extra+=("--focus=$3")
   # A quick run is a few seconds, so a hang in one is cut off sooner; the others run probes.
   STATUS=0
-  LOG="$(timeout "$([[ "$2" == quick ]] && echo "$QUICK_TIMEOUT" || echo "$FULL_TIMEOUT")" "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>"$errfile")" || STATUS=$?
+  LOG="$(timeout "$limit" "$GODOT_BIN" --headless --path "$1" --script res://tests/run_checks.gd "${extra[@]}" 2>"$errfile")" || STATUS=$?
   judge "$STATUS" "$LOG" "$2" "$(<"$errfile")"
 }
 
@@ -252,7 +253,8 @@ $errors"; then script_error=1; fi
 baseline_full=0
 check_baseline() { # mode
   local out
-  execute "$SCRATCH/base" "$1"; out="$LOG"
+  # The unmodified project gets the full limit even for the quick run: it is checked once, and a short QUICK_TIMEOUT is for mutants.
+  execute "$SCRATCH/base" "$1" "" "$FULL_TIMEOUT"; out="$LOG"
   if [[ "$1" == quick && "$VERDICT" != PARTIAL ]] || [[ "$1" != quick && "$VERDICT" != SURVIVED ]]; then
     echo "baseline: unmodified project does NOT pass its checks ($1 run)"; echo "$out" | tail -20; tail -n 20 "$SCRATCH/stderr.log"; exit 1
   fi
