@@ -164,7 +164,14 @@ fi
 SCRATCH="$(mktemp -d)"; trap 'report_result; rm -rf "$SCRATCH"' EXIT
 export XDG_DATA_HOME="$SCRATCH/home/data" XDG_CONFIG_HOME="$SCRATCH/home/config" XDG_CACHE_HOME="$SCRATCH/home/cache"
 cp -a "$REPO/godot" "$SCRATCH/base"; rm -rf "$SCRATCH/base/.godot"
-"$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1
+# The import can abort in the engine (a core dump seen now and then on a busy machine, with nothing wrong in the project):
+# it is retried, and the run only goes on once the global class cache it writes exists.
+for import_attempt in 1 2 3; do
+  "$GODOT_BIN" --headless --path "$SCRATCH/base" --import >/dev/null 2>&1 || true
+  [[ -s "$SCRATCH/base/.godot/global_script_class_cache.cfg" ]] && break
+  echo "import attempt $import_attempt did not finish; retrying" >&2
+done
+[[ -s "$SCRATCH/base/.godot/global_script_class_cache.cfg" ]] || { echo "the project could not be imported in three attempts" >&2; exit 1; }
 
 QUICK_TIMEOUT="${QUICK_TIMEOUT:-60}" FULL_TIMEOUT="${FULL_TIMEOUT:-240}"
 [[ "$QUICK_TIMEOUT" =~ ^[1-9][0-9]*$ && "$FULL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "QUICK_TIMEOUT and FULL_TIMEOUT must be positive integers" >&2; exit 2; }
