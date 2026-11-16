@@ -55,3 +55,51 @@ static func requested_encounter() -> String:
 		if query is String:
 			return query as String
 	return ""
+
+
+## Issue #20. `--touch` / `?touch=1` shows the touch controls even where no touchscreen is reported (a desktop playtest of the
+## touch UI); `--touch=0` / `?touch=0` hides them where one is.
+const TOUCH_ARGUMENT: String = "--touch"
+const TOUCH_QUERY: String = "touch"
+## `--safe=top,right,bottom,left` / `?safe=...` (CSS-style pixels) stands in for the browser's safe-area insets, so a notch can be tried on any screen.
+const SAFE_ARGUMENT_PREFIX: String = "--safe="
+const SAFE_QUERY: String = "safe"
+
+
+## "1" or "0" when the player asked for the touch controls on or off, "" for the platform's own answer.
+static func requested_touch() -> String:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument == TOUCH_ARGUMENT:
+			return "1"
+		if argument.begins_with(TOUCH_ARGUMENT + "="):
+			return argument.trim_prefix(TOUCH_ARGUMENT + "=")
+	if OS.has_feature("web"):
+		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % TOUCH_QUERY)
+		if query is String:
+			return query as String
+	return ""
+
+
+## The requested stand-in safe-area insets as (top, right, bottom, left), or an empty array.
+static func requested_safe_insets() -> PackedFloat32Array:
+	var raw: String = ""
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with(SAFE_ARGUMENT_PREFIX):
+			raw = argument.trim_prefix(SAFE_ARGUMENT_PREFIX)
+	if raw.is_empty() and OS.has_feature("web"):
+		var query: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('%s')" % SAFE_QUERY)
+		if query is String:
+			raw = query as String
+	return parse_insets(raw)
+
+
+static func parse_insets(raw: String) -> PackedFloat32Array:
+	var parts: PackedStringArray = raw.split(",")
+	var values: PackedFloat32Array = PackedFloat32Array()
+	if parts.size() != 4:
+		return values
+	for part: String in parts:
+		if not part.strip_edges().is_valid_float():
+			return PackedFloat32Array()
+		values.append(maxf(part.strip_edges().to_float(), 0.0))
+	return values

@@ -11,7 +11,9 @@ extends RefCounted
 ## the ultimate first and the restart after it, and the run refuses whichever does
 ## not apply (an ultimate once dead, a restart while alive or before the delay). A left or right
 ## mouse click commands Converge at the cursor's world point, and Tab or G shows or hides the
-## attack ranges. A mouse click the engine made up from a touch (the touch UI's, issue #20) is not a Converge.
+## attack ranges. A mouse click the engine made up from a touch is not a Converge: touch has its own path (issue #20, `TouchPointers`):
+## a finger landing on the arena commands Converge at the tapped world point, the joystick and the buttons take the rest, and every
+## finger is tracked by its index alone.
 
 const MOVE_LEFT: Array[Key] = [KEY_A, KEY_LEFT]
 const MOVE_RIGHT: Array[Key] = [KEY_D, KEY_RIGHT]
@@ -34,6 +36,8 @@ const SHOVE_KEYS: Array[Key] = [KEY_F]
 const ENCOUNTER_KEYS: Array[Key] = [KEY_C]
 
 var joystick: TouchJoystick = TouchJoystick.new()
+## Every finger on the screen, each with one owner (issue #20): the joystick, a button, or the arena it taps Converge into.
+var touch: TouchPointers
 ## Where the mouse cursor last was, in viewport coordinates. Mouse aiming only; a
 ## touch UI (issue #20) aims through `GameCommand.ultimate_at_nearest`.
 var pointer: Vector2 = Vector2.ZERO
@@ -41,6 +45,11 @@ var pointer: Vector2 = Vector2.ZERO
 ## without it the viewport point is used as is.
 var to_world: Callable = Callable()
 var _held: Dictionary = {}
+
+
+func _init() -> void:
+	touch = TouchPointers.new(joystick)
+	touch.to_world = _world_point
 
 
 ## Feeds one raw event. Returns the discrete commands it produced.
@@ -78,6 +87,8 @@ func handle_event(event: InputEvent) -> Array[GameCommand]:
 				commands.append(GameCommand.toggle_encounter())
 		else:
 			_held.erase(code)
+	elif event is InputEventScreenTouch or event is InputEventScreenDrag:
+		commands.append_array(touch.handle_event(event))
 	else:
 		joystick.handle_event(event)
 	return commands
@@ -107,7 +118,13 @@ func move_axis() -> Vector2:
 ## a device context). Nothing may stay stuck afterwards.
 func release_all() -> void:
 	_held.clear()
-	joystick.release()
+	touch.release_all()
+
+
+func _world_point(viewport_point: Vector2) -> Vector2:
+	if to_world.is_valid():
+		return to_world.call(viewport_point)
+	return viewport_point
 
 
 func _any_held(codes: Array[Key]) -> bool:
