@@ -1,0 +1,103 @@
+{
+  "build": "log: Build configuration: Emscripten 4.0.20, single-threaded, no GDExtension support.",
+  "beforeGesture": {
+    "contexts": [
+      {
+        "state": "running",
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.048,
+        "sampleRate": 48000,
+        "currentTime": 3.498666666666667
+      }
+    ],
+    "starts": 0,
+    "states": [
+      {
+        "at": 1398.7000000029802,
+        "state": "running"
+      },
+      {
+        "at": 2898.7000000029802,
+        "state": "running",
+        "currentTime": 1.4506666666666668
+      }
+    ],
+    "workletMessages": 143
+  },
+  "afterFirstClick": {
+    "contexts": [
+      {
+        "state": "running",
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.048,
+        "sampleRate": 48000,
+        "currentTime": 5.802666666666667
+      }
+    ],
+    "starts": 6,
+    "states": [
+      {
+        "at": 1398.7000000029802,
+        "state": "running"
+      },
+      {
+        "at": 2898.7000000029802,
+        "state": "running",
+        "currentTime": 1.4506666666666668
+      }
+    ],
+    "workletMessages": 360
+  },
+  "afterFight": {
+    "contexts": [
+      {
+        "state": "running",
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.04,
+        "sampleRate": 48000,
+        "currentTime": 71.25333333333333
+      }
+    ],
+    "starts": 360,
+    "states": [
+      {
+        "at": 1398.7000000029802,
+        "state": "running"
+      },
+      {
+        "at": 2898.7000000029802,
+        "state": "running",
+        "currentTime": 1.4506666666666668
+      }
+    ],
+    "workletMessages": 3814
+  },
+  "afterRestart": {
+    "contexts": [
+      {
+        "state": "running",
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.048,
+        "sampleRate": 48000,
+        "currentTime": 208.71466666666666
+      }
+    ],
+    "starts": 509,
+    "states": [
+      {
+        "at": 1398.7000000029802,
+        "state": "running"
+      },
+      {
+        "at": 2898.7000000029802,
+        "state": "running",
+        "currentTime": 1.4506666666666668
+      }
+    ],
+    "workletMessages": 22475
+  },
+  "soundsStarted": 509,
+  "startedBeforeFirstClick": 0,
+  "firstStartContextTime": 5.088,
+  "consoleErrors": []
+}

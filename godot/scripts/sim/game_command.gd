@@ -3,7 +3,7 @@ extends RefCounted
 ## One gameplay command. Keyboard and touch input both translate into these;
 ## automated checks submit the very same commands.
 
-enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE, CONVERGE, TOGGLE_RANGES, SWAP }
+enum Kind { MOVE, PAUSE, RESUME, TOGGLE_PAUSE, DASH, RESTART, RESTART_FROM_KEY, DEV_SHOVE, TOGGLE_ENCOUNTER, ULTIMATE, CONVERGE, TOGGLE_RANGES, SWAP, TOGGLE_HELP }
 
 var kind: Kind = Kind.MOVE
 ## Only meaningful for MOVE. Magnitude is clamped to 1 by the run.
@@ -93,6 +93,11 @@ static func converge_at_nearest() -> GameCommand:
 ## while paused or dead, as in the prototype.
 static func toggle_ranges() -> GameCommand:
 	return _of(Kind.TOGGLE_RANGES)
+
+
+## Shows or hides the help overlay (H). Ignored while paused or dead, as in the prototype.
+static func toggle_help() -> GameCommand:
+	return _of(Kind.TOGGLE_HELP)
 
 
 ## Swaps the nearest pickup within reach into sword slot `slot_value` (keys 1 / 2 / 3 are slots 0 / 1 / 2). Refused
