@@ -475,7 +475,7 @@ Procedure for a slice (what an implementer does, and what CI does):
    mutations: `ONLY=name,name tools/godot/mutation-check.sh`. Do not repeat the
    whole section for each fix.
 3. **Do not run the full pass yourself.** The pull request's *Mutation gate* job (`mutation-gate.yml`) is the full
-   pass: every mutation of the list in the fast mode, split over 8 shards, in about `@WALL@` of wall time. It runs on
+   pass: every mutation of the list in the fast mode, split over 8 shards, in about 7 minutes of wall time (measured: 7 min on the pull request that introduced it). It runs on
    every pull request that touches `godot/`, `tools/godot/`, `tools/reference/` or a mutation workflow, and on every
    push to `main`, and it is **blocking**: its *all shards* job fails unless every shard ran and recorded exit status 0,
    the shards together covered the whole list (the summary derives the expected share of each shard from the list itself:
