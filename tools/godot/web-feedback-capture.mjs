@@ -105,7 +105,8 @@ await send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
 await send("Runtime.enable");
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-await send("Page.navigate", { url: base });
+const visuals = process.env.VISUALS ? `?visuals=${process.env.VISUALS}` : ""; // e.g. VISUALS=textured
+await send("Page.navigate", { url: `${base}${visuals}` });
 for (let i = 0; i < 600 && !consoleLines.some((l) => l.includes("Build configuration")); i++) await sleep(50);
 await sleep(3000);
 
