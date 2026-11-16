@@ -256,6 +256,10 @@ run_godot() { # logname timeout code description args...   (expected outputs: ST
   STEP_OUTPUTS=(); STEP_DIR=""
 }
 
+# ---------------------------------------------------------------- baked sounds
+log "Checking the baked sounds against their recipe"
+python3 -I "$TOOLS_SRC/check_audio_recipe.py" || die 15 "godot/audio does not match tools/godot/gen_audio.py (regenerate with: python3 -I tools/godot/gen_audio.py)"
+
 # ---------------------------------------------------------------- import + checks
 STEP_OUTPUTS=("$STAGE/project/.godot/global_script_class_cache.cfg")
 run_godot import 300 14 "Importing assets" --headless --path "$STAGE/project" --import

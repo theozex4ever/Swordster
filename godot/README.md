@@ -24,7 +24,8 @@ and keeps working. Reference values, tolerances and deliberate exceptions:
 [Pike and Skewer](../docs/reference/pike-skewer.md) (#14) and
 [Colossus and Cataclysm](../docs/reference/colossus-cataclysm.md) (#15) and
 [drops and swaps](../docs/reference/drops-swaps.md) (#17) and
-[waves and the normal run](../docs/reference/waves.md) (#18).
+[waves and the normal run](../docs/reference/waves.md) (#18) and
+[combat feedback, sound and the desktop HUD](../docs/reference/feedback-sound-hud.md) (#19).
 
 ### Viper Flurry (Q / E / R)
 
@@ -140,6 +141,15 @@ they carry get better with the wave: Mythic below `min(25 %, 2 % + 2 % w)`, Rare
 better). The wave line shows the wave, your kills and, from three in a row, the chain; a chain of 10, 25, 50 and 100 is announced
 over you; healing motes (three a kill, half a point each) are the only healing. There is no end: a run is only lost (**R** restarts).
 Fixtures and the other dev encounters are unchanged.
+
+### Feedback, sound and the HUD
+
+Slice #19 ([reference](../docs/reference/feedback-sound-hud.md)). **H** shows or hides the help overlay (it also shows for the first
+14 s of a run); a chain of three or more kills shows as a large **x{chain}** at the top right that fades with the 2.6 s window; each sword
+card carries a bar for the sword's own attack as well as its ultimate, and the dash has a bar. Blows spark in their sword's colour, kills
+burst, the floor cracks under a Colossus, swords drag ribbons and the screen flashes red when you are hit. The prototype's fourteen
+sounds are baked into `godot/audio` by `python3 -I tools/godot/gen_audio.py` (reproducible: `tools/godot/check_audio_recipe.py` is part of
+`build-godot.sh`) and play where the prototype plays them; browsers unlock audio on the first click, tap or key.
 
 ### The crowd encounter
 

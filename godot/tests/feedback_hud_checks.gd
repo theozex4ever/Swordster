@@ -234,12 +234,13 @@ func _check_sound_sites() -> void:
 	main._sfx.played.clear()
 	main._sfx._last_ms.clear()
 	main._sfx.play("thud")
+	main._sfx._last_ms["thud"] = Time.get_ticks_msec() - 20
 	main._sfx.play("thud")
 	main._sfx.play("pop")
-	_ok("the same sound is not restarted within 40 ms of itself, a different one is (%s)" % [main._sfx.played], main._sfx.played == ["thud", "pop"])
-	OS.delay_msec(60)
+	_ok("the same sound is not restarted 20 ms after itself, a different one is (%s)" % [main._sfx.played], main._sfx.played == ["thud", "pop"])
+	main._sfx._last_ms["thud"] = Time.get_ticks_msec() - 60
 	main._sfx.play("thud")
-	_ok("and it plays again once the gap has passed (%s)" % [main._sfx.played], main._sfx.played == ["thud", "pop", "thud"])
+	_ok("and it plays again once 40 ms have passed (%s)" % [main._sfx.played], main._sfx.played == ["thud", "pop", "thud"])
 	var polyphonic: bool = true
 	for sound: String in SfxBank.SOUNDS:
 		polyphonic = polyphonic and (main._sfx._players[sound] as AudioStreamPlayer).max_polyphony >= 4
