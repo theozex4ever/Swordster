@@ -991,6 +991,11 @@ func _check_fixtures_unchanged() -> void:
 		plain.step()
 		bound += 1
 	_ok("an unarmed fixture's banner has no second line about armed foes ('%s', '%s'): that line belongs to the armed normal run" % [plain.banner_title, plain.banner_sub], plain.banner_title == "WAVE 1" and plain.banner_sub.is_empty())
+	var cleared: GameRun = GameRun.new(RunScenario.fang_fixture())
+	cleared.director.wave = 1
+	cleared.director.in_wave = true
+	cleared.director.update(cleared, GameRun.TICK_DT)
+	_ok("and its cleared banner has none either ('%s', '%s')" % [cleared.banner_title, cleared.banner_sub], cleared.banner_title == "WAVE CLEARED" and cleared.banner_sub.is_empty())
 	_ok("a fixture's single wave composition is still its own (the crowd's 12: %d queued, kinds %s)" % [survived.director.queue.size(), _kinds_in(survived.director.queue.slice(0, 3))], survived.director.queue.size() == 12 and survived.director.queue.has(EnemyDefs.BRUTE) and survived.director.queue.has(EnemyDefs.RUNNER))
 
 
