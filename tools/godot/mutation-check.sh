@@ -329,8 +329,8 @@ mutate restart-keeps-enemies scripts/sim/game_run.gd "	enemies = []
 	for at: Vector2 in scenario.initial_husks:"
 mutate camera-no-lookahead  scripts/sim/game_run.gd  "CAMERA_LOOKAHEAD: float = 0.12" "CAMERA_LOOKAHEAD: float = 0.0"
 mutate telegraph-shortened  scripts/sim/spawn_marker.gd "TELEGRAPH: float = 0.7" "TELEGRAPH: float = 0.1"
-mutate wave-never-clears    scripts/sim/wave_director.gd "		if wave >= _wave_count:
-			survived = true" "		if wave >= _wave_count:
+mutate wave-never-clears    scripts/sim/wave_director.gd "		if _wave_count > 0 and wave >= _wave_count:
+			survived = true" "		if _wave_count > 0 and wave >= _wave_count:
 			survived = false"
 mutate dash-key-lost        scripts/input/input_translator.gd "[KEY_SPACE, KEY_SHIFT]" "[KEY_SPACE]"
 mutate r-key-always-restarts scripts/input/input_translator.gd "commands.append(GameCommand.restart_from_key())" "commands.append(GameCommand.restart())"
@@ -425,7 +425,7 @@ mutate placement-velocity-dropped scripts/sim/game_run.gd "		enemy.velocity = pl
 mutate placement-health-dropped scripts/sim/game_run.gd "		if placement.hp >= 0.0:
 			enemy.hp = placement.hp" "		if false:
 			enemy.hp = placement.hp"
-mutate composition-ignored  scripts/sim/wave_director.gd "		queue.append_array(_wave_kinds)" "		queue.append_array([])"
+mutate composition-ignored  scripts/sim/wave_director.gd "			fixed_kinds.append_array(_wave_kinds)" "			fixed_kinds.append_array([])"
 mutate spawn-always-husk    scripts/sim/wave_director.gd "EnemyState.make(marker.kind, marker.position," "EnemyState.make(EnemyDefs.HUSK, marker.position,"
 mutate spawn-phase-fixed    scripts/sim/wave_director.gd "var phase: float = run.rng.randf_range(0.0, 10.0)" "var phase: float = 0.0"
 mutate marker-kind-lost     scripts/sim/wave_director.gd "markers.append(SpawnMarker.make(kind, _spawn_point(run), carried))" "markers.append(SpawnMarker.make(EnemyDefs.HUSK, _spawn_point(run), carried))"
@@ -1859,10 +1859,10 @@ mutate placement-armed-method-lost             scripts/sim/enemy_placement.gd "f
 	armed = null"
 mutate marker-armed-lost                       scripts/sim/spawn_marker.gd "	marker.armed = armed_spec
 " ""
-mutate wave-arming-always-off                  scripts/sim/wave_director.gd "queue_armed.append(LootDefs.roll_armed(run.rng, queue[index], wave, index) if _arm_waves else null)" "queue_armed.append(null)"
+mutate wave-arming-always-off                  scripts/sim/wave_director.gd "queue_armed.append(LootDefs.roll_armed(run.rng, kind, wave, index) if _arm_waves else null)" "queue_armed.append(null)"
 mutate wave-arming-on-by-default               scripts/sim/wave_director.gd "wave, index) if _arm_waves else null)" "wave, index) if not _arm_waves else null)"
-mutate wave-arming-index-shifted               scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, queue[index], wave, index + 1)"
-mutate wave-arming-kind-lost                   scripts/sim/wave_director.gd "roll_armed(run.rng, queue[index], wave, index)" "roll_armed(run.rng, EnemyDefs.HUSK, wave, index)"
+mutate wave-arming-index-shifted               scripts/sim/wave_director.gd "roll_armed(run.rng, kind, wave, index)" "roll_armed(run.rng, kind, wave, index + 1)"
+mutate wave-arming-kind-lost                   scripts/sim/wave_director.gd "roll_armed(run.rng, kind, wave, index)" "roll_armed(run.rng, EnemyDefs.HUSK, wave, index)"
 mutate wave-queue-sword-dropped                scripts/sim/wave_director.gd "var carried: SwordSpec = queue_armed.pop_front()" "var carried: SwordSpec = null"
 mutate wave-marker-sword-dropped               scripts/sim/wave_director.gd "SpawnMarker.make(kind, _spawn_point(run), carried)" "SpawnMarker.make(kind, _spawn_point(run))"
 mutate wave-enemy-sword-dropped                scripts/sim/wave_director.gd "run.next_serial(), phase, cooldown, marker.armed)" "run.next_serial(), phase, cooldown)"
@@ -1934,8 +1934,10 @@ mutate drops-encounter-not-in-cycle            scripts/sim/run_scenario.gd "ENCO
 mutate drops-encounter-title                   scripts/sim/run_scenario.gd "		ENCOUNTER_DROPS:
 			return \"Drops\"" "		ENCOUNTER_DROPS:
 			return \"Drop\""
-mutate drops-encounter-wave-unarmed            scripts/sim/run_scenario.gd "	scenario.arm_waves = true
-" ""
+mutate drops-encounter-wave-unarmed            scripts/sim/run_scenario.gd "	scenario.loadout = drops_fixture_loadout()
+	scenario.arm_waves = true
+" "	scenario.loadout = drops_fixture_loadout()
+"
 mutate arming-on-in-every-run                  scripts/sim/run_scenario.gd "var arm_waves: bool = false" "var arm_waves: bool = true"
 mutate drops-encounter-foes-unarmed            scripts/sim/run_scenario.gd ".armed_with(spec))" ")"
 mutate drops-encounter-all-common              scripts/sim/run_scenario.gd "int(float(i) / 4.0)" "0"
