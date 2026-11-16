@@ -157,7 +157,7 @@ PY
   # Which changes skip the expensive work.
   paths_is() { # name want file...
     local name="$1" want="$2"; shift 2
-    local got; got="$(printf '%s\n' "$@" | "$REPO/tools/godot/mutation-gate-paths.sh")"
+    local got; got="$(printf '%s\n' "$@" | bash "$REPO/tools/godot/mutation-gate-paths.sh")"
     if [[ "$got" == "docs_only=$want" ]]; then report "gate paths: $name" PASS; else report "gate paths: $name" "got '$got', wanted docs_only=$want"; fi
   }
   paths_is "documentation and root Markdown only skip" true docs/reference/waves.md docs/reference/waves/shot.png GLOSSARY.md AGENTS.md .github/ISSUE_TEMPLATE/bug.md .github/CONTRIBUTING.md LICENSE

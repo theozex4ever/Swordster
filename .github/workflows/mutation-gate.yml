@@ -59,7 +59,7 @@ jobs:
           # names); if that fails the list is empty, which the script treats as "not docs-only".
           if [[ "$EVENT" == pull_request ]]; then
             files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)' || true)"
-            printf '%s\n' "$files" | tools/godot/mutation-gate-paths.sh | tee -a "$GITHUB_OUTPUT"
+            printf '%s\n' "$files" | bash tools/godot/mutation-gate-paths.sh | tee -a "$GITHUB_OUTPUT"
           else
             echo "docs_only=false" | tee -a "$GITHUB_OUTPUT"
           fi
